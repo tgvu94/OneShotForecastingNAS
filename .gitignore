@@ -133,3 +133,12 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+results/
+logs/
+wandb/
+experiments/outputs/
+experiments/multirun/
+__pycache__/
+*.pyc
+!results/archs.jsonl
+!results/FROZEN.md

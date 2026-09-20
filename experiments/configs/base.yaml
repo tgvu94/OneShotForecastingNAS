@@ -1,7 +1,7 @@
 seed: 3
 
 benchmark:
-  dataset_root: ??? # Update this to the path to your own repository
+  dataset_root: /home/adamvu/scratch/all_datasets
   type: ???
   name: ???
   search_dataset_name: ???
