@@ -83,6 +83,70 @@ def week1(args) -> bool:
     return bool(good)
 
 
+def week2(args) -> bool:
+    """All 13 proxies on >= 5 archs: finite and not all equal; nwot hooked; 20-epoch schedule fits in 50 min."""
+    import statistics
+
+    from pilot.score_proxies import ORDER, PLAN_NAMES
+
+    good = True
+    archs = load_archs_safe(args.archs)
+    good &= _ok(len(archs) >= 5, f"{len(archs)} architectures in {args.archs} (need >= 5)")
+    archs = archs[:5]
+    seeds = [s.strip() for s in args.seeds.split(",")]
+    recs = {}
+    for rec in archs:
+        p = Path(args.proxies_dir) / f"{rec['arch_id']}.json"
+        good &= _ok(p.exists(), f"{rec['arch_id']}: proxy file exists")
+        if p.exists():
+            recs[rec["arch_id"]] = json.load(open(p))
+    if not recs:
+        return False
+    for plan_name, stored in PLAN_NAMES.items():
+        for name in stored:
+            vals = []
+            missing = []
+            for aid, r in recs.items():
+                for s in seeds:
+                    v = r.get("scores", {}).get(name, {}).get(s)
+                    if v is None or not math.isfinite(v):
+                        missing.append(f"{aid}:{s}={v}")
+                    else:
+                        vals.append(v)
+            means = []
+            for aid, r in recs.items():
+                vs = [r.get("scores", {}).get(name, {}).get(s) for s in seeds]
+                vs = [v for v in vs if v is not None and math.isfinite(v)]
+                if vs:
+                    means.append(statistics.mean(vs))
+            spread = statistics.pstdev(means) if len(means) > 1 else 0.0
+            err = next((r["errors"].get(name, {}).get("error", "")[:80] for r in recs.values() if name in r.get("errors", {})), "")
+            good &= _ok(not missing and spread > 0,
+                        f"{name:14s}: {len(vals)}/{len(recs) * len(seeds)} finite values, std over {len(means)} arch means = {spread:.4g}"
+                        + (f"  missing {missing[:3]}" if missing else "") + (f"  err: {err}" if err else ""))
+    for aid, r in recs.items():
+        for s in seeds:
+            nh = r.get("meta", {}).get("nwot", {}).get(s, {}).get("n_hooks")
+            good &= _ok(nh is not None and nh > 0, f"{aid} seed {s}: nwot n_hooks = {nh}")
+    # timing
+    tpath = Path(args.timing_csv)
+    good &= _ok(tpath.exists(), f"{tpath} exists")
+    if tpath.exists():
+        import csv as _csv
+        rows = [r for r in _csv.DictReader(open(tpath)) if r.get("status") == "done" and r.get("sec_per_epoch") not in ("", None)]
+        good &= _ok(len(rows) >= 1, f"{len(rows)} done runs in timing table")
+        if rows:
+            spe = max(float(r["sec_per_epoch"]) for r in rows)
+            mem = max(float(r["peak_mem_gb"] or 0) for r in rows)
+            good &= _ok(spe * 20 <= 50 * 60, f"slowest run {spe:.1f} s/epoch x 20 epochs = {spe * 20 / 60:.1f} min <= 50 min; peak mem {mem:.2f} GB")
+    return bool(good)
+
+
+def load_archs_safe(path):
+    from pilot.genotype import load_archs
+    return load_archs(path) if Path(path).exists() else []
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--week", type=int, required=True)
@@ -93,8 +157,10 @@ def main():
     ap.add_argument("--epochs", type=int, default=2)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--limit", type=int, default=1)
+    ap.add_argument("--seeds", default="0,1,2", help="week 2: init seeds expected in the proxy files")
+    ap.add_argument("--timing-csv", default="results/tables/timing_w2.csv")
     args = ap.parse_args()
-    checks = {1: week1}
+    checks = {1: week1, 2: week2}
     if args.week not in checks:
         raise SystemExit(f"no check for week {args.week}; have {sorted(checks)}")
     print(f"== pilot.check week {args.week}")

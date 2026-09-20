@@ -27,7 +27,7 @@ def parse_args(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--arch-id", required=True)
     ap.add_argument("--archs", default="results/archs.jsonl")
-    ap.add_argument("--epochs", type=int, default=20, help="max epochs")
+    ap.add_argument("--epochs", "--max-epochs", dest="epochs", type=int, default=20, help="max epochs")
     ap.add_argument("--patience", type=int, default=5, help="early-stopping patience on val_mae")
     ap.add_argument("--min-epochs", type=int, default=8)
     ap.add_argument("--seed", type=int, default=0)
@@ -185,11 +185,16 @@ def main(argv=None) -> int:
                "val_mse": float(val_res["MSE loss"]), "val_mae": float(val_res["MAE loss"]),
                "test_mse": float(test_res["MSE loss"]), "test_mae": float(test_res["MAE loss"]),
                "lr": float(optimizer.param_groups[0]["lr"]), "seconds": round(seconds, 1),
-               "peak_mem_gb": round(torch.cuda.max_memory_allocated(device) / 1e9, 3)}
+               "peak_mem_gb": round(torch.cuda.max_memory_allocated(device) / 1e9, 3),
+               "wall": _dt.datetime.now().isoformat(timespec="seconds")}
         history.append(row)
         new_file = not log_path.exists()
+        fieldnames = list(row)
+        if not new_file:  # keep the header of a file written by an older version (resume)
+            with open(log_path, newline="") as f:
+                fieldnames = next(csv.reader(f), fieldnames)
         with open(log_path, "a", newline="") as f:
-            w = csv.DictWriter(f, fieldnames=list(row))
+            w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
             if new_file:
                 w.writeheader()
             w.writerow(row)
