@@ -1,7 +1,7 @@
 """Sample N random genotypes -> append to results/archs.jsonl (append-only, de-duplicated by arch_id)
 and write results/archs/<arch_id>.json.  Re-running the same command is a no-op.
 
-W3: ``--space dartsts_graph_v1`` adds the graph cell (``--p-graph`` = probability that it is present,
+P3: ``--space dartsts_graph_v1`` adds the graph cell (``--p-graph`` = probability that it is present,
 ``--require-graph-op`` redraws until the cell has at least one non-identity graph op)."""
 from __future__ import annotations
 

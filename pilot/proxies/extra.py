@@ -78,7 +78,7 @@ def grad_group_all(net: nn.Module, x: torch.Tensor, target: torch.Tensor, loss_f
     return {"grad_norm_all": (float(gn), meta), "snip_all": (float(snip), meta), "plain_all": (float(plain), meta)}
 
 
-def grad_norm_all(net, x, target, loss_fn):  # W1 name, kept for compatibility
+def grad_norm_all(net, x, target, loss_fn):  # P1 name, kept for compatibility
     return grad_group_all(net, x, target, loss_fn)["grad_norm_all"]
 
 
@@ -283,4 +283,4 @@ REGISTRY = {
     "zen": ("x", zen),
     "zico": ("zico", zico),
 }
-ALIASES = {"grad_norm": "grad_norm_all"}  # W1 alias; W2's score_proxies maps the 13 plan names itself
+ALIASES = {"grad_norm": "grad_norm_all"}  # P1 alias; P2's score_proxies maps the 13 plan names itself

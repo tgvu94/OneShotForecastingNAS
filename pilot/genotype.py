@@ -1,6 +1,6 @@
 """Genotype = one discrete DARTS-TS architecture, JSON-serialisable, hashed to an ``arch_id``.
 
-The encoding mirrors ``tsf_oneshot.networks.sampled_net.MixedConcatSampledNet`` (verified W1, 2026-09-20):
+The encoding mirrors ``tsf_oneshot.networks.sampled_net.MixedConcatSampledNet`` (verified P1, 2026-09-20):
 
 * one flat edge list per cell type, in the k-order of ``SampledEncoderCell.__init__``::
 
@@ -23,7 +23,7 @@ Genotype schema::
      "seq":  {"encoder": [[i, j, op | null], ...], "decoder": [[i, j, op | null], ...],
               "decoder_type": "seq" | "linear"},
      "flat": {"cell": [[i, j, op | null], ...]},
-     "graph": {"cell": [[i, j, op | null], ...]} | null,   # W3: graph cell (ops in GRAPH_PRIMITIVES); null = graph-blind
+     "graph": {"cell": [[i, j, op | null], ...]} | null,   # P3: graph cell (ops in GRAPH_PRIMITIVES); null = graph-blind
      "head": "quantile" | "mse" | "mae",
      "hparams": {"d_model", "n_cells_seq", "n_nodes_seq", "n_cell_input_nodes_seq",
                  "n_cells_flat", "n_nodes_flat", "n_cell_input_nodes_flat", "nets_weights",
@@ -100,7 +100,7 @@ def load_space(space: str = SPACE_V1) -> dict:
     }
     if space == SPACE_GRAPH_V1:
         sp["graph"] = {"PRIMITIVES": list(GRAPH_PRIMITIVES), **GRAPH_HPARAMS}
-        sp["nets_weights_graph"] = [0.0, 0.0, 0.0]   # softmax -> 1/3 each, learnable (W3)
+        sp["nets_weights_graph"] = [0.0, 0.0, 0.0]   # softmax -> 1/3 each, learnable (P3)
     return sp
 
 

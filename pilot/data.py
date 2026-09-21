@@ -153,7 +153,7 @@ def _to_cpu_float(t):
 
 
 def save_probe_batch(benchmark: str, out: str | Path, batch_size: int = 32, n_batches: int = 4, seed: int = 0) -> dict:
-    """W1 / Section 3.3: seed 0, the repo's train loader (shuffle=True), first n_batches batches, preprocessed
+    """P1 / Section 3.3: seed 0, the repo's train loader (shuffle=True), first n_batches batches, preprocessed
     with the repo's TargetScaler, saved to CPU. Every proxy run loads this file, never a live loader."""
     from autoPyTorch.pipeline.components.setup.forecasting_target_scaling.utils import TargetScaler
 

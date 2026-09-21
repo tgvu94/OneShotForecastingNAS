@@ -1,7 +1,7 @@
 """Print one line per (arch, seed) training run from results/train/**/metrics.json + log.csv, plus a timing summary.
 
     python -m pilot.status                                   # table
-    python -m pilot.status --timing-csv results/tables/timing_w2.csv
+    python -m pilot.status --timing-csv results/tables/timing_p2.csv
 """
 from __future__ import annotations
 

@@ -1,11 +1,11 @@
 """Presents a DARTS-TS discrete net to zero-cost measures as ``f(x_past) -> (B, H, N)``.
 
-Verified W1: ``MixedConcatSampledNet.forward(x_past, x_future)``; ``x_past`` is (B, W, N+F) scaled past targets +
+Verified P1: ``MixedConcatSampledNet.forward(x_past, x_future)``; ``x_past`` is (B, W, N+F) scaled past targets +
 past time features, ``x_future`` is (B, H, F) future time features.  The return is a tensor for the mse/mae
 heads and a list of three tensors (quantiles 0.1, 0.9, 0.5) for the quantile head; ``get_inference_prediction``
 picks the median.  The training loss is ``head.loss(target, rescale_output(prediction, loc, scale))``.
 
-W2: the NASLib measures deep-copy the wrapper (``get_prunable_copy``) *before* calling it and receive ``loss_fn``
+P2: the NASLib measures deep-copy the wrapper (``get_prunable_copy``) *before* calling it and receive ``loss_fn``
 as a plain argument, so the loss cannot be a bound method of the copy.  Every wrapper forward (original or copy)
 therefore records its raw output in the module-level ``_LAST`` and :func:`loss_fn` reads it back.  Proxies run
 one after another, so "the last forward" is unambiguous.

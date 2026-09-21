@@ -121,7 +121,7 @@ def forward_concat_net(flat_net: nn.Module,
         return add_outputs(flat_out, seq_out, out_weights)
 
 
-# ---------------------------------------------------------------- pilot (W3): three-way combination with a graph net
+# ---------------------------------------------------------------- pilot (P3): three-way combination with a graph net
 def add_outputs_n(outputs: list, weights: torch.Tensor):
     """sum_i weights[i] * outputs[i]; an output that is a list (quantile head) is combined quantile by quantile,
     tensors are added to every quantile -- the same semantics as ``add_outputs`` with weights."""

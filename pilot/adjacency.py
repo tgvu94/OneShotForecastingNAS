@@ -1,4 +1,4 @@
-"""PEMS04 adjacency (Section 3.4 / W3): binary symmetric ``A`` from the distance list, GCN normalisation,
+"""PEMS04 adjacency (Section 3.4 / P3): binary symmetric ``A`` from the distance list, GCN normalisation,
 diffusion transition matrices, and degree-preserving permutations for Experiment B.
 
     python -m pilot.adjacency --distance-csv ~/scratch/all_datasets/PEMS/PEMS04.csv --out results/data/pems04_adj.npy \

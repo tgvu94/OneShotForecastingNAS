@@ -1,4 +1,4 @@
-"""AutoCTS fallback pre-check (W3, Section 1 fallback).  Runs *their* code from ``~/nas/AutoCTS`` on PEMS04:
+"""AutoCTS fallback pre-check (P3, Section 1 fallback).  Runs *their* code from ``~/nas/AutoCTS`` on PEMS04:
 one discrete cell from their operator list (random ops, their discretisation: 2 incoming edges per node, cells
 chained), 1 epoch with their loss / optimiser, then ``params, grad_norm_all, nwot`` on their first train batch.
 

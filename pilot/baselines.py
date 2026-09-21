@@ -1,6 +1,6 @@
 """Naive forecasting baselines on the repo's PEMS04-12 splits, in the same units the trainer reports (dataset-normalised
 targets): ``last``: repeat the last observed value over the horizon; ``mean``: predict the training mean (0 in z-units).
-Written once to results/tables/naive_baselines.json; ``pilot.check --week 4`` uses them to detect collapsed runs."""
+Written once to results/tables/naive_baselines.json; ``pilot.check --phase 4`` uses them to detect collapsed runs."""
 from __future__ import annotations
 
 import argparse

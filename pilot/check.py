@@ -1,4 +1,4 @@
-"""Weekly pass/fail checks.  ``python -m pilot.check --week 1``  -> prints PASS or FAIL, exit code 0/1."""
+"""Weekly pass/fail checks.  ``python -m pilot.check --phase 1``  -> prints PASS or FAIL, exit code 0/1."""
 from __future__ import annotations
 
 import argparse
@@ -15,7 +15,7 @@ def _ok(flag: bool, msg: str) -> bool:
     return flag
 
 
-def week1(args) -> bool:
+def phase1(args) -> bool:
     import torch
 
     from pilot.build_net import build_discrete_net
@@ -83,7 +83,7 @@ def week1(args) -> bool:
     return bool(good)
 
 
-def week2(args) -> bool:
+def phase2(args) -> bool:
     """All 13 proxies on >= 5 archs: finite and not all equal; nwot hooked; 20-epoch schedule fits in 50 min."""
     import statistics
 
@@ -142,7 +142,7 @@ def week2(args) -> bool:
     return bool(good)
 
 
-def week3(args) -> bool:
+def phase3(args) -> bool:
     """Graph Net family: adjacency sanity, op shapes + permutation sensitivity, a graph arch's forward/backward
     on the probe batch (< 12 GB), and one finite 1-epoch training.  ``--autocts`` checks the fallback gate."""
     import numpy as np
@@ -236,7 +236,7 @@ def week3(args) -> bool:
 
 
 def autocts_gate(path: Path) -> bool:
-    """Fallback gate (W3): finite 1-epoch loss, 20 epochs x 50 archs <= 30 GPU-h, three finite proxies, n_hooks > 0."""
+    """Fallback gate (P3): finite 1-epoch loss, 20 epochs x 50 archs <= 30 GPU-h, three finite proxies, n_hooks > 0."""
     good = _ok(path.exists(), f"{path} exists")
     if not path.exists():
         return False
@@ -256,8 +256,8 @@ def autocts_gate(path: Path) -> bool:
     return bool(good)
 
 
-def week4(args) -> bool:
-    """Gate (W4): best 20-epoch dev graph arch val_mae <= 1.10 x best W2 graph-blind val_mae; none diverged (NaN) or
+def phase4(args) -> bool:
+    """Gate (P4): best 20-epoch dev graph arch val_mae <= 1.10 x best P2 graph-blind val_mae; none diverged (NaN) or
     collapsed to a naive baseline.  With --frozen also checks the 50 frozen archs (distinct ids, strata counts)."""
     from collections import Counter
 
@@ -271,7 +271,7 @@ def week4(args) -> bool:
     naive_mean = naive["test"]["train_mean"]["mae"] if naive else float("nan")
     print(f"  naive test MAE: last value {naive_test:.4f}, train mean {naive_mean:.4f}")
 
-    # reference: best W2 graph-blind val_mae (seed 0) over the W2 archs
+    # reference: best P2 graph-blind val_mae (seed 0) over the P2 archs
     ref_archs = load_archs_safe(args.ref_archs)
     ref = []
     for r in ref_archs:
@@ -331,7 +331,7 @@ def load_archs_safe(path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--week", type=int, required=True)
+    ap.add_argument("--phase", type=int, required=True)
     ap.add_argument("--archs", default="results/archs.jsonl")
     ap.add_argument("--probe", default="results/data/pems04_probe_batch.pt")
     ap.add_argument("--proxies-dir", default="results/proxies/v1")
@@ -339,20 +339,20 @@ def main():
     ap.add_argument("--epochs", type=int, default=2)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--limit", type=int, default=1)
-    ap.add_argument("--seeds", default="0,1,2", help="week 2: init seeds expected in the proxy files")
-    ap.add_argument("--timing-csv", default="results/tables/timing_w2.csv")
+    ap.add_argument("--seeds", default="0,1,2", help="phase 2: init seeds expected in the proxy files")
+    ap.add_argument("--timing-csv", default="results/tables/timing_p2.csv")
     ap.add_argument("--adj", default="results/data/pems04_adj.npy")
-    ap.add_argument("--autocts", action="store_true", help="week 3: also check the AutoCTS fallback gate")
+    ap.add_argument("--autocts", action="store_true", help="phase 3: also check the AutoCTS fallback gate")
     ap.add_argument("--autocts-json", default="results/autocts_precheck.json")
     ap.add_argument("--baselines", default="results/tables/naive_baselines.json")
-    ap.add_argument("--ref-archs", default="results/archs_w2.jsonl", help="week 4: graph-blind reference archs (W2 five)")
-    ap.add_argument("--frozen", default=None, help="week 4: the frozen 50 (results/archs.jsonl) to validate")
+    ap.add_argument("--ref-archs", default="results/archs_p2.jsonl", help="phase 4: graph-blind reference archs (P2 five)")
+    ap.add_argument("--frozen", default=None, help="phase 4: the frozen 50 (results/archs.jsonl) to validate")
     args = ap.parse_args()
-    checks = {1: week1, 2: week2, 3: week3, 4: week4}
-    if args.week not in checks:
-        raise SystemExit(f"no check for week {args.week}; have {sorted(checks)}")
-    print(f"== pilot.check week {args.week}")
-    ok = checks[args.week](args)
+    checks = {1: phase1, 2: phase2, 3: phase3, 4: phase4}
+    if args.phase not in checks:
+        raise SystemExit(f"no check for phase {args.phase}; have {sorted(checks)}")
+    print(f"== pilot.check phase {args.phase}")
+    ok = checks[args.phase](args)
     print("PASS" if ok else "FAIL")
     sys.exit(0 if ok else 1)
 

@@ -2,7 +2,7 @@
 
 Mirrors the ``mixed_concat`` branch of ``experiments/test_evaluated_model.py`` line for line, so the discrete
 net the pilot trains is the one the repo's own paper trained; only the operator choices come from the genotype
-instead of from ``opt_arch_weights.pth``.  A genotype with a non-null ``graph`` cell gets the W3 graph net as a
+instead of from ``opt_arch_weights.pth``.  A genotype with a non-null ``graph`` cell gets the P3 graph net as a
 third forecaster, built on the PEMS04 adjacency from ``results/data/pems04_adj.npy``.
 """
 from __future__ import annotations
