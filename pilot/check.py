@@ -508,6 +508,34 @@ def phase9(args) -> bool:
     return bool(good)
 
 
+def phase10(args) -> bool:
+    """Buffer: 50/50 seed-0 done, 0 proxy / spatial errors, RESULTS.md exists and cites every table file by path, final tarball."""
+    import re
+
+    good = True
+    archs = load_archs_safe(args.archs)
+    done = sum(1 for r in archs if (Path(args.train_dir) / r["arch_id"] / "seed0" / "metrics.json").exists()
+               and json.load(open(Path(args.train_dir) / r["arch_id"] / "seed0" / "metrics.json")).get("status") == "done")
+    good &= _ok(done == 50, f"{done}/50 seed-0 trainings done")
+    n_err = sum(len(json.load(open(Path(args.proxies_dir) / f"{r['arch_id']}.json")).get("errors", {})) for r in archs)
+    n_serr = sum(len(json.load(open(Path(args.spatial_dir) / f"{r['arch_id']}.json")).get("errors", {})) for r in archs)
+    good &= _ok(n_err == 0 and n_serr == 0, f"proxy errors {n_err}, spatial errors {n_serr}")
+    res = Path("results/RESULTS.md")
+    good &= _ok(res.exists(), "results/RESULTS.md exists")
+    if res.exists():
+        txt = res.read_text()
+        tables = sorted(p.name for p in Path(args.tables_dir).glob("table_*.md")) + ["ci_summary.md", "table_A_partial.md", "joined.csv"]
+        missing = [t for t in sorted(set(tables)) if t not in txt]
+        good &= _ok(not missing, f"RESULTS.md cites every table file ({len(set(tables))}); missing {missing}")
+        figs = sorted(p.name for p in Path(args.figs_dir).glob("*.png"))
+        good &= _ok(all(f in txt for f in figs), f"RESULTS.md cites every figure ({len(figs)})")
+        words = len(re.findall(r"\w+", txt))
+        good &= _ok(500 <= words <= 1200, f"RESULTS.md is about one page ({words} words)")
+    tars = sorted(Path.home().glob("nas/backups/results-final*.tgz")) + sorted(Path.home().glob("scratch/backups/results-final*.tgz"))
+    good &= _ok(len(tars) >= 2, f"final tarball in two locations: {[str(t) for t in tars]}")
+    return bool(good)
+
+
 def load_archs_safe(path):
     from pilot.genotype import load_archs
     return load_archs(path) if Path(path).exists() else []
@@ -536,7 +564,7 @@ def main():
     ap.add_argument("--tables-dir", default="results/tables")
     ap.add_argument("--figs-dir", default="results/figs")
     args = ap.parse_args()
-    checks = {1: phase1, 2: phase2, 3: phase3, 4: phase4, 6: phase6, 7: phase7, 8: phase8, 9: phase9}
+    checks = {1: phase1, 2: phase2, 3: phase3, 4: phase4, 6: phase6, 7: phase7, 8: phase8, 9: phase9, 10: phase10}
     if args.phase not in checks:
         raise SystemExit(f"no check for phase {args.phase}; have {sorted(checks)}")
     print(f"== pilot.check phase {args.phase}")

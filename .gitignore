@@ -154,3 +154,4 @@ results/tables/*
 !results/figs/
 results/figs/*
 !results/figs/*.png
+!results/RESULTS.md
