@@ -17,3 +17,9 @@ Frozen on 2026-09-20 (Phase 4 gate passed: best dev graph arch val MAE 0.1688 <=
 ## TFAS (Phase 7 probe, 2026-09-21)
 
 - tfas: not applicable — TFAS not usable as a distinct proxy: its score is ZiCo on Conv/Linear/Conv1d weights; the time-frequency awareness is an input augmentation (STL residual, |FFT|, Haar DWT) implemented only by its own TimesNet-family backbones. Composite temporal term = base proxy. Degenerate value stored as tfas_zico_cl. (TFAS commit `fd9150d`)
+
+## Archive (Phase 12, 2026-09-21)
+
+- Final results archive: `~/nas/backups/results-final.tgz` and `~/scratch/backups/results-final.tgz` (820 MB, sha1 800ebe661db4), made at fork commit `b802e16` (`b802e16` = P10).
+- Everything except checkpoints and raw per-run JSONs is also in git on `tgvu94/OneShotForecastingNAS:graph-ops`: `results/{archs.jsonl,archs_p2.jsonl,archs_dev.jsonl,FROZEN.md,RESULTS.md,autocts_precheck.*,tables/*.md,tables/*.csv,figs/*.png}`.
+- Phase checks 1-10 all PASS at this commit (`python -m pilot.check --phase N`).
