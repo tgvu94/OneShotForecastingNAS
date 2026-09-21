@@ -119,3 +119,39 @@ def forward_concat_net(flat_net: nn.Module,
         return add_outputs(forecast_flat_out, seq_out, out_weights)
     else:
         return add_outputs(flat_out, seq_out, out_weights)
+
+
+# ---------------------------------------------------------------- pilot (W3): three-way combination with a graph net
+def add_outputs_n(outputs: list, weights: torch.Tensor):
+    """sum_i weights[i] * outputs[i]; an output that is a list (quantile head) is combined quantile by quantile,
+    tensors are added to every quantile -- the same semantics as ``add_outputs`` with weights."""
+    assert len(outputs) == len(weights)
+    lists = [o for o in outputs if isinstance(o, (list, tuple))]
+    if not lists:
+        return sum(w * o for w, o in zip(weights, outputs))
+    n_q = len(lists[0])
+    assert all(len(o) == n_q for o in lists)
+    return [sum(w * (o[q] if isinstance(o, (list, tuple)) else o) for w, o in zip(weights, outputs)) for q in range(n_q)]
+
+
+def forward_concat_graph_net(flat_net: nn.Module,
+                             seq_net: nn.Module,
+                             graph_net: nn.Module,
+                             x_past: torch.Tensor,
+                             x_future: torch.Tensor,
+                             decompose,
+                             out_weights: torch.Tensor):
+    """``forward_concat_net`` (forecast-only branch) plus a third forecaster on the raw window."""
+    flat_out = flat_net(x_past, x_future, forward_only_with_net=True)
+    backcast_flat_out, forecast_flat_out = flat_out
+    n_vars = backcast_flat_out.shape[-1]
+    x_past_seq = decompose_input_variables(x_past, n_vars, decompose)
+    seasonal_future, trend_future = decompose(forecast_flat_out)
+    x_future_seq = [
+        torch.cat([trend_future, x_future], dim=-1),
+        torch.cat([seasonal_future, x_future], dim=-1)
+    ]
+    seq_out = seq_net(x_past_seq, x_future_seq)
+    assert seq_net.forecast_only
+    graph_out = graph_net(x_past, x_future)
+    return add_outputs_n([forecast_flat_out, seq_out, graph_out], out_weights)

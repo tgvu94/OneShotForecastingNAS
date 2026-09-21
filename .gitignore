@@ -142,3 +142,6 @@ __pycache__/
 *.pyc
 !results/archs.jsonl
 !results/FROZEN.md
+!results/archs_dev.jsonl
+!results/autocts_precheck.md
+!results/autocts_precheck.json

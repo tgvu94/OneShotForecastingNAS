@@ -1,0 +1,285 @@
+{
+  "autocts_commit": "ef9a40cbcecdc0c055b6b5b6f667e6a21e53772b",
+  "torch": "2.14.0",
+  "gpu": "NVIDIA H100 80GB HBM3 MIG 3g.40gb",
+  "date": "2026-09-20T21:03:57",
+  "args": {
+    "autocts": "/home/adamvu/nas/AutoCTS",
+    "data": "/home/adamvu/scratch/all_datasets/PEMS",
+    "epochs": 1,
+    "batch_size": 64,
+    "seed": 0,
+    "layers": 4,
+    "steps": 4,
+    "hid_dim": 32,
+    "out": "results/autocts_precheck",
+    "our_adj": "results/data/pems04_adj.npy"
+  },
+  "primitives": [
+    "none",
+    "skip_connect",
+    "dcc_2",
+    "trans",
+    "s_trans",
+    "diff_gcn"
+  ],
+  "ops_registry": [
+    "dcc_2",
+    "diff_gcn",
+    "none",
+    "s_trans",
+    "skip_connect",
+    "trans"
+  ],
+  "cell": {
+    "layers": 4,
+    "steps(nodes)": 4,
+    "edges_per_cell": 10,
+    "kept_edges_per_node_in_genotype": 2,
+    "hid_dim": 32,
+    "partial_channel_k": 4,
+    "note": "MixedOp operates on C/k = hid_dim/4 channels (PC-DARTS partial channels); DARTS-style DAG, node i sums its incoming edges, cell output = last node; cells chained; skip-sum of all cell outputs -> 2 linear layers"
+  },
+  "adjacency": {
+    "source": "PEMS04.csv via utils.get_adj_matrix(type_='connectivity')",
+    "shape": [
+      307,
+      307
+    ],
+    "n_undirected_edges": 340,
+    "symmetric": true,
+    "diff_gcn_supports": "asym_adj(A), asym_adj(A^T) (row-normalised random walks) + adaptive softmax(relu(E1 E2))",
+    "equals_pilot_pems04_adj": true
+  },
+  "data": {
+    "loader": "utils.generate_data",
+    "split": "60/20/20 by time (generate_from_data)",
+    "window": 12,
+    "horizon": 12,
+    "features_used": "channel 0 (flow) only (generate_seq slices [..., 0:1])",
+    "normalisation": "StandardScaler(mean, std of train x[..., 0]) on inputs; loss on inverse-transformed prediction vs raw targets",
+    "loss": "masked_mae(pred, y, null_val=0.0)",
+    "n_train": 10172,
+    "n_val": 3375,
+    "n_test": 3376,
+    "batches_per_epoch": 159,
+    "load_seconds": 2.7
+  },
+  "network": {
+    "genes": [
+      [
+        [
+          0,
+          0,
+          "s_trans"
+        ],
+        [
+          1,
+          0,
+          "skip_connect"
+        ],
+        [
+          1,
+          1,
+          "trans"
+        ],
+        [
+          2,
+          1,
+          "s_trans"
+        ],
+        [
+          2,
+          2,
+          "trans"
+        ],
+        [
+          3,
+          1,
+          "trans"
+        ],
+        [
+          3,
+          3,
+          "diff_gcn"
+        ]
+      ],
+      [
+        [
+          0,
+          0,
+          "dcc_2"
+        ],
+        [
+          1,
+          0,
+          "trans"
+        ],
+        [
+          1,
+          1,
+          "dcc_2"
+        ],
+        [
+          2,
+          0,
+          "diff_gcn"
+        ],
+        [
+          2,
+          2,
+          "trans"
+        ],
+        [
+          3,
+          2,
+          "diff_gcn"
+        ],
+        [
+          3,
+          3,
+          "dcc_2"
+        ]
+      ],
+      [
+        [
+          0,
+          0,
+          "trans"
+        ],
+        [
+          1,
+          0,
+          "skip_connect"
+        ],
+        [
+          1,
+          1,
+          "trans"
+        ],
+        [
+          2,
+          1,
+          "diff_gcn"
+        ],
+        [
+          2,
+          2,
+          "skip_connect"
+        ],
+        [
+          3,
+          1,
+          "s_trans"
+        ],
+        [
+          3,
+          3,
+          "trans"
+        ]
+      ],
+      [
+        [
+          0,
+          0,
+          "diff_gcn"
+        ],
+        [
+          1,
+          0,
+          "diff_gcn"
+        ],
+        [
+          1,
+          1,
+          "s_trans"
+        ],
+        [
+          2,
+          1,
+          "diff_gcn"
+        ],
+        [
+          2,
+          2,
+          "trans"
+        ],
+        [
+          3,
+          0,
+          "diff_gcn"
+        ],
+        [
+          3,
+          3,
+          "skip_connect"
+        ]
+      ]
+    ],
+    "params": 276620,
+    "library_drift_patches": [
+      "skip_connect Conv1d(C, 8C, (1,1)) on 4-D input -> Conv2d (torch 2.14 rejects the original)",
+      "nn.utils.clip_grad_norm (removed) -> clip_grad_norm_"
+    ]
+  },
+  "train_1_epoch": {
+    "epochs": 1,
+    "seconds_per_epoch": 37.7,
+    "epoch_seconds": [
+      37.7
+    ],
+    "peak_mem_gb": 3.615,
+    "train_loss_first": 8578.869140625,
+    "train_loss_last": 217.91131591796875,
+    "train_loss_mean_last50": 248.37835235595702,
+    "val_loss": 169.22565560970665,
+    "loss_units": "raw vehicle counts (masked MAE, null 0)",
+    "optimizer": "Adam lr 1e-3 wd 1e-4, grad clip 5, batch 64"
+  },
+  "proxies": {
+    "params": {
+      "value": 276620.0,
+      "meta": {}
+    },
+    "nwot": {
+      "value": 628.1645456147637,
+      "meta": {
+        "n_hooks": 80,
+        "n_fired": 13,
+        "n_skipped": 0,
+        "skipped": [],
+        "sign": 1.0
+      }
+    },
+    "grad_norm_all": {
+      "value": 258254.34956792864,
+      "meta": {
+        "loss": 10704.5732421875,
+        "n_param_tensors": 1537,
+        "n_with_grad": 182
+      }
+    }
+  },
+  "probe_batch": {
+    "x_shape": [
+      64,
+      1,
+      307,
+      12
+    ],
+    "y_shape": [
+      64,
+      307,
+      12
+    ],
+    "source": "first batch of their unshuffled train_loader"
+  },
+  "gate": {
+    "finite_loss": true,
+    "gpu_hours_20ep_x50": 10.47,
+    "fits_30_gpu_h": true,
+    "proxies_finite": true,
+    "n_hooks": 80,
+    "pass": true
+  }
+}

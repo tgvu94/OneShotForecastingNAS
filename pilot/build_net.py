@@ -1,19 +1,32 @@
-"""``build_discrete_net(genotype, dims) -> MixedConcatSampledNet``.
+"""``build_discrete_net(genotype, dims) -> MixedConcatSampledNet | MixedConcatGraphSampledNet``.
 
 Mirrors the ``mixed_concat`` branch of ``experiments/test_evaluated_model.py`` line for line, so the discrete
 net the pilot trains is the one the repo's own paper trained; only the operator choices come from the genotype
-instead of from ``opt_arch_weights.pth``.
+instead of from ``opt_arch_weights.pth``.  A genotype with a non-null ``graph`` cell gets the W3 graph net as a
+third forecaster, built on the PEMS04 adjacency from ``results/data/pems04_adj.npy``.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
+import numpy as np
+
 from tsf_oneshot.networks.sampled_net import MixedConcatSampledNet
 
+from pilot.adjacency import DEFAULT_ADJ, load_adj
 from pilot.genotype import edges_to_lists, load_space
+
+_ADJ_CACHE: dict = {}
+
+
+def get_adjacency(path: str | Path = DEFAULT_ADJ) -> np.ndarray:
+    path = str(path)
+    if path not in _ADJ_CACHE:
+        _ADJ_CACHE[path] = load_adj(path)
+    return _ADJ_CACHE[path]
 
 
 def net_init_kwargs(g: dict, dims: dict) -> dict:
-    if g.get("graph") is not None:
-        raise NotImplementedError("graph family is added in W3; this space is graph-blind")
     sp = load_space(g["space"])
     s, f, hp = sp["seq"], sp["flat"], g["hparams"]
     ops_enc, has_enc = edges_to_lists(g["seq"]["encoder"], s["PRIMITIVES_encoder"])
@@ -59,8 +72,23 @@ def net_init_kwargs(g: dict, dims: dict) -> dict:
     )
 
 
-def build_discrete_net(g: dict, dims: dict) -> MixedConcatSampledNet:
-    return MixedConcatSampledNet(**net_init_kwargs(g, dims))
+def graph_init_kwargs(g: dict) -> dict:
+    sp = load_space(g["space"])
+    gsp, hp = sp["graph"], g["hparams"]
+    ops, has = edges_to_lists(g["graph"]["cell"], gsp["PRIMITIVES"])
+    return dict(channels=int(hp["graph_channels"]), n_cells=int(hp["n_cells_graph"]), n_nodes=int(hp["n_nodes_graph"]),
+                n_cell_input_nodes=int(hp["n_cell_input_nodes_graph"]), operations=ops, has_edges=has,
+                PRIMITIVES=list(gsp["PRIMITIVES"]))
+
+
+def build_discrete_net(g: dict, dims: dict, adjacency: np.ndarray | None = None, adj_path: str | Path = DEFAULT_ADJ):
+    kwargs = net_init_kwargs(g, dims)
+    if g.get("graph") is None:
+        return MixedConcatSampledNet(**kwargs)
+    from tsf_oneshot.networks.graph_net import MixedConcatGraphSampledNet
+
+    A = adjacency if adjacency is not None else get_adjacency(adj_path)
+    return MixedConcatGraphSampledNet(graph=graph_init_kwargs(g), adjacency=A, **kwargs)
 
 
 def count_params(net) -> int:

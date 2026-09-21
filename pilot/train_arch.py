@@ -26,7 +26,7 @@ DEFAULT_BENCHMARK = "PEMS/pems04/pems04_12"
 def parse_args(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--arch-id", required=True)
-    ap.add_argument("--archs", default="results/archs.jsonl")
+    ap.add_argument("--archs", "--archs-file", dest="archs", default="results/archs.jsonl")
     ap.add_argument("--epochs", "--max-epochs", dest="epochs", type=int, default=20, help="max epochs")
     ap.add_argument("--patience", type=int, default=5, help="early-stopping patience on val_mae")
     ap.add_argument("--min-epochs", type=int, default=8)

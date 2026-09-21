@@ -199,8 +199,13 @@ def zen(net: nn.Module, x: torch.Tensor, repeat: int = 3, mixup_gamma: float = 1
         t = out[1] if isinstance(out, (tuple, list)) else out
         feats.setdefault("flat", []).append(t.detach().reshape(t.shape[0], -1))
 
+    def graph_hook(module, inp, out):  # graph forecast (B, H, N), the third combiner input
+        feats.setdefault("graph", []).append(out.detach().reshape(out.shape[0], -1))
+
     hooks.append(cp.net.seq_net.head.register_forward_pre_hook(pre_hook))
     hooks.append(cp.net.flat_net.register_forward_hook(flat_hook))
+    if hasattr(cp.net, "graph_net"):
+        hooks.append(cp.net.graph_net.register_forward_hook(graph_hook))
     scores = []
     try:
         for _ in range(repeat):

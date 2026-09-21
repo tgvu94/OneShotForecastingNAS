@@ -142,6 +142,120 @@ def week2(args) -> bool:
     return bool(good)
 
 
+def week3(args) -> bool:
+    """Graph Net family: adjacency sanity, op shapes + permutation sensitivity, a graph arch's forward/backward
+    on the probe batch (< 12 GB), and one finite 1-epoch training.  ``--autocts`` checks the fallback gate."""
+    import numpy as np
+    import torch
+
+    from pilot.adjacency import adj_pack, load_adj
+    from pilot.build_net import build_discrete_net
+    from pilot.data import load_probe_batch
+    from pilot.genotype import arch_id, genotype_from_meta, has_graph_op, summarize
+    from pilot.proxies.wrapper import ProxyWrapper, loss_fn
+    from tsf_oneshot.cells.encoders.graph_components import GRAPH_OPS
+
+    good = True
+    # 1) adjacency
+    adj_path = Path(args.adj)
+    good &= _ok(adj_path.exists(), f"{adj_path} exists")
+    if not adj_path.exists():
+        return False
+    A = load_adj(adj_path)
+    n_edges = int(A.sum() // 2)
+    good &= _ok(A.shape == (307, 307), f"A is {A.shape}")
+    good &= _ok(bool(np.array_equal(A, A.T)), "A symmetric")
+    good &= _ok(set(np.unique(A)) <= {0.0, 1.0}, "A binary")
+    good &= _ok(bool((np.diag(A) == 0).all()), "A zero diagonal")
+    good &= _ok(n_edges > 300, f"A has {n_edges} undirected edges (> 300)")
+    info_path = adj_path.with_suffix(".json")
+    if info_path.exists():
+        info = json.load(open(info_path))
+        good &= _ok(info.get("matches_pickle_after_symmetrization") is True, "A matches adj_PEMS04.pkl after symmetrization")
+    perms = sorted(adj_path.parent.glob(f"{adj_path.stem}_perm_*.npy"))
+    good &= _ok(len(perms) >= 1, f"{len(perms)} permuted adjacencies on disk")
+    P = load_adj(perms[0]) if perms else None
+    if P is not None:
+        good &= _ok(bool(np.array_equal(P.sum(1), A.sum(1))) and not np.array_equal(P, A), "perm 0 keeps every degree and differs from A")
+    # 2) ops
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch.manual_seed(0)
+    x = torch.randn(2, 96, 307, 32, device=device)
+    packA, packP = adj_pack(A, device), (adj_pack(P, device) if P is not None else None)
+    expect_sensitive = {"gcn": True, "diffusion": True, "adaptive": False, "graph_identity": False}
+    for name, make in GRAPH_OPS.items():
+        op = make(32, 307).to(device)
+        with torch.no_grad():
+            yA = op(x, packA)
+            good &= _ok(tuple(yA.shape) == tuple(x.shape), f"{name}: (2, 96, 307, 32) -> {tuple(yA.shape)}")
+            if packP is not None:
+                yP = op(x, packP)
+                changed = not torch.allclose(yA, yP)
+                good &= _ok(changed == expect_sensitive[name], f"{name}: output changes under permuted A = {changed} (expected {expect_sensitive[name]})")
+    # 3) a graph arch: round trip, forward + backward on the probe batch at batch 32, memory
+    archs = load_archs_safe(args.archs)
+    graph_archs = [r for r in archs if has_graph_op(r["genotype"])]
+    good &= _ok(len(graph_archs) >= 1, f"{len(graph_archs)} graph architectures in {args.archs}")
+    probe, sha1 = load_probe_batch(args.probe)
+    b0, dims = probe["batches"][0], probe["dims"]
+    mem_gb = None
+    for rec in graph_archs[: args.limit]:
+        g, aid = rec["genotype"], rec["arch_id"]
+        print(f"  {aid}: {summarize(g)}")
+        net = build_discrete_net(g, dims)
+        g2 = genotype_from_meta(net.meta_info, g["space"])
+        good &= _ok(arch_id(g2) == aid, f"{aid}: genotype -> build_net -> meta_info -> genotype round trip")
+        net = net.to(device)
+        wrapper = ProxyWrapper(net, {"x_future": b0["x_future"], "loc": b0["loc"], "scale": b0["scale"]}).to(device)
+        if device.type == "cuda":
+            torch.cuda.reset_peak_memory_stats(device)
+        out = wrapper(b0["x_past"].to(device))
+        loss = loss_fn(out, b0["target"].to(device))
+        loss.backward()
+        mem_gb = torch.cuda.max_memory_allocated(device) / 1e9 if device.type == "cuda" else 0.0
+        good &= _ok(tuple(out.shape) == tuple(b0["target"].shape), f"{aid}: forward gives {tuple(out.shape)} == target {tuple(b0['target'].shape)}")
+        good &= _ok(math.isfinite(float(loss)), f"{aid}: loss = {float(loss):.4f} finite")
+        n_graph_grad = sum(1 for p in net.graph_net.parameters() if p.grad is not None and p.requires_grad)
+        good &= _ok(n_graph_grad > 0, f"{aid}: {n_graph_grad} graph-net parameter tensors received a gradient")
+        good &= _ok(net.nets_weights.grad is not None, f"{aid}: nets_weights (3-way softmax) received a gradient: {net.nets_weights.grad}")
+        good &= _ok(mem_gb < 12.0, f"{aid}: forward + backward at batch 32 peak memory {mem_gb:.2f} GB < 12 GB")
+        # 4) 1-epoch training
+        mpath = Path(args.train_dir) / aid / f"seed{args.seed}" / "metrics.json"
+        if mpath.exists():
+            m = json.load(open(mpath))
+            good &= _ok(m.get("status") == "done" and m.get("epochs_run", 0) >= 1 and math.isfinite(m.get("val_mae", float("nan"))),
+                        f"{aid}: 1-epoch training status={m.get('status')} epochs={m.get('epochs_run')} val_mae={m.get('val_mae')} test_mae={m.get('test_mae')}")
+        else:
+            good &= _ok(False, f"{aid}: no {mpath}")
+        del wrapper, net
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
+    if args.autocts:
+        good &= autocts_gate(Path(args.autocts_json))
+    return bool(good)
+
+
+def autocts_gate(path: Path) -> bool:
+    """Fallback gate (W3): finite 1-epoch loss, 20 epochs x 50 archs <= 30 GPU-h, three finite proxies, n_hooks > 0."""
+    good = _ok(path.exists(), f"{path} exists")
+    if not path.exists():
+        return False
+    r = json.load(open(path))
+    tr = r.get("train_1_epoch", {})
+    good &= _ok(math.isfinite(tr.get("train_loss_last", float("nan"))) and math.isfinite(tr.get("val_loss", float("nan"))),
+                f"AutoCTS 1-epoch: train loss {tr.get('train_loss_last')} val loss {tr.get('val_loss')} finite")
+    spe = tr.get("seconds_per_epoch", float("inf"))
+    gpu_h = spe * 20 * 50 / 3600
+    good &= _ok(gpu_h <= 30, f"AutoCTS {spe:.1f} s/epoch x 20 epochs x 50 archs = {gpu_h:.1f} GPU-h <= 30")
+    px = r.get("proxies", {})
+    for n in ["params", "grad_norm_all", "nwot"]:
+        v = px.get(n, {}).get("value")
+        good &= _ok(v is not None and math.isfinite(v), f"AutoCTS proxy {n} = {v}")
+    nh = px.get("nwot", {}).get("meta", {}).get("n_hooks", 0)
+    good &= _ok(nh > 0, f"AutoCTS nwot n_hooks = {nh}")
+    return bool(good)
+
+
 def load_archs_safe(path):
     from pilot.genotype import load_archs
     return load_archs(path) if Path(path).exists() else []
@@ -159,8 +273,11 @@ def main():
     ap.add_argument("--limit", type=int, default=1)
     ap.add_argument("--seeds", default="0,1,2", help="week 2: init seeds expected in the proxy files")
     ap.add_argument("--timing-csv", default="results/tables/timing_w2.csv")
+    ap.add_argument("--adj", default="results/data/pems04_adj.npy")
+    ap.add_argument("--autocts", action="store_true", help="week 3: also check the AutoCTS fallback gate")
+    ap.add_argument("--autocts-json", default="results/autocts_precheck.json")
     args = ap.parse_args()
-    checks = {1: week1, 2: week2}
+    checks = {1: week1, 2: week2, 3: week3}
     if args.week not in checks:
         raise SystemExit(f"no check for week {args.week}; have {sorted(checks)}")
     print(f"== pilot.check week {args.week}")
