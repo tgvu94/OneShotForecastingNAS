@@ -23,3 +23,7 @@ Frozen on 2026-09-20 (Phase 4 gate passed: best dev graph arch val MAE 0.1688 <=
 - Final results archive: `~/nas/backups/results-final.tgz` and `~/scratch/backups/results-final.tgz` (820 MB, sha1 800ebe661db4), made at fork commit `b802e16` (`b802e16` = P10).
 - Everything except checkpoints and raw per-run JSONs is also in git on `tgvu94/OneShotForecastingNAS:graph-ops`: `results/{archs.jsonl,archs_p2.jsonl,archs_dev.jsonl,FROZEN.md,RESULTS.md,autocts_precheck.*,tables/*.md,tables/*.csv,figs/*.png}`.
 - Phase checks 1-10 all PASS at this commit (`python -m pilot.check --phase N`).
+
+## Pilot 2 (2026-09-21)
+
+- sha1 of `results/archs.jsonl` (50 lines, unchanged since the freeze): `ed7419b5c2d68eb86f6730b733cbf008aa83d3d7`. Used by the Pilot 2 phase checks; `results/pems04_h36/archs.jsonl` is a byte copy.

@@ -656,8 +656,97 @@ def pilot2_phase1(args) -> bool:
     return bool(good)
 
 
+def pilot2_phase2(args) -> bool:
+    """Pilot 2, Phase 2 (the probe): the frozen 50 trained on a second setting (PEMS04 h36 by default).  PASS = the root holds
+    the same 50 arch_ids as the Pilot 1 tree, 50/50 seed-0 done, 0 proxy / spatial errors, seed-noise ceiling >= 0.8, tables
+    and figures present, DECISION.md written.  The verdict (plan Section 2, Phase 2):
+      graph matters  if  median val MAE(uses-A archs) < median val MAE(graph-blind archs) - 3 x within-arch seed std
+                         and Mann-Whitney U p < 0.05,
+                     or  |Spearman(S_spatial(nwot), -val MAE)| > 0.28 within the uses-A archs;
+      otherwise      graph does not matter at this setting."""
+    import hashlib
+
+    import numpy as np
+    import pandas as pd
+    from scipy.stats import mannwhitneyu, spearmanr
+
+    root: Root = args.root_obj
+    good = True
+    ref = Root("results")
+    # 1) the same frozen 50
+    archs = load_archs_safe(args.archs)
+    ref_archs = load_archs_safe(ref.archs_jsonl)
+    ids, ref_ids = [r["arch_id"] for r in archs], [r["arch_id"] for r in ref_archs]
+    good &= _ok(len(ids) == args.n and ids == ref_ids[: len(ids)], f"{len(ids)} archs in {args.archs}; same ids in the same order as {ref.archs_jsonl}")
+    sha = hashlib.sha1(Path(args.archs).read_bytes()).hexdigest() if Path(args.archs).exists() else None
+    good &= _ok(root.frozen_md.exists() and sha is not None and sha[:12] in root.frozen_md.read_text(),
+                f"{root.frozen_md} exists and records the archs.jsonl sha1 {sha[:12] if sha else None}")
+    # 2) ground truth and proxies complete
+    done, failed, other = [], [], []
+    for r in archs:
+        m = Path(args.train_dir) / r["arch_id"] / "seed0" / "metrics.json"
+        st = json.load(open(m)).get("status") if m.exists() else None
+        (done if st == "done" else failed if st == "failed" else other).append(r["arch_id"])
+    good &= _ok(len(done) == args.n, f"seed-0 trainings: {len(done)}/{args.n} done, {len(failed)} failed, {len(other)} running/not started"
+                + (f"; failed {failed[:5]}" if failed else ""))
+    n_err = n_serr = n_missing = 0
+    for r in archs:
+        p, sp = Path(args.proxies_dir) / f"{r['arch_id']}.json", Path(args.spatial_dir) / f"{r['arch_id']}.json"
+        n_err += len(json.load(open(p)).get("errors", {})) if p.exists() else 0
+        n_serr += len(json.load(open(sp)).get("errors", {})) if sp.exists() else 0
+        n_missing += (not p.exists()) + (not sp.exists())
+    good &= _ok(n_err == 0 and n_serr == 0 and n_missing == 0, f"proxy errors {n_err}, spatial errors {n_serr}, missing proxy/spatial files {n_missing}")
+    # 3) analysis artefacts
+    tdir = Path(args.tables_dir)
+    for f in ["joined.csv", "table_A.csv", "table_A.md", "table_B.md", "analyze_summary.json", "naive_baselines.json"]:
+        good &= _ok((tdir / f).exists(), f"{tdir / f} exists")
+    for f in ["fig1_proxy_vs_mae_grid.png", "fig2_spearman_by_family.png", "fig3_spatial_vs_naswot.png"]:
+        good &= _ok((Path(args.figs_dir) / f).exists(), f"{f} exists")
+    if not (tdir / "joined.csv").exists() or not (tdir / "analyze_summary.json").exists():
+        return False
+    df = pd.read_csv(tdir / "joined.csv")
+    summ = json.load(open(tdir / "analyze_summary.json"))
+    ceil = summ.get("seed_ceiling", {})
+    rho_ceil = ceil.get("spearman_s0_s1", float("nan"))
+    within_std = ceil.get("within_arch_std_mean", float("nan"))
+    good &= _ok(ceil.get("n", 0) >= 5 and rho_ceil >= 0.8, f"seed-noise ceiling: Spearman seed0-seed1 = {rho_ceil:.2f} on {ceil.get('n')} archs (>= 0.8); within-arch std {within_std:.4f}")
+    # 4) the decision rule
+    blind, uses = df[df.group3 == "graph-blind"], df[df.group3 == "uses A"]
+    med_blind, med_uses = float(blind.val_mae.median()), float(uses.val_mae.median())
+    gap = med_blind - med_uses
+    u = mannwhitneyu(uses.val_mae, blind.val_mae, alternative="less")   # H1: uses-A errors are smaller
+    rule_a = gap > 3 * within_std and u.pvalue < 0.05
+    if "S_spatial_nwot" in df:
+        rho_s = float(spearmanr(uses["S_spatial_nwot"], -uses.val_mae).correlation)
+    else:
+        rho_s = float("nan")
+    rule_b = np.isfinite(rho_s) and abs(rho_s) > 0.28
+    matters = bool(rule_a or rule_b)
+    verdict = "graph matters" if matters else "graph does not matter"
+    print(f"  uses-A n={len(uses)} median val MAE {med_uses:.4f} | graph-blind n={len(blind)} median {med_blind:.4f} | gap {gap:+.4f} "
+          f"vs 3 x seed std {3 * within_std:.4f} | Mann-Whitney (uses-A < blind) p = {u.pvalue:.3g} -> rule A {rule_a}")
+    print(f"  Spearman(S_spatial(nwot), -val MAE) on the uses-A archs = {rho_s:+.3f} vs |rho| > 0.28 -> rule B {rule_b}")
+    lines = [f"# DECISION — Pilot 2 Phase 2 probe on {root.label} ({root.benchmark})", "",
+             f"**Verdict: {verdict} at {root.label}.**", "",
+             "Rule (pilot2-plan.md, Phase 2): graph matters if (A) the median val MAE of the uses-A archs is below the graph-blind median by more "
+             "than 3 x the within-arch seed std *and* Mann-Whitney p < 0.05, *or* (B) |Spearman(S_spatial(nwot), -val MAE)| > 0.28 within the uses-A archs.", "",
+             "| Quantity | Value |", "|---|---|",
+             f"| uses-A archs (n) | {len(uses)} |", f"| graph-blind archs (n) | {len(blind)} |",
+             f"| median val MAE, uses-A | {med_uses:.4f} |", f"| median val MAE, graph-blind | {med_blind:.4f} |",
+             f"| gap (blind - uses-A) | {gap:+.4f} |", f"| 3 x within-arch seed std | {3 * within_std:.4f} (std {within_std:.4f}, {ceil.get('n')} archs x 3 seeds) |",
+             f"| Mann-Whitney U, H1 uses-A < blind, p | {u.pvalue:.3g} |", f"| rule A | {rule_a} |",
+             f"| Spearman(S_spatial(nwot), -val MAE), uses-A only | {rho_s:+.3f} |", f"| rule B (|rho| > 0.28) | {rule_b} |",
+             f"| seed-noise ceiling (Spearman seed 0 vs 1) | {rho_ceil:.2f} |",
+             f"| seed-0 runs done | {len(done)}/{args.n} |", "",
+             f"Files: `{tdir}/table_A.md`, `{tdir}/table_B.md`, `{Path(args.figs_dir)}/`.  Written by `pilot.check --phase 2 --pilot 2 --root {root.dir}` "
+             f"on {time.strftime('%Y-%m-%d %H:%M')}.", ""]
+    root.decision_md.write_text("\n".join(lines))
+    good &= _ok(root.decision_md.exists(), f"{root.decision_md} written: {verdict}")
+    return bool(good)
+
+
 PILOT1_CHECKS = {1: phase1, 2: phase2, 3: phase3, 4: phase4, 6: phase6, 7: phase7, 8: phase8, 9: phase9, 10: phase10}
-PILOT2_CHECKS = {1: pilot2_phase1}
+PILOT2_CHECKS = {1: pilot2_phase1, 2: pilot2_phase2}
 
 
 def main():

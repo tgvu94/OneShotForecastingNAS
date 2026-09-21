@@ -155,3 +155,24 @@ results/tables/*
 results/figs/*
 !results/figs/*.png
 !results/RESULTS.md
+
+# Pilot 2: every other (dataset, horizon) root results/<ds>_h<h>/ keeps the same versioned files as results/
+!results/*_h*/
+results/*_h*/*
+!results/*_h*/archs.jsonl
+!results/*_h*/FROZEN.md
+!results/*_h*/DECISION.md
+!results/*_h*/RESULTS.md
+!results/*_h*/tables/
+results/*_h*/tables/*
+!results/*_h*/tables/*.md
+!results/*_h*/tables/table_*.csv
+!results/*_h*/tables/joined.csv
+!results/*_h*/figs/
+results/*_h*/figs/*
+!results/*_h*/figs/*.png
+!results/tables_pilot2/
+results/tables_pilot2/*
+!results/tables_pilot2/*.md
+!results/tables_pilot2/*.csv
+!results/RESULTS_pilot2.md
