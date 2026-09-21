@@ -324,6 +324,72 @@ def phase4(args) -> bool:
     return bool(good)
 
 
+def phase6(args) -> bool:
+    """Ground truth for the frozen 50: 50/50 proxy files complete (every stored name x 3 seeds finite unless an explicit
+    error is recorded), >= 45/50 seed-0 trainings done, seed-noise Spearman (seed 0 vs 1, 0 vs 2) on the first 5."""
+    import statistics
+
+    from pilot.score_proxies import ORDER
+
+    good = True
+    archs = load_archs_safe(args.archs)
+    good &= _ok(len(archs) == 50, f"{len(archs)} frozen archs in {args.archs}")
+    seeds = [s.strip() for s in args.seeds.split(",")]
+    n_complete, n_errors, missing = 0, 0, []
+    for r in archs:
+        p = Path(args.proxies_dir) / f"{r['arch_id']}.json"
+        if not p.exists():
+            missing.append(r["arch_id"])
+            continue
+        rec = json.load(open(p))
+        ok = True
+        for name in ORDER:
+            if name in rec.get("errors", {}):
+                n_errors += 1
+                continue
+            for s in seeds:
+                v = rec.get("scores", {}).get(name, {}).get(s)
+                if v is None or not math.isfinite(v):
+                    ok = False
+        n_complete += ok
+    good &= _ok(n_complete == 50 and not missing, f"{n_complete}/50 proxy files complete ({len(ORDER)} names x {len(seeds)} seeds); "
+                                                  f"{n_errors} explicit errors; missing {missing[:3]}")
+    done, failed, running, todo = [], [], [], []
+    for r in archs:
+        m = Path(args.train_dir) / r["arch_id"] / "seed0" / "metrics.json"
+        st = json.load(open(m)).get("status") if m.exists() else None
+        (done if st == "done" else failed if st == "failed" else running if st == "running" else todo).append(r["arch_id"])
+    good &= _ok(len(done) >= 45, f"seed-0 trainings: {len(done)} done, {len(failed)} failed, {len(running)} running, {len(todo)} not started")
+    if failed:
+        print(f"  failed: {failed}")
+    # seed noise on the first 5
+    first5 = archs[:5]
+    vals = {s: [] for s in (0, 1, 2)}
+    for r in first5:
+        for s in (0, 1, 2):
+            m = Path(args.train_dir) / r["arch_id"] / f"seed{s}" / "metrics.json"
+            rec = json.load(open(m)) if m.exists() else {}
+            vals[s].append(rec.get("val_mae") if rec.get("status") == "done" else None)
+    n_seed = sum(1 for s in (1, 2) for v in vals[s] if v is not None)
+    good &= _ok(n_seed == 10, f"seed-noise runs done: {n_seed}/10 (seeds 1, 2 on the first 5)")
+    if all(v is not None for s in (0, 1, 2) for v in vals[s]):
+        def rank(x):
+            o = sorted(range(len(x)), key=lambda i: x[i]); rk = [0] * len(x)
+            for k, i in enumerate(o):
+                rk[i] = k
+            return rk
+        def spearman(a, b):
+            ra, rb = rank(a), rank(b); n = len(a)
+            return 1 - 6 * sum((ra[i] - rb[i]) ** 2 for i in range(n)) / (n * (n * n - 1))
+        stds = [statistics.pstdev([vals[s][i] for s in (0, 1, 2)]) for i in range(5)]
+        print(f"  seed-noise ceiling (5 archs): Spearman seed0-seed1 {spearman(vals[0], vals[1]):+.2f}, seed0-seed2 {spearman(vals[0], vals[2]):+.2f}, "
+              f"seed1-seed2 {spearman(vals[1], vals[2]):+.2f}; within-arch val_mae std mean {statistics.mean(stds):.4f} max {max(stds):.4f}")
+        for r, i in zip(first5, range(5)):
+            print(f"    {r['arch_id']} ({r['sampler'].get('graph_family')}): " + " / ".join(f"{vals[s][i]:.4f}" for s in (0, 1, 2)))
+    good &= _ok(Path(args.status_csv).exists(), f"{args.status_csv} exists (python -m pilot.status --timing-csv ...)")
+    return bool(good)
+
+
 def load_archs_safe(path):
     from pilot.genotype import load_archs
     return load_archs(path) if Path(path).exists() else []
@@ -347,8 +413,9 @@ def main():
     ap.add_argument("--baselines", default="results/tables/naive_baselines.json")
     ap.add_argument("--ref-archs", default="results/archs_p2.jsonl", help="phase 4: graph-blind reference archs (P2 five)")
     ap.add_argument("--frozen", default=None, help="phase 4: the frozen 50 (results/archs.jsonl) to validate")
+    ap.add_argument("--status-csv", default="results/tables/status.csv")
     args = ap.parse_args()
-    checks = {1: phase1, 2: phase2, 3: phase3, 4: phase4}
+    checks = {1: phase1, 2: phase2, 3: phase3, 4: phase4, 6: phase6}
     if args.phase not in checks:
         raise SystemExit(f"no check for phase {args.phase}; have {sorted(checks)}")
     print(f"== pilot.check phase {args.phase}")
