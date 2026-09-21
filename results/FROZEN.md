@@ -13,3 +13,7 @@ Frozen on 2026-09-20 (Phase 4 gate passed: best dev graph arch val MAE 0.1688 <=
 - Ground-truth schedule (Section 4.1, confirmed P2): PEMS/pems04/pems04_12, batch 32, 20 epochs, patience 5 (min 8) on val_mae, repo eval optimiser (Adam 1e-3, wd 0, CosineAnnealingWarmRestarts T_0 = 20, eta_min 1e-8, grad clip 0.1, AMP, TargetScaler standard); seed 0 for all 50, seeds 1 and 2 additionally for the first 5 arch_ids of this file
 - Proxy protocol (Section 3.3): probe batch `results/data/pems04_probe_batch.pt` (sha1 32cb8208...), init seeds 0/1/2, cudnn deterministic; stored under `results/proxies/v1/`
 - Not part of the 50: the P2 five graph-blind archs (`results/archs_p2.jsonl`, space dartsts_v1; timing / seed-noise data) and the P3 dev archs (`results/archs_dev.jsonl`, seed 100; gate data)
+
+## TFAS (Phase 7 probe, 2026-09-21)
+
+- tfas: not applicable — TFAS not usable as a distinct proxy: its score is ZiCo on Conv/Linear/Conv1d weights; the time-frequency awareness is an input augmentation (STL residual, |FFT|, Haar DWT) implemented only by its own TimesNet-family backbones. Composite temporal term = base proxy. Degenerate value stored as tfas_zico_cl. (TFAS commit `fd9150d`)
