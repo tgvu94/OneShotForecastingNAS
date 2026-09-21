@@ -390,6 +390,72 @@ def phase6(args) -> bool:
     return bool(good)
 
 
+def phase7(args) -> bool:
+    """Experiment B: every pi_j(A) preserves per-node degrees and differs from A in >= 30% of edges; S_spatial == 0 (float
+    noise) for graph-blind / identity-only / adaptive-only archs; S_spatial > 3 x std(permuted) for >= 1 gcn/diffusion arch."""
+    import numpy as np
+
+    from pilot.adjacency import load_adj
+
+    good = True
+    A = load_adj(args.adj)
+    m = int(A.sum() // 2)
+    perms = sorted(Path(args.adj).parent.glob(f"{Path(args.adj).stem}_perm_*.npy"))
+    good &= _ok(len(perms) >= 5, f"{len(perms)} permuted adjacencies")
+    for pf in perms:
+        P = load_adj(pf)
+        shared = int((P * A).sum() // 2)
+        good &= _ok(bool(np.array_equal(P.sum(1), A.sum(1))) and bool(np.array_equal(P, P.T)) and (np.diag(P) == 0).all() and (1 - shared / m) >= 0.30,
+                    f"{pf.name}: per-node degrees preserved, symmetric, zero diag, {100 * (1 - shared / m):.0f}% of edges changed (>= 30%)")
+    archs = load_archs_safe(args.archs)
+    recs = {}
+    for r in archs:
+        p = Path(args.spatial_dir) / f"{r['arch_id']}.json"
+        if p.exists():
+            recs[r["arch_id"]] = json.load(open(p))
+    good &= _ok(len(recs) == len(archs), f"{len(recs)}/{len(archs)} spatial files in {args.spatial_dir}")
+    if not recs:
+        return False
+    bases = sorted({b for rec in recs.values() for b in rec.get("bases", {})})
+    print(f"  bases: {bases}")
+    n_err = sum(len(rec.get("errors", {})) for rec in recs.values())
+    good &= _ok(n_err == 0, f"{n_err} errors recorded")
+    controls = [a for a, rec in recs.items() if rec["graph_family"] in ("none", "identity-only", "adaptive-only")]
+    sensitive = [a for a, rec in recs.items() if rec["graph_family"] in ("gcn", "diffusion", "mixed")]
+    for base in bases:
+        # recomputed score under A should reproduce the v1 value (same seed, same probe batch, cudnn deterministic)
+        diffs = []
+        for rec in recs.values():
+            br = rec["bases"][base]
+            for s, v in br["A"].items():
+                v1 = br["A_v1"].get(s)
+                if v1 is not None and v1 != 0:
+                    diffs.append(abs(v - v1) / abs(v1))
+        if diffs:
+            good &= _ok(max(diffs) < 1e-3, f"{base}: recomputed score(A) matches results/proxies/v1 (max rel diff {max(diffs):.2e} over {len(diffs)} values)")
+        ctrl_rel = []
+        for a in controls:
+            br = recs[a]["bases"][base]
+            for s in br["S_spatial"]:
+                scale = abs(br["A"][s]) if br["A"][s] != 0 else 1.0
+                ctrl_rel.append(br["S_spatial"][s] / scale)
+        good &= _ok(bool(ctrl_rel) and max(ctrl_rel) < 1e-4,
+                    f"{base}: S_spatial == 0 up to float noise on {len(controls)} control archs (max relative {max(ctrl_rel) if ctrl_rel else float('nan'):.2e})")
+        strong = []
+        for a in sensitive:
+            br = recs[a]["bases"][base]
+            for s in br["S_spatial"]:
+                if br["perm_std"][s] > 0 and br["S_spatial"][s] > 3 * br["perm_std"][s]:
+                    strong.append(a)
+                    break
+        good &= _ok(len(strong) >= 1, f"{base}: {len(strong)}/{len(sensitive)} gcn/diffusion/mixed archs with S_spatial > 3 x std(permuted scores)")
+        zs = [recs[a]["bases"][base]["z_spatial_mean_over_seeds"] for a in sensitive]
+        if zs:
+            import statistics
+            print(f"    {base}: z_spatial over sensitive archs: mean {statistics.mean(zs):+.2f}, median {statistics.median(zs):+.2f}, min {min(zs):+.2f}, max {max(zs):+.2f}")
+    return bool(good)
+
+
 def load_archs_safe(path):
     from pilot.genotype import load_archs
     return load_archs(path) if Path(path).exists() else []
@@ -414,8 +480,9 @@ def main():
     ap.add_argument("--ref-archs", default="results/archs_p2.jsonl", help="phase 4: graph-blind reference archs (P2 five)")
     ap.add_argument("--frozen", default=None, help="phase 4: the frozen 50 (results/archs.jsonl) to validate")
     ap.add_argument("--status-csv", default="results/tables/status.csv")
+    ap.add_argument("--spatial-dir", default="results/proxies/spatial_v1")
     args = ap.parse_args()
-    checks = {1: phase1, 2: phase2, 3: phase3, 4: phase4, 6: phase6}
+    checks = {1: phase1, 2: phase2, 3: phase3, 4: phase4, 6: phase6, 7: phase7}
     if args.phase not in checks:
         raise SystemExit(f"no check for phase {args.phase}; have {sorted(checks)}")
     print(f"== pilot.check phase {args.phase}")
