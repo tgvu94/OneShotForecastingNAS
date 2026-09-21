@@ -256,6 +256,74 @@ def autocts_gate(path: Path) -> bool:
     return bool(good)
 
 
+def week4(args) -> bool:
+    """Gate (W4): best 20-epoch dev graph arch val_mae <= 1.10 x best W2 graph-blind val_mae; none diverged (NaN) or
+    collapsed to a naive baseline.  With --frozen also checks the 50 frozen archs (distinct ids, strata counts)."""
+    from collections import Counter
+
+    from pilot.genotype import graph_family, has_graph_op
+
+    good = True
+    base_path = Path(args.baselines)
+    good &= _ok(base_path.exists(), f"{base_path} exists (python -m pilot.baselines)")
+    naive = json.load(open(base_path)) if base_path.exists() else None
+    naive_test = naive["test"]["last_value"]["mae"] if naive else float("nan")
+    naive_mean = naive["test"]["train_mean"]["mae"] if naive else float("nan")
+    print(f"  naive test MAE: last value {naive_test:.4f}, train mean {naive_mean:.4f}")
+
+    # reference: best W2 graph-blind val_mae (seed 0) over the W2 archs
+    ref_archs = load_archs_safe(args.ref_archs)
+    ref = []
+    for r in ref_archs:
+        m = Path(args.train_dir) / r["arch_id"] / "seed0" / "metrics.json"
+        if m.exists():
+            mm = json.load(open(m))
+            if mm.get("status") == "done" and not has_graph_op(r["genotype"]):
+                ref.append(mm["val_mae"])
+    good &= _ok(len(ref) >= 1, f"{len(ref)} graph-blind 20-epoch reference runs from {args.ref_archs}")
+    best_ref = min(ref) if ref else float("nan")
+    threshold = 1.10 * best_ref
+    print(f"  best graph-blind val_mae {best_ref:.4f} -> gate threshold {threshold:.4f}")
+
+    dev = [r for r in load_archs_safe(args.archs) if has_graph_op(r["genotype"])]
+    good &= _ok(len(dev) >= 3, f"{len(dev)} dev graph archs in {args.archs}")
+    best_dev, n_done = float("inf"), 0
+    for r in dev:
+        aid = r["arch_id"]
+        m = Path(args.train_dir) / aid / "seed0" / "metrics.json"
+        if not m.exists():
+            good &= _ok(False, f"{aid}: no 20-epoch run at {m}")
+            continue
+        mm = json.load(open(m))
+        done = mm.get("status") == "done"
+        n_done += done
+        v, t = mm.get("val_mae", float("nan")), mm.get("test_mae", float("nan"))
+        good &= _ok(done and math.isfinite(v) and math.isfinite(t),
+                    f"{aid} ({graph_family(r['genotype'])}): status={mm.get('status')} epochs={mm.get('epochs_run')} "
+                    f"best_epoch={mm.get('best_epoch')} val_mae={v:.4f} test_mae={t:.4f} train_s={mm.get('train_seconds')}")
+        good &= _ok(t < 0.9 * min(naive_test, naive_mean), f"{aid}: test_mae {t:.4f} < 0.9 x naive {min(naive_test, naive_mean):.4f} (no collapse)")
+        best_dev = min(best_dev, v)
+    good &= _ok(best_dev <= threshold, f"GATE: best dev graph val_mae {best_dev:.4f} <= {threshold:.4f} (1.10 x {best_ref:.4f}) "
+                                       f"-> {'Option 1 confirmed' if best_dev <= threshold else 'FAIL: consider the fallback'}")
+    if args.frozen:
+        fr = load_archs_safe(args.frozen)
+        ids = [r["arch_id"] for r in fr]
+        good &= _ok(len(fr) == 50 and len(set(ids)) == 50, f"{args.frozen}: {len(fr)} archs, {len(set(ids))} distinct ids")
+        fams = Counter(graph_family(r["genotype"]) for r in fr)
+        n_none = fams.get("none", 0)
+        n_gcn = sum(1 for r in fr if graph_family(r["genotype"]) in ("gcn", "mixed"))
+        n_diff = sum(1 for r in fr if graph_family(r["genotype"]) in ("diffusion", "mixed"))
+        n_ctrl = fams.get("identity-only", 0) + fams.get("adaptive-only", 0)
+        print(f"  graph_family counts: {dict(fams)}")
+        good &= _ok(n_none == 16, f"frozen: {n_none} graph-blind (expected 16)")
+        good &= _ok(n_gcn >= 10, f"frozen: {n_gcn} contain gcn (>= 10)")
+        good &= _ok(n_diff >= 10, f"frozen: {n_diff} contain diffusion (>= 10)")
+        good &= _ok(n_ctrl >= 6, f"frozen: {n_ctrl} adaptive/identity-only controls (>= 6)")
+        good &= _ok(all(r["genotype"]["space"] == "dartsts_graph_v1" for r in fr), "frozen: all in space dartsts_graph_v1")
+        good &= _ok(Path(args.frozen).with_name("FROZEN.md").exists(), "results/FROZEN.md exists")
+    return bool(good)
+
+
 def load_archs_safe(path):
     from pilot.genotype import load_archs
     return load_archs(path) if Path(path).exists() else []
@@ -276,8 +344,11 @@ def main():
     ap.add_argument("--adj", default="results/data/pems04_adj.npy")
     ap.add_argument("--autocts", action="store_true", help="week 3: also check the AutoCTS fallback gate")
     ap.add_argument("--autocts-json", default="results/autocts_precheck.json")
+    ap.add_argument("--baselines", default="results/tables/naive_baselines.json")
+    ap.add_argument("--ref-archs", default="results/archs_w2.jsonl", help="week 4: graph-blind reference archs (W2 five)")
+    ap.add_argument("--frozen", default=None, help="week 4: the frozen 50 (results/archs.jsonl) to validate")
     args = ap.parse_args()
-    checks = {1: week1, 2: week2, 3: week3}
+    checks = {1: week1, 2: week2, 3: week3, 4: week4}
     if args.week not in checks:
         raise SystemExit(f"no check for week {args.week}; have {sorted(checks)}")
     print(f"== pilot.check week {args.week}")

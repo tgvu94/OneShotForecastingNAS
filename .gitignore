@@ -145,3 +145,4 @@ __pycache__/
 !results/archs_dev.jsonl
 !results/autocts_precheck.md
 !results/autocts_precheck.json
+!results/archs_w2.jsonl
