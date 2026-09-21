@@ -27,8 +27,12 @@ DATASETS = {
                "adj_pickle": "adj_PEMS04.pkl", "n_nodes": 307},
     "pems08": {"benchmark_dir": "PEMS/pems08", "file_name": "PEMS08.npz", "distance_csv": "PEMS08.csv",
                "adj_pickle": "adj_PEMS08.pkl", "n_nodes": 170},
+    # METR-LA: DCRNN adj_mx.pkl = [sensor_ids, id2idx, adj] (207 x 207, Gaussian-kernel weights, thresholded, directed, self-loops);
+    # its distance list uses the real sensor ids, so the adjacency is built from the pickle, not from a 0..n-1 csv
+    # (files fetched 2026-09-21 from github.com/liyaguang/DCRNN/data/sensor_graph into DATA_ROOT).
     "metrla": {"benchmark_dir": "PEMS/metrla", "file_name": "METR-LA.npz", "distance_csv": None,
-               "adj_pickle": "~/nas-traffic/adj_METR-LA.pkl", "n_nodes": 207},
+               "adj_pickle": "adj_METR-LA.pkl", "sensor_ids": "metrla_graph_sensor_ids.txt",
+               "raw_distances": "metrla_distances_la_2012.csv", "n_nodes": 207},
 }
 _BENCH_RE = re.compile(r"^(?P<dataset>[a-z0-9]+)_(?P<horizon>\d+)$")
 
