@@ -5,7 +5,7 @@ Frozen on 2026-09-20 (Phase 4 gate passed: best dev graph arch val MAE 0.1688 <=
 - Sampler: `python -m pilot.sample_archs --n 50 --seed 2026 --space dartsts_graph_v1 --stratify --out results/archs.jsonl --overwrite`
 - Space: `dartsts_graph_v1` = DARTS-TS `mixed_concat_darts.yaml` operators (seq: 2 cells x 4 nodes, d_model 32; flat: 2 cells x 4 nodes) + graph cell (1 cell x 4 nodes x 1 input node, C = 32, ops graph_identity / gcn / diffusion(K=2) / adaptive); 2 incoming edges per node; the seq decoder shares the encoder topology
 - Sampling seed: 2026 (`random.Random`), edges_per_node 2; 50 architectures, 50 distinct arch_ids
-- Fork commit of the sampler / space code at freeze time: `d519007` (tgvu94/OneShotForecastingNAS, branch graph-ops)
+- Fork commit of the sampler / space code at freeze time: `518ecec` (tgvu94/OneShotForecastingNAS, branch graph-ops)
 - Strata (Section 3.5): {'none': 16, 'gcn': 10, 'diffusion': 10, 'any_graph': 8, 'control': 6}
 - graph_family counts: {'none': 16, 'gcn': 3, 'mixed': 16, 'diffusion': 9, 'adaptive-only': 5, 'identity-only': 1} -> 19 contain gcn, 25 contain diffusion, 6 adaptive/identity-only controls (S_spatial = 0 by construction), 16 graph-blind
 - heads: {'mae': 14, 'quantile': 16, 'mse': 20}; seq decoders: {'linear': 24, 'seq': 26}
