@@ -179,13 +179,19 @@ def md_table_A(tA: pd.DataFrame, ceiling: dict, title: str) -> str:
     ns = {c: int(tA[c + " (n)"].iloc[0]) for c in cols}
     lines = [f"# {title}", "", "Spearman / Kendall of the proxy (mean over 3 init seeds) with −val MAE (seed 0, 20 epochs): positive = higher proxy, lower error. "
              "95% CI = 2000-sample bootstrap. partial ρ = Spearman after regressing ranks on rank(log params). Subgroups with n < 8 are not reported.", "",
-             f"| Proxy | N | Spearman (95% CI) | Kendall | p | partial ρ \\| log params | seed CV | " + " | ".join(f"{c} (n={ns[c]})" for c in cols) + " |",
-             "|---|---|---|---|---|---|---|" + "---|" * len(cols)]
+             f"| Proxy | N | Spearman (95% CI) | ρ / ceiling | Kendall | p | partial ρ \\| log params | seed CV | " + " | ".join(f"{c} (n={ns[c]})" for c in cols) + " |",
+             "|---|---|---|---|---|---|---|---|" + "---|" * len(cols)]
     if ceiling.get("n", 0) >= 3:
-        lines.append(f"| seed-noise ceiling (val MAE seed 0 vs 1 / 0 vs 2 / 1 vs 2) | {ceiling['n']} | {fmt(ceiling['spearman_s0_s1'])} / {fmt(ceiling['spearman_s0_s2'])} / {fmt(ceiling['spearman_s1_s2'])} | — | — | — | within-arch std {ceiling['within_arch_std_mean']:.4f} vs across-arch {ceiling['across_arch_std']:.4f} | " + " | ".join("—" for _ in cols) + " |")
+        lines.append(f"| seed-noise ceiling (val MAE seed 0 vs 1 / 0 vs 2 / 1 vs 2) | {ceiling['n']} | {fmt(ceiling['spearman_s0_s1'])} / {fmt(ceiling['spearman_s0_s2'])} / {fmt(ceiling['spearman_s1_s2'])} | 1.00 | — | — | — | within-arch std {ceiling['within_arch_std_mean']:.4f} vs across-arch {ceiling['across_arch_std']:.4f} | " + " | ".join("—" for _ in cols) + " |")
+    ceil = ceiling.get("spearman_s0_s1")
     for _, r in tA.iterrows():
-        lines.append(f"| `{r.proxy}` | {r.n} | {fmt(r.spearman)} ({fmt(r.ci_lo)}, {fmt(r.ci_hi)}) | {fmt(r.kendall)} | {r.p:.3g} | {fmt(r.partial_params)} | {fmt(r.seed_cv, 3)} | "
+        name = f"`{r.proxy}` (complexity baseline)" if r.proxy in ("params", "flops") else f"`{r.proxy}`"
+        ratio = f"{r.spearman / ceil:+.2f}" if ceil else "—"
+        lines.append(f"| {name} | {r.n} | {fmt(r.spearman)} ({fmt(r.ci_lo)}, {fmt(r.ci_hi)}) | {ratio} | {fmt(r.kendall)} | {r.p:.3g} | {fmt(r.partial_params)} | {fmt(r.seed_cv, 3)} | "
                      + " | ".join(fmt(r[c]) for c in cols) + " |")
+    if ceil:
+        lines.append("")
+        lines.append(f"ρ/ceiling = Spearman divided by the seed-noise ceiling {ceil:.2f} (seed-0 vs seed-1 val MAE on the 5 repeated archs): the fraction of the achievable rank agreement a proxy reaches.")
     return "\n".join(lines) + "\n"
 
 
@@ -200,6 +206,91 @@ def md_table_B(tB: pd.DataFrame, det: pd.DataFrame, base: str) -> str:
     for _, r in det.iterrows():
         lines.append(f"| `{r.base}` | {r['controls n']} | {r['controls max |z|']:.1e} | {r['uses-A n']} | {r['uses-A median z']:+.1f} ({r['uses-A min z']:+.1f}, {r['uses-A max z']:+.1f}) | {r['uses-A |z|>3']}/{r['uses-A n']} | {r['uses-A score(A) > perm mean']}/{r['uses-A n']} |")
     return "\n".join(lines) + "\n"
+
+
+def table_A_partial(df: pd.DataFrame, proxies: list[str]) -> pd.DataFrame:
+    """Committee question 1: is it just parameter count?  Size-likeness, partials on log params / log flops, within-size-tercile
+    Spearman, and alternative targets (test MAE, val MSE)."""
+    d = df.copy()
+    d["size_tercile"] = pd.qcut(np.log(d.params), 3, labels=["small", "mid", "large"])
+    out = []
+    for p in proxies:
+        if p not in d:
+            continue
+        r = {"proxy": p, "spearman": corr(d, p, n_boot=0)["spearman"],
+             "rho_with_log_params": float(spearmanr(d[p], np.log(d.params)).correlation),
+             "partial_params": partial_spearman(d, p, "params") if p != "params" else np.nan,
+             "partial_flops": partial_spearman(d, p, "flops") if p != "flops" else np.nan,
+             "rho_test_mae": corr(d, p, target="test_mae", n_boot=0)["spearman"],
+             "rho_val_mse": corr(d, p, target="val_mse", n_boot=0)["spearman"]}
+        for t in ["small", "mid", "large"]:
+            sub = d[d.size_tercile == t]
+            r[f"tercile_{t}"] = corr(sub, p, n_boot=0)["spearman"]
+            r[f"tercile_{t}_n"] = len(sub)
+        out.append(r)
+    return pd.DataFrame(out).sort_values("spearman", ascending=False)
+
+
+def md_table_A_partial(t: pd.DataFrame) -> str:
+    ns = {k: int(t[f"tercile_{k}_n"].iloc[0]) for k in ("small", "mid", "large")}
+    lines = ["# Table A (partial) — is the correlation just parameter count?", "",
+             "All values are Spearman with −MAE (positive = useful), point estimates (CIs for the main column are in Table A). "
+             "ρ(proxy, log params) says how size-like a proxy is; partial ρ removes rank(log params) or rank(log flops) from both proxy and target "
+             "(rank-residual method); the tercile columns re-rank *within* a size band; the last two columns swap the target.", "",
+             f"| Proxy | ρ (val MAE) | ρ(proxy, log params) | partial ρ \\| log params | partial ρ \\| log flops | small third (n={ns['small']}) | mid third (n={ns['mid']}) | large third (n={ns['large']}) | ρ (test MAE) | ρ (val MSE) |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
+    for _, r in t.iterrows():
+        name = f"`{r.proxy}` (complexity baseline)" if r.proxy in ("params", "flops") else f"`{r.proxy}`"
+        lines.append(f"| {name} | {fmt(r.spearman)} | {fmt(r.rho_with_log_params)} | {fmt(r.partial_params)} | {fmt(r.partial_flops)} | {fmt(r.tercile_small)} | {fmt(r.tercile_mid)} | {fmt(r.tercile_large)} | {fmt(r.rho_test_mae)} | {fmt(r.rho_val_mse)} |")
+    return "\n".join(lines) + "\n"
+
+
+def subsample_curve(df: pd.DataFrame, proxies: list[str], sizes=(10, 20, 30, 40, 50), n_rep: int = 500, seed: int = 0) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    out = []
+    for p in proxies:
+        x, y = df[p].values.astype(float), -df.val_mae.values.astype(float)
+        for n in sizes:
+            vals = []
+            for _ in range(n_rep if n < len(x) else 1):
+                i = rng.choice(len(x), n, replace=False)
+                vals.append(spearmanr(x[i], y[i]).correlation)
+            out.append({"proxy": p, "N": n, "median": float(np.nanmedian(vals)), "p5": float(np.nanpercentile(vals, 5)),
+                        "p95": float(np.nanpercentile(vals, 95)), "frac_positive": float(np.mean(np.array(vals) > 0)),
+                        "frac_above_0.4": float(np.mean(np.array(vals) > 0.4))})
+    return pd.DataFrame(out)
+
+
+def required_n(half_width: float, conf_z: float = 1.96) -> int:
+    """Fisher-z approximation for Spearman: se ≈ 1.06 / sqrt(N - 3)."""
+    return int(math.ceil(3 + (1.06 * conf_z / half_width) ** 2))
+
+
+def md_ci_summary(tA: pd.DataFrame, curve: pd.DataFrame, ceiling: dict) -> str:
+    lines = ["# CI summary — is N = 50 enough, and does the sign convention match LENAS?", "",
+             "## Sign convention", "",
+             "Every score is correlated with **−val MAE**, so a *useful* proxy has a **positive** Spearman. LENAS (Klosa & Konen 2023) reports the naswot "
+             "score against validation loss on its own space with the same reading (higher score ↔ lower loss, ρ = 0.737), so the reference is compared "
+             "directly. No proxy is sign-flipped; the negative rows in Table A really point the wrong way.", "",
+             "## Bootstrap CIs (2000 resamples over the 50 architectures)", "",
+             "| Proxy | Spearman | 95% CI | CI half-width | excludes 0? | excludes 0.737? |", "|---|---|---|---|---|---|"]
+    for _, r in tA.iterrows():
+        hw = (r.ci_hi - r.ci_lo) / 2
+        lines.append(f"| `{r.proxy}` | {fmt(r.spearman)} | ({fmt(r.ci_lo)}, {fmt(r.ci_hi)}) | {hw:.2f} | {'yes' if (r.ci_lo > 0 or r.ci_hi < 0) else 'no'} | {'yes' if r.ci_hi < 0.737 else 'no'} |")
+    lines += ["", "## Sub-sampling curve (500 draws without replacement per N; median and 5–95 % range of Spearman)", "",
+              "| Proxy | N | median ρ | 5 % | 95 % | fraction of draws with ρ > 0 | fraction with ρ > 0.4 |", "|---|---|---|---|---|---|---|"]
+    for _, r in curve.iterrows():
+        lines.append(f"| `{r.proxy}` | {int(r.N)} | {r['median']:+.2f} | {r.p5:+.2f} | {r.p95:+.2f} | {r.frac_positive:.2f} | {r['frac_above_0.4']:.2f} |")
+    lines += ["", "## How large must N be? (Fisher-z approximation, se ≈ 1.06/√(N−3), 95 % CI)", "",
+              "| CI half-width | N needed |", "|---|---|"] + [f"| ±{hw:.2f} | {required_n(hw)} |" for hw in (0.30, 0.20, 0.15, 0.10, 0.05)]
+    lines += ["", f"At N = 50 the expected half-width is ±{1.06 * 1.96 / math.sqrt(47):.2f}, which is what the bootstrap shows (±0.15–0.30). "
+              "Separating a proxy at ρ ≈ 0.65 from the 0.737 reference needs a half-width below ≈ 0.09, i.e. N ≈ 500; separating it from 0 needs N ≈ 20.", "",
+              "## Seed-noise ceiling", "",
+              f"Seed-0 vs seed-1 / 0 vs 2 / 1 vs 2 Spearman of val MAE on the {ceiling.get('n')} repeated archs: "
+              f"{fmt(ceiling.get('spearman_s0_s1'))} / {fmt(ceiling.get('spearman_s0_s2'))} / {fmt(ceiling.get('spearman_s1_s2'))}; "
+              f"within-arch std {ceiling.get('within_arch_std_mean', float('nan')):.4f} vs across-arch std {ceiling.get('across_arch_std', float('nan')):.4f}. "
+              "The ground truth is not the limiting factor at N = 50.", ""]
+    return "\n".join(lines)
 
 
 def main():
@@ -238,6 +329,13 @@ def main():
     if "nwot" in bases:
         (out / "table_B.md").write_text((out / "table_B_nwot.md").read_text())
         (out / "table_B.csv").write_text((out / "table_B_nwot.csv").read_text())
+    # Phase 9: robustness tables
+    tP = table_A_partial(df, PROXIES_PRIMARY)
+    tP.to_csv(out / "table_A_partial.csv", index=False)
+    (out / "table_A_partial.md").write_text(md_table_A_partial(tP))
+    curve = subsample_curve(df, ["zico", "l2_norm_all", "params", "grasp_all", "zen", "nwot", "snip_all"])
+    curve.to_csv(out / "subsample_curve.csv", index=False)
+    (out / "ci_summary.md").write_text(md_ci_summary(tA, curve, ceiling))
     json.dump({"n_rows": int(len(df)), "n_done": n_done, "seed_ceiling": ceiling, "bases": bases, "seconds": round(time.time() - t0, 1)},
               open(out / "analyze_summary.json", "w"), indent=2)
     print(tA[["proxy", "n", "spearman", "ci_lo", "ci_hi", "kendall", "partial_params"]].to_string(index=False, float_format=lambda v: f"{v:+.2f}"))

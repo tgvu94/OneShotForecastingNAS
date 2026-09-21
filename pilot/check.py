@@ -485,6 +485,29 @@ def phase8(args) -> bool:
     return bool(good)
 
 
+def phase9(args) -> bool:
+    """Robustness artefacts: table_A_partial.md and ci_summary.md exist; every CI in Table A is finite and printed next to its
+    point estimate; params / flops rows are labelled 'complexity baseline'."""
+    import csv
+    import re
+
+    good = True
+    tdir = Path(args.tables_dir)
+    for f in ["table_A_partial.md", "ci_summary.md", "table_A_partial.csv", "subsample_curve.csv"]:
+        good &= _ok((tdir / f).exists(), f"{f} exists")
+    rows = list(csv.DictReader(open(tdir / "table_A.csv")))
+    fin = all(math.isfinite(float(r["ci_lo"])) and math.isfinite(float(r["ci_hi"])) and math.isfinite(float(r["spearman"])) for r in rows)
+    good &= _ok(fin, f"all {len(rows)} Table A CIs finite")
+    md = (tdir / "table_A.md").read_text()
+    n_ci = len(re.findall(r"\| -?\d\.\d\d \(-?\d\.\d\d, -?\d\.\d\d\)", md))
+    good &= _ok(n_ci >= len(rows), f"{n_ci} point estimates printed with their CI in table_A.md (>= {len(rows)})")
+    good &= _ok("`params` (complexity baseline)" in md and "`flops` (complexity baseline)" in md, "params and flops rows are marked 'complexity baseline'")
+    good &= _ok("ρ/ceiling" in md, "Table A carries the ceiling column")
+    part = (tdir / "table_A_partial.md").read_text()
+    good &= _ok(part.count("|") > 100 and "partial" in part, "table_A_partial.md is populated")
+    return bool(good)
+
+
 def load_archs_safe(path):
     from pilot.genotype import load_archs
     return load_archs(path) if Path(path).exists() else []
@@ -513,7 +536,7 @@ def main():
     ap.add_argument("--tables-dir", default="results/tables")
     ap.add_argument("--figs-dir", default="results/figs")
     args = ap.parse_args()
-    checks = {1: phase1, 2: phase2, 3: phase3, 4: phase4, 6: phase6, 7: phase7, 8: phase8}
+    checks = {1: phase1, 2: phase2, 3: phase3, 4: phase4, 6: phase6, 7: phase7, 8: phase8, 9: phase9}
     if args.phase not in checks:
         raise SystemExit(f"no check for phase {args.phase}; have {sorted(checks)}")
     print(f"== pilot.check phase {args.phase}")
