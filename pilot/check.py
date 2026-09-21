@@ -1,4 +1,4 @@
-"""Weekly pass/fail checks.  ``python -m pilot.check --phase 1``  -> prints PASS or FAIL, exit code 0/1."""
+"""Per-phase pass/fail checks.  ``python -m pilot.check --phase 1``  -> prints PASS or FAIL, exit code 0/1."""
 from __future__ import annotations
 
 import argparse
