@@ -146,3 +146,11 @@ __pycache__/
 !results/autocts_precheck.md
 !results/autocts_precheck.json
 !results/archs_p2.jsonl
+!results/tables/
+results/tables/*
+!results/tables/*.md
+!results/tables/table_*.csv
+!results/tables/joined.csv
+!results/figs/
+results/figs/*
+!results/figs/*.png

@@ -459,6 +459,32 @@ def phase7(args) -> bool:
     return bool(good)
 
 
+def phase8(args) -> bool:
+    """Analysis artefacts: joined.csv rows == done seed-0 trainings, Table A has the 13 proxies + the ceiling row, Table B
+    has >= 3 rows, every main Spearman carries a CI, analyze.py ran in < 60 s, the 3 figures exist."""
+    import csv
+
+    good = True
+    tdir = Path(args.tables_dir)
+    summ = tdir / "analyze_summary.json"
+    good &= _ok(summ.exists(), f"{summ} exists")
+    if not summ.exists():
+        return False
+    sm = json.load(open(summ))
+    good &= _ok(sm["n_rows"] == sm["n_done"] == 50, f"joined.csv rows {sm['n_rows']} == done trainings {sm['n_done']} == 50")
+    good &= _ok(sm["seconds"] < 60, f"analyze.py ran in {sm['seconds']} s (< 60)")
+    rows = list(csv.DictReader(open(tdir / "table_A.csv")))
+    good &= _ok(len(rows) == 13, f"table_A.csv has {len(rows)} proxy rows (13)")
+    good &= _ok(all(r["ci_lo"] not in ("", "nan") and r["ci_hi"] not in ("", "nan") for r in rows), "every Table A Spearman has a 95% CI")
+    md = (tdir / "table_A.md").read_text()
+    good &= _ok("seed-noise ceiling" in md, "table_A.md has the seed-noise ceiling row")
+    rowsB = list(csv.DictReader(open(tdir / "table_B.csv")))
+    good &= _ok(len(rowsB) >= 3, f"table_B.csv has {len(rowsB)} rows (>= 3)")
+    for f in ["fig1_proxy_vs_mae_grid.png", "fig2_spearman_by_family.png", "fig3_spatial_vs_naswot.png"]:
+        good &= _ok((Path(args.figs_dir) / f).exists(), f"{f} exists")
+    return bool(good)
+
+
 def load_archs_safe(path):
     from pilot.genotype import load_archs
     return load_archs(path) if Path(path).exists() else []
@@ -484,8 +510,10 @@ def main():
     ap.add_argument("--frozen", default=None, help="phase 4: the frozen 50 (results/archs.jsonl) to validate")
     ap.add_argument("--status-csv", default="results/tables/status.csv")
     ap.add_argument("--spatial-dir", default="results/proxies/spatial_v2")
+    ap.add_argument("--tables-dir", default="results/tables")
+    ap.add_argument("--figs-dir", default="results/figs")
     args = ap.parse_args()
-    checks = {1: phase1, 2: phase2, 3: phase3, 4: phase4, 6: phase6, 7: phase7}
+    checks = {1: phase1, 2: phase2, 3: phase3, 4: phase4, 6: phase6, 7: phase7, 8: phase8}
     if args.phase not in checks:
         raise SystemExit(f"no check for phase {args.phase}; have {sorted(checks)}")
     print(f"== pilot.check phase {args.phase}")
