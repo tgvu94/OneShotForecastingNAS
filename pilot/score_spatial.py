@@ -30,7 +30,7 @@ from pilot.genotype import graph_family, load_archs
 from pilot.proxies import extra
 from pilot.proxies.wrapper import ProxyWrapper, loss_fn
 
-SPATIAL_VERSION = "spatial_v1"
+SPATIAL_VERSION = "spatial_v2"  # v1: no RNG control between the A / pi_j(A) forwards (dropout noise floor ~1-3%)
 BASES = {  # base proxy -> how to call it on a fresh wrapper copy (same code as score_proxies)
     "nwot": lambda w, x, t, b, d: extra.nwot(w, x),
     "zico": lambda w, x, t, b, d: extra.zico(w, b, loss_fn, d),
@@ -47,10 +47,16 @@ def fork_commit():
         return None
 
 
-def score_under(wrapper, A: np.ndarray, base: str, x, target, batches, device):
+def score_under(wrapper, A: np.ndarray, base: str, x, target, batches, device, seed: int):
+    """Score one adjacency on a fresh copy.  The RNG is re-seeded right before the forward so that the dropout masks
+    (the nets are scored in train mode, as in score_proxies) are identical under A and under every pi_j(A): the only
+    thing that differs between the calls is the adjacency.  spatial_v1 did not do this and its controls showed a 1-3 %
+    "sensitivity" that was pure dropout noise."""
     cp = wrapper.get_prunable_copy()
     if hasattr(cp.net, "graph_net"):
         cp.net.graph_net.set_adjacency(A)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
     value, meta = BASES[base](cp, x, target, batches, device)
     del cp
     return float(value), meta
@@ -63,7 +69,7 @@ def main():
     ap.add_argument("--seeds", default="0,1,2")
     ap.add_argument("--adj", default=DEFAULT_ADJ)
     ap.add_argument("--perms", nargs="+", required=True)
-    ap.add_argument("--v1", default="results/proxies/v1", help="scores under A already computed in Phases 2/5 (compared, not reused)")
+    ap.add_argument("--v1", default="results/proxies/v1", help="scores under A already computed in Phases 2/5 (compared, not reused; they carry dropout noise)")
     ap.add_argument("--out", default=f"results/proxies/{SPATIAL_VERSION}")
     ap.add_argument("--probe", default=DEFAULT_PROBE)
     ap.add_argument("--limit", type=int, default=None)
@@ -113,8 +119,8 @@ def main():
                 br = rec["bases"].setdefault(base, {"A": {}, "A_v1": {}, "perm": {}, "perm_mean": {}, "perm_std": {},
                                                     "S_spatial": {}, "z_spatial": {}, "meta": {}})
                 try:
-                    vA, mA = score_under(wrapper, A, base, x, target, batches, device)
-                    vals = [score_under(wrapper, P, base, x, target, batches, device)[0] for P in perms]
+                    vA, mA = score_under(wrapper, A, base, x, target, batches, device, seed)
+                    vals = [score_under(wrapper, P, base, x, target, batches, device, seed)[0] for P in perms]
                     mean_j, std_j = statistics.mean(vals), statistics.pstdev(vals)
                     br["A"][str(seed)] = vA
                     br["A_v1"][str(seed)] = v1["scores"].get(base, {}).get(str(seed))
