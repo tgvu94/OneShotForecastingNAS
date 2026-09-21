@@ -1,7 +1,7 @@
-"""Print one line per (arch, seed) training run from results/train/**/metrics.json + log.csv, plus a timing summary.
+"""Print one line per (arch, seed) training run from <root>/train/**/metrics.json + log.csv, plus a timing summary.
 
-    python -m pilot.status                                   # table
-    python -m pilot.status --timing-csv results/tables/timing_p2.csv
+    python -m pilot.status --root results                    # table
+    python -m pilot.status --root results/pems08_h12 --timing-csv results/pems08_h12/tables/status.csv
 """
 from __future__ import annotations
 
@@ -10,6 +10,8 @@ import csv
 import json
 import statistics
 from pathlib import Path
+
+from pilot.paths import Root
 
 
 def collect(root: Path) -> list[dict]:
@@ -46,10 +48,11 @@ def fmt(v, nd=4):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--train-dir", default="results/train")
+    Root.add_args(ap)
+    ap.add_argument("--train-dir", default=None, help="default: <root>/train")
     ap.add_argument("--timing-csv", default=None)
     args = ap.parse_args()
-    rows = collect(Path(args.train_dir))
+    rows = collect(Path(args.train_dir) if args.train_dir else Root.from_args(args).train)
     cols = ["arch_id", "seed", "status", "epochs_run", "best_epoch", "val_mae", "test_mae", "sec_first_epoch",
             "sec_per_epoch", "train_seconds", "peak_mem_gb", "lock"]
     print(" ".join(f"{c:>15s}" for c in cols))

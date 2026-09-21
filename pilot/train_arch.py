@@ -1,6 +1,6 @@
 """Train one genotype with the fixed schedule (Section 4.1), resumable, one result directory per (arch, seed).
 
-    results/train/<arch_id>/seed<s>/{metrics.json, log.csv, ckpt.pt}
+    <root>/train/<arch_id>/seed<s>/{metrics.json, log.csv, ckpt.pt}      (benchmark, adjacency: the root's setting)
 
 The training loop is the repo's own ``SampledForecastingNetTrainer`` (same preprocessing, AMP, grad clip, loss
 and evaluation as ``experiments/test_evaluated_model.py``), with the repo's eval optimiser / scheduler config
@@ -20,23 +20,33 @@ import sys
 import time
 from pathlib import Path
 
+from pilot.paths import Root  # cheap import (no torch): keeps the "already done" exit under 5 s
+
 DEFAULT_BENCHMARK = "PEMS/pems04/pems04_12"
 
 
 def parse_args(argv=None):
     ap = argparse.ArgumentParser()
+    Root.add_args(ap)
     ap.add_argument("--arch-id", required=True)
-    ap.add_argument("--archs", "--archs-file", dest="archs", default="results/archs.jsonl")
+    ap.add_argument("--archs", "--archs-file", dest="archs", default=None, help="default: <root>/archs.jsonl")
     ap.add_argument("--epochs", "--max-epochs", dest="epochs", type=int, default=20, help="max epochs")
     ap.add_argument("--patience", type=int, default=5, help="early-stopping patience on val_mae")
     ap.add_argument("--min-epochs", type=int, default=8)
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--benchmark", default=DEFAULT_BENCHMARK)
+    ap.add_argument("--benchmark", default=None, help="default: the root's <dataset>_<horizon> benchmark")
+    ap.add_argument("--adj", default=None, help="default: <root>/data/<dataset>_adj.npy")
     ap.add_argument("--batch-size", type=int, default=32)
     ap.add_argument("--num-workers", type=int, default=2)
-    ap.add_argument("--out-root", default="results/train")
+    ap.add_argument("--out-root", default=None, help="default: <root>/train")
     ap.add_argument("--prune-ckpt", action="store_true", help="delete ckpt.pt once status is done")
-    return ap.parse_args(argv)
+    args = ap.parse_args(argv)
+    root = Root.from_args(args)
+    args.archs = str(args.archs or root.archs_jsonl)
+    args.benchmark = args.benchmark or root.benchmark
+    args.adj = str(args.adj or root.adj)
+    args.out_root = str(args.out_root or root.train)
+    return args
 
 
 def write_json(path: Path, obj: dict):
@@ -108,7 +118,7 @@ def main(argv=None) -> int:
     dataset, (train_loader, val_loader, test_loader), dims = get_dataset_and_loaders(
         cfg, batch_size=args.batch_size, num_workers=args.num_workers)
     seed_everything(args.seed)  # init seed, immediately before build
-    model = build_discrete_net(g, dims)
+    model = build_discrete_net(g, dims, adj_path=args.adj)
     n_params = count_params(model)
 
     optim_groups = model.get_weight_optimizer_parameters(cfg.w_optimizer_eval.weight_decay)
@@ -125,7 +135,8 @@ def main(argv=None) -> int:
 
     min_epochs = min(args.min_epochs, args.epochs)
     schedule = {
-        "benchmark": args.benchmark, "max_epochs": args.epochs, "patience": args.patience, "min_epochs": min_epochs,
+        "benchmark": args.benchmark, "adjacency": args.adj if g.get("graph") is not None else None,
+        "max_epochs": args.epochs, "patience": args.patience, "min_epochs": min_epochs,
         "early_stopping_metric": "val_mae", "batch_size": args.batch_size, "batch_size_test": dims["batch_size_test"],
         "optimizer": OmegaConf.to_container(cfg.w_optimizer_eval, resolve=True),
         "lr_scheduler": OmegaConf.to_container(cfg.lr_scheduler_eval, resolve=True),

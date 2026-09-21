@@ -1,5 +1,5 @@
-"""Sample N random genotypes -> append to results/archs.jsonl (append-only, de-duplicated by arch_id)
-and write results/archs/<arch_id>.json.  Re-running the same command is a no-op.
+"""Sample N random genotypes -> append to <root>/archs.jsonl (append-only, de-duplicated by arch_id)
+and write <root>/archs/<arch_id>.json.  Re-running the same command is a no-op.
 
 P3: ``--space dartsts_graph_v1`` adds the graph cell (``--p-graph`` = probability that it is present,
 ``--require-graph-op`` redraws until the cell has at least one non-identity graph op)."""
@@ -12,10 +12,19 @@ import random
 from pathlib import Path
 
 from pilot.genotype import SPACE_V1, arch_id, graph_family, has_graph_op, load_archs, random_genotype, summarize
+from pilot.paths import Root
 
 # Section 3.5 stratification of the 50: 16 graph-blind, 34 with a graph cell of which >= 10 contain gcn, >= 10 contain
 # diffusion and >= 6 are adaptive/identity-only (the built-in S_spatial = 0 control); the remaining 8 are any graph cell.
 STRATA = {"none": 16, "gcn": 10, "diffusion": 10, "control": 6, "any_graph": 8}
+
+
+def scaled_quota(n: int) -> dict:
+    """The strata quotas scaled to n (rounded; the 'any graph' remainder absorbs the rounding)."""
+    scale = n / sum(STRATA.values())
+    quota = {k: int(round(v * scale)) for k, v in STRATA.items()}
+    quota["any_graph"] += n - sum(quota.values())
+    return quota
 
 
 def stratum_candidates(g: dict) -> list[str]:
@@ -35,9 +44,7 @@ def stratum_candidates(g: dict) -> list[str]:
 
 def stratified_genotypes(rng, space, edges_per_node, n, existing_ids):
     """Rejection sampling until every stratum quota is filled (scaled to n); returns (genotypes, counts, draws)."""
-    scale = n / sum(STRATA.values())
-    quota = {k: int(round(v * scale)) for k, v in STRATA.items()}
-    quota["any_graph"] += n - sum(quota.values())
+    quota = scaled_quota(n)
     filled = {k: 0 for k in quota}
     out, seen, draws = [], set(existing_ids), 0
     while len(out) < n:
@@ -61,6 +68,7 @@ def stratified_genotypes(rng, space, edges_per_node, n, existing_ids):
 
 def main():
     ap = argparse.ArgumentParser()
+    Root.add_args(ap)
     ap.add_argument("--n", type=int, required=True)
     ap.add_argument("--seed", type=int, required=True)
     ap.add_argument("--space", default=SPACE_V1)
@@ -69,10 +77,10 @@ def main():
     ap.add_argument("--require-graph-op", action="store_true", help="redraw until >= 1 non-identity graph op")
     ap.add_argument("--stratify", action="store_true", help="graph space: fill the Section 3.5 strata (16/10/10/6/8 for n=50)")
     ap.add_argument("--overwrite", action="store_true", help="start a fresh file instead of appending")
-    ap.add_argument("--out", default="results/archs.jsonl")
+    ap.add_argument("--out", default=None, help="default: <root>/archs.jsonl")
     args = ap.parse_args()
 
-    out = Path(args.out)
+    out = Path(args.out) if args.out else Root.from_args(args).archs_jsonl
     out.parent.mkdir(parents=True, exist_ok=True)
     per_arch_dir = out.parent / "archs"
     per_arch_dir.mkdir(exist_ok=True)

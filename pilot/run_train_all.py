@@ -2,7 +2,8 @@
 ``pilot.train_arch`` in a subprocess so one crash never kills the batch.  Safe to run several copies side by side
 (each skips fresh LOCKs); ``--shard k/n`` additionally partitions the (arch, seed) list.
 
-    python -m pilot.run_train_all --archs results/archs.jsonl --seeds 0,1,2 --max-epochs 20 --patience 5
+    python -m pilot.run_train_all --root results --seeds 0,1,2 --max-epochs 20 --patience 5
+    python -m pilot.run_train_all --root results/pems08_h12 --seeds 0 --max-epochs 20 --patience 5 --shard 0/2
 """
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ import time
 from pathlib import Path
 
 from pilot.genotype import load_archs
+from pilot.paths import Root
 
 
 def lock_is_fresh(lock: Path, minutes: float) -> bool:
@@ -38,12 +40,13 @@ def _pid_alive(pid: int) -> bool:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--archs", default="results/archs.jsonl")
+    Root.add_args(ap)
+    ap.add_argument("--archs", default=None, help="default: <root>/archs.jsonl")
     ap.add_argument("--seeds", default="0")
     ap.add_argument("--max-epochs", type=int, default=20)
     ap.add_argument("--patience", type=int, default=5)
     ap.add_argument("--min-epochs", type=int, default=8)
-    ap.add_argument("--out-root", default="results/train")
+    ap.add_argument("--out-root", default=None, help="default: <root>/train")
     ap.add_argument("--limit", type=int, default=None, help="first N archs only")
     ap.add_argument("--shard", default=None, help="k/n: take every n-th (arch, seed) starting at k")
     ap.add_argument("--retry-failed", action="store_true")
@@ -51,6 +54,9 @@ def main(argv=None) -> int:
     ap.add_argument("--prune-ckpt", action="store_true")
     ap.add_argument("--extra", default="", help="extra args passed through to pilot.train_arch")
     args = ap.parse_args(argv)
+    root = Root.from_args(args)
+    args.archs = str(args.archs or root.archs_jsonl)
+    args.out_root = str(args.out_root or root.train)
 
     seeds = [int(s) for s in args.seeds.split(",") if s.strip()]
     archs = load_archs(args.archs)
@@ -86,6 +92,7 @@ def main(argv=None) -> int:
         lock.write_text(f"{os.getpid()} {time.time()}\n")
         cmd = [sys.executable, "-m", "pilot.train_arch", "--arch-id", aid, "--seed", str(seed),
                "--epochs", str(args.max_epochs), "--patience", str(args.patience), "--min-epochs", str(args.min_epochs),
+               "--root", str(root.dir), "--dataset", root.dataset, "--horizon", str(root.horizon),
                "--archs", args.archs, "--out-root", args.out_root] + (["--prune-ckpt"] if args.prune_ckpt else []) \
               + args.extra.split()
         print(f"=== {_dt.datetime.now().isoformat(timespec='seconds')} {aid} seed {seed}: {' '.join(cmd[2:])}", flush=True)

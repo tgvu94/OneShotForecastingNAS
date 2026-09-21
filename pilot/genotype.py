@@ -294,7 +294,7 @@ def load_archs(path: str | Path) -> list[dict]:
 
 
 def find_arch(arch_id_: str, archs_path: str | Path = "results/archs.jsonl") -> dict:
-    per_file = Path("results/archs") / f"{arch_id_}.json"
+    per_file = Path(archs_path).parent / "archs" / f"{arch_id_}.json"
     if per_file.exists():
         return json.load(open(per_file))
     for rec in load_archs(archs_path):

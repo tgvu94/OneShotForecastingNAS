@@ -18,9 +18,11 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from pilot.paths import Root
+
 REPO = Path(__file__).resolve().parents[1]
 CONFIG_DIR = REPO / "experiments" / "configs"
-DEFAULT_BENCHMARK = "PEMS/pems04/pems04_12"
+DEFAULT_BENCHMARK = "PEMS/pems04/pems04_12"   # = Root("results").benchmark; kept for callers that predate --root
 DEFAULT_MODEL = "mixed_concat_darts"
 DEFAULT_PROBE = "results/data/pems04_probe_batch.pt"
 
@@ -200,15 +202,19 @@ def load_probe_batch(path: str | Path = DEFAULT_PROBE):
 
 def main():
     ap = argparse.ArgumentParser(description="pilot data utilities")
+    Root.add_args(ap)
     ap.add_argument("--save-probe-batch", action="store_true")
-    ap.add_argument("--benchmark", default=DEFAULT_BENCHMARK)
+    ap.add_argument("--benchmark", default=None, help="default: the root's <dataset>_<horizon> benchmark")
     ap.add_argument("--batch-size", type=int, default=32)
     ap.add_argument("--n-batches", type=int, default=4)
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--out", default=DEFAULT_PROBE)
+    ap.add_argument("--out", default=None, help="default: <root>/data/<dataset>_probe_batch.pt")
     args = ap.parse_args()
+    root = Root.from_args(args)
+    benchmark = args.benchmark or root.benchmark
+    out = args.out or root.probe
     if args.save_probe_batch:
-        meta = save_probe_batch(args.benchmark, args.out, args.batch_size, args.n_batches, args.seed)
+        meta = save_probe_batch(benchmark, out, args.batch_size, args.n_batches, args.seed)
         print(json.dumps(meta, indent=2))
     else:
         ap.print_help()

@@ -1,4 +1,8 @@
-"""Per-phase pass/fail checks.  ``python -m pilot.check --phase 1``  -> prints PASS or FAIL, exit code 0/1."""
+"""Per-phase pass/fail checks.  ``python -m pilot.check --phase 1 [--root results] [--pilot 1|2]`` -> PASS or FAIL, exit 0/1.
+
+Every path defaults to the root's files (``pilot.paths.Root``); ``--n`` is the number of frozen architectures the root is
+expected to hold (default: the number of lines in ``<root>/archs.jsonl``).  ``--pilot 2`` selects the Pilot 2 checks.
+"""
 from __future__ import annotations
 
 import argparse
@@ -6,8 +10,11 @@ import json
 import math
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
+
+from pilot.paths import Root
 
 
 def _ok(flag: bool, msg: str) -> bool:
@@ -43,7 +50,7 @@ def phase1(args) -> bool:
         g, aid = rec["genotype"], rec["arch_id"]
         # 1) genotype round trip through the built network
         good &= _ok(arch_id(g) == aid, f"{aid}: stored arch_id matches hash of stored genotype")
-        net = build_discrete_net(g, probe["dims"])
+        net = build_discrete_net(g, probe["dims"], adj_path=args.adj)
         g2 = genotype_from_meta(net.meta_info, g["space"])
         good &= _ok(arch_id(g2) == aid, f"{aid}: genotype -> build_net -> meta_info -> genotype gives the same arch_id")
         with torch.no_grad():
@@ -155,7 +162,10 @@ def phase3(args) -> bool:
     from pilot.proxies.wrapper import ProxyWrapper, loss_fn
     from tsf_oneshot.cells.encoders.graph_components import GRAPH_OPS
 
+    from pilot import datasets
+
     good = True
+    n = datasets.n_nodes(args.root_obj.dataset)
     # 1) adjacency
     adj_path = Path(args.adj)
     good &= _ok(adj_path.exists(), f"{adj_path} exists")
@@ -163,15 +173,18 @@ def phase3(args) -> bool:
         return False
     A = load_adj(adj_path)
     n_edges = int(A.sum() // 2)
-    good &= _ok(A.shape == (307, 307), f"A is {A.shape}")
+    good &= _ok(A.shape == (n, n), f"A is {A.shape} ({args.root_obj.dataset}: {n} sensors)")
     good &= _ok(bool(np.array_equal(A, A.T)), "A symmetric")
     good &= _ok(set(np.unique(A)) <= {0.0, 1.0}, "A binary")
     good &= _ok(bool((np.diag(A) == 0).all()), "A zero diagonal")
-    good &= _ok(n_edges > 300, f"A has {n_edges} undirected edges (> 300)")
+    good &= _ok(n_edges > 0.9 * n, f"A has {n_edges} undirected edges (> 0.9 x {n})")
     info_path = adj_path.with_suffix(".json")
     if info_path.exists():
         info = json.load(open(info_path))
-        good &= _ok(info.get("matches_pickle_after_symmetrization") is True, "A matches adj_PEMS04.pkl after symmetrization")
+        if "matches_pickle_after_symmetrization" in info:
+            good &= _ok(info["matches_pickle_after_symmetrization"] is True, "A matches the cross-check pickle after symmetrization")
+        else:
+            print("  [info] adjacency was built without --cross-check")
     perms = sorted(adj_path.parent.glob(f"{adj_path.stem}_perm_*.npy"))
     good &= _ok(len(perms) >= 1, f"{len(perms)} permuted adjacencies on disk")
     P = load_adj(perms[0]) if perms else None
@@ -180,14 +193,14 @@ def phase3(args) -> bool:
     # 2) ops
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(0)
-    x = torch.randn(2, 96, 307, 32, device=device)
+    x = torch.randn(2, 96, n, 32, device=device)
     packA, packP = adj_pack(A, device), (adj_pack(P, device) if P is not None else None)
     expect_sensitive = {"gcn": True, "diffusion": True, "adaptive": False, "graph_identity": False}
     for name, make in GRAPH_OPS.items():
-        op = make(32, 307).to(device)
+        op = make(32, n).to(device)
         with torch.no_grad():
             yA = op(x, packA)
-            good &= _ok(tuple(yA.shape) == tuple(x.shape), f"{name}: (2, 96, 307, 32) -> {tuple(yA.shape)}")
+            good &= _ok(tuple(yA.shape) == tuple(x.shape), f"{name}: {tuple(x.shape)} -> {tuple(yA.shape)}")
             if packP is not None:
                 yP = op(x, packP)
                 changed = not torch.allclose(yA, yP)
@@ -202,7 +215,7 @@ def phase3(args) -> bool:
     for rec in graph_archs[: args.limit]:
         g, aid = rec["genotype"], rec["arch_id"]
         print(f"  {aid}: {summarize(g)}")
-        net = build_discrete_net(g, dims)
+        net = build_discrete_net(g, dims, adjacency=A)
         g2 = genotype_from_meta(net.meta_info, g["space"])
         good &= _ok(arch_id(g2) == aid, f"{aid}: genotype -> build_net -> meta_info -> genotype round trip")
         net = net.to(device)
@@ -306,21 +319,25 @@ def phase4(args) -> bool:
     good &= _ok(best_dev <= threshold, f"GATE: best dev graph val_mae {best_dev:.4f} <= {threshold:.4f} (1.10 x {best_ref:.4f}) "
                                        f"-> {'Option 1 confirmed' if best_dev <= threshold else 'FAIL: consider the fallback'}")
     if args.frozen:
+        from pilot.sample_archs import scaled_quota
+
         fr = load_archs_safe(args.frozen)
         ids = [r["arch_id"] for r in fr]
-        good &= _ok(len(fr) == 50 and len(set(ids)) == 50, f"{args.frozen}: {len(fr)} archs, {len(set(ids))} distinct ids")
+        N = args.n
+        q = scaled_quota(N)
+        good &= _ok(len(fr) == N and len(set(ids)) == N, f"{args.frozen}: {len(fr)} archs, {len(set(ids))} distinct ids (expected {N})")
         fams = Counter(graph_family(r["genotype"]) for r in fr)
         n_none = fams.get("none", 0)
         n_gcn = sum(1 for r in fr if graph_family(r["genotype"]) in ("gcn", "mixed"))
         n_diff = sum(1 for r in fr if graph_family(r["genotype"]) in ("diffusion", "mixed"))
         n_ctrl = fams.get("identity-only", 0) + fams.get("adaptive-only", 0)
-        print(f"  graph_family counts: {dict(fams)}")
-        good &= _ok(n_none == 16, f"frozen: {n_none} graph-blind (expected 16)")
-        good &= _ok(n_gcn >= 10, f"frozen: {n_gcn} contain gcn (>= 10)")
-        good &= _ok(n_diff >= 10, f"frozen: {n_diff} contain diffusion (>= 10)")
-        good &= _ok(n_ctrl >= 6, f"frozen: {n_ctrl} adaptive/identity-only controls (>= 6)")
+        print(f"  graph_family counts: {dict(fams)}; quotas for N = {N}: {q}")
+        good &= _ok(n_none == q["none"], f"frozen: {n_none} graph-blind (expected {q['none']})")
+        good &= _ok(n_gcn >= q["gcn"], f"frozen: {n_gcn} contain gcn (>= {q['gcn']})")
+        good &= _ok(n_diff >= q["diffusion"], f"frozen: {n_diff} contain diffusion (>= {q['diffusion']})")
+        good &= _ok(n_ctrl >= q["control"], f"frozen: {n_ctrl} adaptive/identity-only controls (>= {q['control']})")
         good &= _ok(all(r["genotype"]["space"] == "dartsts_graph_v1" for r in fr), "frozen: all in space dartsts_graph_v1")
-        good &= _ok(Path(args.frozen).with_name("FROZEN.md").exists(), "results/FROZEN.md exists")
+        good &= _ok(Path(args.frozen).with_name("FROZEN.md").exists(), f"{Path(args.frozen).with_name('FROZEN.md')} exists")
     return bool(good)
 
 
@@ -332,8 +349,9 @@ def phase6(args) -> bool:
     from pilot.score_proxies import ORDER
 
     good = True
+    N = args.n
     archs = load_archs_safe(args.archs)
-    good &= _ok(len(archs) == 50, f"{len(archs)} frozen archs in {args.archs}")
+    good &= _ok(len(archs) == N, f"{len(archs)} frozen archs in {args.archs} (expected {N})")
     seeds = [s.strip() for s in args.seeds.split(",")]
     n_complete, n_errors, missing = 0, 0, []
     for r in archs:
@@ -352,14 +370,14 @@ def phase6(args) -> bool:
                 if v is None or not math.isfinite(v):
                     ok = False
         n_complete += ok
-    good &= _ok(n_complete == 50 and not missing, f"{n_complete}/50 proxy files complete ({len(ORDER)} names x {len(seeds)} seeds); "
-                                                  f"{n_errors} explicit errors; missing {missing[:3]}")
+    good &= _ok(n_complete == N and not missing, f"{n_complete}/{N} proxy files complete ({len(ORDER)} names x {len(seeds)} seeds); "
+                                                 f"{n_errors} explicit errors; missing {missing[:3]}")
     done, failed, running, todo = [], [], [], []
     for r in archs:
         m = Path(args.train_dir) / r["arch_id"] / "seed0" / "metrics.json"
         st = json.load(open(m)).get("status") if m.exists() else None
         (done if st == "done" else failed if st == "failed" else running if st == "running" else todo).append(r["arch_id"])
-    good &= _ok(len(done) >= 45, f"seed-0 trainings: {len(done)} done, {len(failed)} failed, {len(running)} running, {len(todo)} not started")
+    good &= _ok(len(done) >= 0.9 * N, f"seed-0 trainings: {len(done)} done (>= 90% of {N}), {len(failed)} failed, {len(running)} running, {len(todo)} not started")
     if failed:
         print(f"  failed: {failed}")
     # seed noise on the first 5
@@ -471,7 +489,7 @@ def phase8(args) -> bool:
     if not summ.exists():
         return False
     sm = json.load(open(summ))
-    good &= _ok(sm["n_rows"] == sm["n_done"] == 50, f"joined.csv rows {sm['n_rows']} == done trainings {sm['n_done']} == 50")
+    good &= _ok(sm["n_rows"] == sm["n_done"] == args.n, f"joined.csv rows {sm['n_rows']} == done trainings {sm['n_done']} == {args.n}")
     good &= _ok(sm["seconds"] < 60, f"analyze.py ran in {sm['seconds']} s (< 60)")
     rows = list(csv.DictReader(open(tdir / "table_A.csv")))
     good &= _ok(len(rows) == 13, f"table_A.csv has {len(rows)} proxy rows (13)")
@@ -516,12 +534,12 @@ def phase10(args) -> bool:
     archs = load_archs_safe(args.archs)
     done = sum(1 for r in archs if (Path(args.train_dir) / r["arch_id"] / "seed0" / "metrics.json").exists()
                and json.load(open(Path(args.train_dir) / r["arch_id"] / "seed0" / "metrics.json")).get("status") == "done")
-    good &= _ok(done == 50, f"{done}/50 seed-0 trainings done")
+    good &= _ok(done == args.n, f"{done}/{args.n} seed-0 trainings done")
     n_err = sum(len(json.load(open(Path(args.proxies_dir) / f"{r['arch_id']}.json")).get("errors", {})) for r in archs)
     n_serr = sum(len(json.load(open(Path(args.spatial_dir) / f"{r['arch_id']}.json")).get("errors", {})) for r in archs)
     good &= _ok(n_err == 0 and n_serr == 0, f"proxy errors {n_err}, spatial errors {n_serr}")
-    res = Path("results/RESULTS.md")
-    good &= _ok(res.exists(), "results/RESULTS.md exists")
+    res = args.root_obj.results_md
+    good &= _ok(res.exists(), f"{res} exists")
     if res.exists():
         txt = res.read_text()
         tables = sorted(p.name for p in Path(args.tables_dir).glob("table_*.md")) + ["ci_summary.md", "table_A_partial.md", "joined.csv"]
@@ -541,33 +559,148 @@ def load_archs_safe(path):
     return load_archs(path) if Path(path).exists() else []
 
 
+# ============================================================================================ Pilot 2 checks
+
+def _git_show(path: Path) -> bytes | None:
+    """The committed version of a repo file (path relative to the repo root or absolute inside it), or None."""
+    from pilot.data import REPO
+
+    rel = Path(path)
+    if rel.is_absolute():
+        rel = rel.relative_to(REPO)
+    try:
+        return subprocess.check_output(["git", "-C", str(REPO), "show", f"HEAD:{rel.as_posix()}"])
+    except subprocess.CalledProcessError:
+        return None
+
+
+def pilot2_phase1(args) -> bool:
+    """Pilot 2, Phase 1 (dataset-agnostic pilot/): the Pilot 1 checks 8, 9, 10 still PASS on the Pilot 1 tree through --root;
+    analyze reproduces the committed tables byte for byte; the dataset registry lists three datasets whose data and
+    benchmark yaml exist; PEMS/pems04/pems04_36 composes with n_prediction_steps == 36 and one graph arch plus one
+    graph-blind arch forward on CPU at that horizon (risk ladder item 1)."""
+    import torch
+
+    from pilot import datasets
+    from pilot.build_net import build_discrete_net
+    from pilot.data import get_cfg, get_dataset_and_loaders, preprocess_batch, seed_everything
+    from pilot.genotype import has_graph_op
+
+    root: Root = args.root_obj
+    good = True
+    # 1) regression: the Pilot 1 checks through --root
+    for ph in (8, 9, 10):
+        print(f"  -- Pilot 1 phase {ph} on --root {root.dir}")
+        ok = PILOT1_CHECKS[ph](args)
+        good &= _ok(ok, f"Pilot 1 phase {ph} check PASS with --root {root.dir}")
+    # 2) analyze reproduces the committed tables
+    tmp = Path(tempfile.mkdtemp(prefix="pilot2_phase1_"))
+    t0 = time.time()
+    cp = subprocess.run([sys.executable, "-m", "pilot.analyze", "--root", str(root.dir), "--out", str(tmp)], capture_output=True, text=True)
+    good &= _ok(cp.returncode == 0, f"pilot.analyze --root {root.dir} --out <tmp> ran in {time.time() - t0:.0f}s (rc={cp.returncode})"
+                + ("" if cp.returncode == 0 else "\n" + cp.stderr[-1500:]))
+    for f, required in [("table_A.csv", True), ("table_B.csv", True), ("joined.csv", True), ("table_A_partial.csv", True),
+                        ("subsample_curve.csv", True), ("table_A.md", True), ("table_B.md", True), ("ci_summary.md", True)]:
+        committed, fresh, on_disk = _git_show(root.tables / f), (tmp / f), root.tables / f
+        if committed is None:  # e.g. subsample_curve.csv, never committed in Pilot 1 -> compare with the on-disk copy
+            committed, where = (on_disk.read_bytes() if on_disk.exists() else None), f"the on-disk {on_disk} (not in git)"
+        else:
+            where = f"git HEAD:{on_disk}"
+        same = committed is not None and fresh.exists() and fresh.read_bytes() == committed
+        good &= _ok(same, f"{f}: regenerated file byte-identical to {where}")
+    # 3) the registry
+    n_listed = 0
+    for ds in datasets.DATASETS:
+        st = datasets.files_status(ds)
+        ok = st["npz_exists"] and bool(st["horizons"])
+        n_listed += ok
+        v = datasets.verify_npz(ds) if st["npz_exists"] else {"shape": None, "n_nodes_match": False}
+        good &= _ok(ok and v["n_nodes_match"], f"{ds}: npz {st['npz']} exists={st['npz_exists']} shape={v['shape']} "
+                                              f"n_nodes={st['n_nodes']} match={v['n_nodes_match']}; horizons {st['horizons']}")
+        adj_src = st["distance_csv_exists"] or st["adj_pickle_exists"]
+        print(f"  [{'ok' if adj_src else 'note'}] {ds}: adjacency source distance_csv={st['distance_csv_exists']} "
+              f"adj_pickle={st['adj_pickle_exists']} ({st['adj_pickle']}){'' if adj_src else '  <- needed before a Phase 2(b) probe on it'}")
+    good &= _ok(n_listed == 3, f"python -m pilot.datasets --list: {n_listed}/3 datasets with data + benchmark yaml")
+    # 4) horizon 36 composes and the nets forward at H = 36
+    bench = datasets.benchmark_for("pems04", 36)
+    try:
+        cfg = get_cfg(bench)
+        good &= _ok(int(cfg.benchmark.external_forecast_horizon) == 36, f"{bench} composes; external_forecast_horizon = {cfg.benchmark.external_forecast_horizon}")
+        seed_everything(0)
+        dataset, (train_loader, _, _), dims = get_dataset_and_loaders(cfg, batch_size=4, num_workers=0)
+        good &= _ok(dims["n_prediction_steps"] == 36, f"{bench}: n_prediction_steps = {dims['n_prediction_steps']} (36); dims d_output={dims['d_output']} window={dims['window_size']}")
+        from autoPyTorch.pipeline.components.setup.forecasting_target_scaling.utils import TargetScaler
+        X, y = next(iter(train_loader))
+        x_past, x_future, loc, scale = preprocess_batch(X, TargetScaler(cfg.train.targe_scaler), dims["window_size"], torch.device("cpu"))
+        target = y["future_targets"].float()
+        archs = load_archs_safe(args.archs)
+        def first(cond):
+            return next((r for r in archs if cond(r["genotype"])), None)
+        picks = [first(lambda g: has_graph_op(g) and g["seq"]["decoder_type"] == "seq"),
+                 first(lambda g: has_graph_op(g) and g["seq"]["decoder_type"] == "linear"),
+                 first(lambda g: g.get("graph") is None)]
+        picks = [r for r in picks if r is not None]
+        good &= _ok(len(picks) == 3, f"{len(picks)} archs picked for the h36 forward (graph+seq decoder, graph+linear, graph-blind)")
+        for r in picks:
+            g, aid = r["genotype"], r["arch_id"]
+            net = build_discrete_net(g, dims, adj_path=args.adj)
+            with torch.no_grad():
+                out = net(x_past, x_future)
+            out = out[-1] if isinstance(out, (list, tuple)) else out
+            good &= _ok(tuple(out.shape) == tuple(target.shape) and out.shape[1] == 36,
+                        f"{aid} ({'graph' if g.get('graph') else 'graph-blind'}, head={g['head']}, dec={g['seq']['decoder_type']}): "
+                        f"CPU forward at h36 gives {tuple(out.shape)} == target {tuple(target.shape)}")
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        good &= _ok(False, f"horizon-36 check raised {e!r}\n{traceback.format_exc()[-1500:]}")
+    return bool(good)
+
+
+PILOT1_CHECKS = {1: phase1, 2: phase2, 3: phase3, 4: phase4, 6: phase6, 7: phase7, 8: phase8, 9: phase9, 10: phase10}
+PILOT2_CHECKS = {1: pilot2_phase1}
+
+
 def main():
     ap = argparse.ArgumentParser()
+    Root.add_args(ap)
     ap.add_argument("--phase", type=int, required=True)
-    ap.add_argument("--archs", default="results/archs.jsonl")
-    ap.add_argument("--probe", default="results/data/pems04_probe_batch.pt")
-    ap.add_argument("--proxies-dir", default="results/proxies/v1")
-    ap.add_argument("--train-dir", default="results/train")
+    ap.add_argument("--pilot", type=int, default=1, help="1 = the Pilot 1 phase checks (default), 2 = the Pilot 2 phase checks")
+    ap.add_argument("--n", type=int, default=None, help="expected number of frozen archs (default: lines in <root>/archs.jsonl)")
+    ap.add_argument("--archs", default=None)
+    ap.add_argument("--probe", default=None)
+    ap.add_argument("--proxies-dir", default=None)
+    ap.add_argument("--train-dir", default=None)
     ap.add_argument("--epochs", type=int, default=2)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--limit", type=int, default=1)
     ap.add_argument("--seeds", default="0,1,2", help="phase 2: init seeds expected in the proxy files")
-    ap.add_argument("--timing-csv", default="results/tables/timing_p2.csv")
-    ap.add_argument("--adj", default="results/data/pems04_adj.npy")
+    ap.add_argument("--timing-csv", default=None)
+    ap.add_argument("--adj", default=None)
     ap.add_argument("--autocts", action="store_true", help="phase 3: also check the AutoCTS fallback gate")
-    ap.add_argument("--autocts-json", default="results/autocts_precheck.json")
-    ap.add_argument("--baselines", default="results/tables/naive_baselines.json")
-    ap.add_argument("--ref-archs", default="results/archs_p2.jsonl", help="phase 4: graph-blind reference archs (P2 five)")
-    ap.add_argument("--frozen", default=None, help="phase 4: the frozen 50 (results/archs.jsonl) to validate")
-    ap.add_argument("--status-csv", default="results/tables/status.csv")
-    ap.add_argument("--spatial-dir", default="results/proxies/spatial_v2")
-    ap.add_argument("--tables-dir", default="results/tables")
-    ap.add_argument("--figs-dir", default="results/figs")
+    ap.add_argument("--autocts-json", default=None)
+    ap.add_argument("--baselines", default=None)
+    ap.add_argument("--ref-archs", default=None, help="phase 4: graph-blind reference archs (P2 five)")
+    ap.add_argument("--frozen", default=None, help="phase 4: the frozen set (<root>/archs.jsonl) to validate")
+    ap.add_argument("--status-csv", default=None)
+    ap.add_argument("--spatial-dir", default=None)
+    ap.add_argument("--tables-dir", default=None)
+    ap.add_argument("--figs-dir", default=None)
     args = ap.parse_args()
-    checks = {1: phase1, 2: phase2, 3: phase3, 4: phase4, 6: phase6, 7: phase7, 8: phase8, 9: phase9, 10: phase10}
-    if args.phase not in checks:
-        raise SystemExit(f"no check for phase {args.phase}; have {sorted(checks)}")
-    print(f"== pilot.check phase {args.phase}")
+    root = Root.from_args(args)
+    args.root_obj = root
+    defaults = {"archs": root.archs_jsonl, "probe": root.probe, "proxies_dir": root.proxies_v1, "train_dir": root.train,
+                "timing_csv": root.tables / "timing_p2.csv", "adj": root.adj, "autocts_json": root.dir / "autocts_precheck.json",
+                "baselines": root.naive_baselines, "ref_archs": root.dir / "archs_p2.jsonl", "status_csv": root.status_csv,
+                "spatial_dir": root.spatial_v2, "tables_dir": root.tables, "figs_dir": root.figs}
+    for k, v in defaults.items():
+        if getattr(args, k) is None:
+            setattr(args, k, str(v))
+    if args.n is None:
+        args.n = len(load_archs_safe(args.archs))
+    checks = {1: PILOT1_CHECKS, 2: PILOT2_CHECKS}.get(args.pilot)
+    if checks is None or args.phase not in checks:
+        raise SystemExit(f"no check for pilot {args.pilot} phase {args.phase}; have pilot 1: {sorted(PILOT1_CHECKS)}, pilot 2: {sorted(PILOT2_CHECKS)}")
+    print(f"== pilot.check pilot {args.pilot} phase {args.phase}  ({root}, n = {args.n})")
     ok = checks[args.phase](args)
     print("PASS" if ok else "FAIL")
     sys.exit(0 if ok else 1)

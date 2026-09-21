@@ -1,6 +1,6 @@
-"""Score zero-cost proxies for every architecture in results/archs.jsonl on the fixed probe batch.
+"""Score zero-cost proxies for every architecture in <root>/archs.jsonl on the root's fixed probe batch.
 
-Idempotent: results/proxies/<version>/<arch_id>.json is merged, and a (proxy, seed) that already has a value is
+Idempotent: <root>/proxies/<version>/<arch_id>.json is merged, and a (proxy, seed) that already has a value is
 skipped unless --force.  Each JSON records torch version, fork commit, probe-batch SHA-1 and the NASLib commit,
 so later runs can be compared like-for-like.
 
@@ -21,8 +21,9 @@ from pathlib import Path
 import torch
 
 from pilot.build_net import build_discrete_net
-from pilot.data import DEFAULT_PROBE, load_probe_batch, seed_everything
+from pilot.data import load_probe_batch, seed_everything
 from pilot.genotype import load_archs
+from pilot.paths import Root
 from pilot.proxies import extra
 from pilot.proxies.naslib import NASLIB_COMMIT, NASLIB_MEASURES, naslib_measure
 from pilot.proxies.wrapper import ProxyWrapper, loss_fn
@@ -69,12 +70,13 @@ def fork_commit() -> str | None:
         return None
 
 
-def score_one(g: dict, dims: dict, batches: list[dict], proxies: list[str], seed: int, device: torch.device, rec: dict):
+def score_one(g: dict, dims: dict, batches: list[dict], proxies: list[str], seed: int, device: torch.device, rec: dict,
+              adj_path=None):
     batch = batches[0]
     x = batch["x_past"].to(device)
     target = batch["target"].to(device)
     seed_everything(seed, deterministic=True)  # immediately before build (Section 3.3)
-    net = build_discrete_net(g, dims).to(device)
+    net = build_discrete_net(g, dims, adj_path=adj_path).to(device)
     wrapper = ProxyWrapper(net, {"x_future": batch["x_future"], "loc": batch["loc"], "scale": batch["scale"]}).to(device)
     # The DARTS-TS net keeps intermediate tensors as attributes after a forward with grad, and torch refuses to
     # deepcopy non-leaf tensors -> the built wrapper is never forwarded itself; every measure gets a fresh copy
@@ -122,15 +124,20 @@ def score_one(g: dict, dims: dict, batches: list[dict], proxies: list[str], seed
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--archs", default="results/archs.jsonl")
+    Root.add_args(ap)
+    ap.add_argument("--archs", default=None, help="default: <root>/archs.jsonl")
     ap.add_argument("--proxies", default="all")
     ap.add_argument("--seeds", default="0")
-    ap.add_argument("--out", default=f"results/proxies/{PROXY_VERSION}")
-    ap.add_argument("--probe", default=DEFAULT_PROBE)
+    ap.add_argument("--out", default=None, help=f"default: <root>/proxies/{PROXY_VERSION}")
+    ap.add_argument("--probe", default=None, help="default: <root>/data/<dataset>_probe_batch.pt")
+    ap.add_argument("--adj", default=None, help="default: <root>/data/<dataset>_adj.npy")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--limit", type=int, default=None, help="score only the first N archs")
     args = ap.parse_args()
+    root = Root.from_args(args)
+    args.archs, args.out = args.archs or root.archs_jsonl, args.out or root.proxies_v1
+    args.probe, args.adj = args.probe or root.probe, args.adj or root.adj
 
     proxies = expand(args.proxies)
     seeds = [int(s) for s in args.seeds.split(",") if s.strip()]
@@ -164,7 +171,7 @@ def main():
                 print(f"[{k}] {aid} seed {seed}: all {len(proxies)} proxies present -> skip")
                 continue
             print(f"[{k}] {aid} seed {seed}: {todo}")
-            score_one(g, dims, batches, todo, seed, device, rec)
+            score_one(g, dims, batches, todo, seed, device, rec, adj_path=args.adj)
             path.write_text(json.dumps(rec, indent=2))
         path.write_text(json.dumps(rec, indent=2))
     print(f"done in {time.time() - t_all:.0f}s")

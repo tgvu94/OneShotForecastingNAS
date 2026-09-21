@@ -8,16 +8,23 @@ import os
 
 import numpy as np
 
-from pilot.adjacency import DEFAULT_ADJ, load_adj
+from pilot import datasets
+from pilot.adjacency import load_adj
+from pilot.paths import Root
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--npz", default=os.path.expanduser("~/scratch/all_datasets/PEMS/PEMS04.npz"))
-    ap.add_argument("--adj", default=DEFAULT_ADJ)
+    Root.add_args(ap)
+    ap.add_argument("--npz", default=None, help="default: the root's dataset .npz under $PILOT_DATA_ROOT")
+    ap.add_argument("--adj", default=None, help="default: <root>/data/<dataset>_adj.npy")
     ap.add_argument("--top", type=int, default=10)
-    ap.add_argument("--out", default="results/tables/adj_sanity.json")
+    ap.add_argument("--out", default=None, help="default: <root>/tables/adj_sanity.json")
     args = ap.parse_args()
+    root = Root.from_args(args)
+    args.npz = args.npz or os.fspath(datasets.npz_path(root.dataset))
+    args.adj = args.adj or root.adj
+    args.out = args.out or root.tables / "adj_sanity.json"
     A = load_adj(args.adj)
     x = np.load(args.npz)["data"][:, :, 0].astype(np.float64)  # (T, N) flow
     C = np.corrcoef(x.T)

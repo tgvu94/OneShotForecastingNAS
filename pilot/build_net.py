@@ -3,7 +3,9 @@
 Mirrors the ``mixed_concat`` branch of ``experiments/test_evaluated_model.py`` line for line, so the discrete
 net the pilot trains is the one the repo's own paper trained; only the operator choices come from the genotype
 instead of from ``opt_arch_weights.pth``.  A genotype with a non-null ``graph`` cell gets the P3 graph net as a
-third forecaster, built on the PEMS04 adjacency from ``results/data/pems04_adj.npy``.
+third forecaster, built on the adjacency of the setting: ``adj_path`` if given, else the conventional file of the
+setting the ``dims`` came from (``dims['benchmark']`` = 'pems04_12' -> results/data/pems04_adj.npy,
+'pems08_12' -> results/pems08_h12/data/pems08_adj.npy).  The adjacency must be (d_output, d_output).
 """
 from __future__ import annotations
 
@@ -15,6 +17,7 @@ from tsf_oneshot.networks.sampled_net import MixedConcatSampledNet
 
 from pilot.adjacency import DEFAULT_ADJ, load_adj
 from pilot.genotype import edges_to_lists, load_space
+from pilot.paths import default_adj_for_dims
 
 _ADJ_CACHE: dict = {}
 
@@ -81,13 +84,16 @@ def graph_init_kwargs(g: dict) -> dict:
                 PRIMITIVES=list(gsp["PRIMITIVES"]))
 
 
-def build_discrete_net(g: dict, dims: dict, adjacency: np.ndarray | None = None, adj_path: str | Path = DEFAULT_ADJ):
+def build_discrete_net(g: dict, dims: dict, adjacency: np.ndarray | None = None, adj_path: str | Path | None = None):
     kwargs = net_init_kwargs(g, dims)
     if g.get("graph") is None:
         return MixedConcatSampledNet(**kwargs)
     from tsf_oneshot.networks.graph_net import MixedConcatGraphSampledNet
 
-    A = adjacency if adjacency is not None else get_adjacency(adj_path)
+    A = adjacency if adjacency is not None else get_adjacency(adj_path or default_adj_for_dims(dims))
+    n = int(dims["d_output"])
+    if tuple(A.shape) != (n, n):
+        raise ValueError(f"adjacency {tuple(A.shape)} does not match d_output = {n} of benchmark {dims.get('benchmark')}")
     return MixedConcatGraphSampledNet(graph=graph_init_kwargs(g), adjacency=A, **kwargs)
 
 

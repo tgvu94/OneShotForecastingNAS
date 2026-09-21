@@ -4,8 +4,8 @@ For each arch, init seed and base proxy:  score(A) (recomputed, and compared wit
 j = 0..k-1, their mean / std, S_spatial = |score(A) - mean_j| and z_spatial = (score(A) - mean_j) / std_j (Section 3.4).
 Graph-blind archs never see A, so their S_spatial is 0 up to float noise (the built-in control).
 
-    python -m pilot.score_spatial --archs results/archs.jsonl --base nwot,zico --seeds 0,1,2 \
-        --perms results/data/pems04_adj_perm_*.npy --out results/proxies/spatial_v1
+    python -m pilot.score_spatial --root results --base nwot,zico,grad_norm_all,snip_all --seeds 0,1,2
+(``--adj``, ``--perms``, ``--probe``, ``--v1`` and ``--out`` default to the root's files.)
 """
 from __future__ import annotations
 
@@ -23,10 +23,11 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from pilot.adjacency import DEFAULT_ADJ, load_adj
+from pilot.adjacency import load_adj
 from pilot.build_net import build_discrete_net
-from pilot.data import DEFAULT_PROBE, load_probe_batch, seed_everything
+from pilot.data import load_probe_batch, seed_everything
 from pilot.genotype import graph_family, load_archs
+from pilot.paths import Root
 from pilot.proxies import extra
 from pilot.proxies.wrapper import ProxyWrapper, loss_fn
 
@@ -64,17 +65,24 @@ def score_under(wrapper, A: np.ndarray, base: str, x, target, batches, device, s
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--archs", default="results/archs.jsonl")
+    Root.add_args(ap)
+    ap.add_argument("--archs", default=None, help="default: <root>/archs.jsonl")
     ap.add_argument("--base", default="nwot,zico")
     ap.add_argument("--seeds", default="0,1,2")
-    ap.add_argument("--adj", default=DEFAULT_ADJ)
-    ap.add_argument("--perms", nargs="+", required=True)
-    ap.add_argument("--v1", default="results/proxies/v1", help="scores under A already computed in Phases 2/5 (compared, not reused; they carry dropout noise)")
-    ap.add_argument("--out", default=f"results/proxies/{SPATIAL_VERSION}")
-    ap.add_argument("--probe", default=DEFAULT_PROBE)
+    ap.add_argument("--adj", default=None, help="default: <root>/data/<dataset>_adj.npy")
+    ap.add_argument("--perms", nargs="+", default=None, help="default: <root>/data/<dataset>_adj_perm_*.npy")
+    ap.add_argument("--v1", default=None, help="scores under A already computed in Phases 2/5 (compared, not reused; they carry dropout noise)")
+    ap.add_argument("--out", default=None, help=f"default: <root>/proxies/{SPATIAL_VERSION}")
+    ap.add_argument("--probe", default=None, help="default: <root>/data/<dataset>_probe_batch.pt")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--force", action="store_true")
     args = ap.parse_args()
+    root = Root.from_args(args)
+    args.archs, args.adj, args.v1 = args.archs or root.archs_jsonl, args.adj or root.adj, args.v1 or root.proxies_v1
+    args.out, args.probe = args.out or root.spatial_v2, args.probe or root.probe
+    args.perms = [str(p) for p in (args.perms or root.adj_perms())]
+    if not args.perms:
+        raise SystemExit(f"no permuted adjacencies for {root} (python -m pilot.permute_adj --root {root.dir})")
 
     bases = [b.strip() for b in args.base.split(",") if b.strip()]
     unknown = [b for b in bases if b not in BASES]
@@ -113,7 +121,7 @@ def main():
             if not todo:
                 continue
             seed_everything(seed, deterministic=True)
-            net = build_discrete_net(g, dims).to(device)
+            net = build_discrete_net(g, dims, adjacency=A).to(device)
             wrapper = ProxyWrapper(net, {"x_future": b0["x_future"], "loc": b0["loc"], "scale": b0["scale"]}).to(device)
             for base in todo:
                 br = rec["bases"].setdefault(base, {"A": {}, "A_v1": {}, "perm": {}, "perm_mean": {}, "perm_std": {},

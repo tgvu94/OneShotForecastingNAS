@@ -27,8 +27,9 @@ from pathlib import Path
 import torch
 
 from pilot.build_net import build_discrete_net
-from pilot.data import DEFAULT_PROBE, load_probe_batch, seed_everything
+from pilot.data import load_probe_batch, seed_everything
 from pilot.genotype import load_archs
+from pilot.paths import Root
 from pilot.proxies.wrapper import ProxyWrapper, loss_fn
 
 VERDICT = ("TFAS not usable as a distinct proxy: its score is ZiCo on Conv/Linear/Conv1d weights; the time-frequency awareness "
@@ -38,14 +39,19 @@ VERDICT = ("TFAS not usable as a distinct proxy: its score is ZiCo on Conv/Linea
 
 def main():
     ap = argparse.ArgumentParser()
+    Root.add_args(ap)
     ap.add_argument("--tfas", default=os.path.expanduser("~/nas/TFAS"))
-    ap.add_argument("--archs", default="results/archs.jsonl")
+    ap.add_argument("--archs", default=None)
     ap.add_argument("--seeds", default="0,1,2")
-    ap.add_argument("--v1", default="results/proxies/v1")
-    ap.add_argument("--probe", default=DEFAULT_PROBE)
+    ap.add_argument("--v1", default=None)
+    ap.add_argument("--probe", default=None)
+    ap.add_argument("--adj", default=None)
     ap.add_argument("--limit", type=int, default=None)
-    ap.add_argument("--frozen-md", default="results/FROZEN.md")
+    ap.add_argument("--frozen-md", default=None)
     args = ap.parse_args()
+    root = Root.from_args(args)
+    args.archs, args.v1, args.probe = args.archs or root.archs_jsonl, args.v1 or root.proxies_v1, args.probe or root.probe
+    args.adj, args.frozen_md = args.adj or root.adj, args.frozen_md or root.frozen_md
 
     sys.path.insert(0, str(Path(args.tfas) / "zc_proxies" / "TimeZC"))
     commit = subprocess.check_output(["git", "-C", args.tfas, "rev-parse", "--short", "HEAD"], text=True).strip()
@@ -67,7 +73,7 @@ def main():
                 continue
             ts = time.time()
             seed_everything(seed, deterministic=True)
-            net = build_discrete_net(g, dims).to(device)
+            net = build_discrete_net(g, dims, adj_path=args.adj).to(device)
             wrapper = ProxyWrapper(net, {"x_future": batches[0]["x_future"], "loc": batches[0]["loc"], "scale": batches[0]["scale"]}).to(device)
             wrapper.train()
             grad_dict = {}

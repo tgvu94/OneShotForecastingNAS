@@ -1,4 +1,4 @@
-"""Phase 8 figures from results/tables/joined.csv (static PNGs, matplotlib).
+"""Phase 8 figures from <root>/tables/joined.csv (static PNGs, matplotlib).   python -m pilot.plots --root results
 
 fig1_proxy_vs_mae_grid.png  : 13 scatter panels, proxy vs val MAE, hue = group (graph-blind / control / uses A), marker = graph family
 fig2_spearman_by_family.png : grouped bars of Spearman(proxy, -val MAE) per proxy for all / graph-blind / has-graph, 95% bootstrap whiskers
@@ -20,6 +20,8 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 from scipy.stats import spearmanr  # noqa: E402
+
+from pilot.paths import Root  # noqa: E402
 
 SURFACE, INK, INK2, MUTED, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#898781", "#e1e0d9"
 GROUP_COLOR = {"graph-blind": "#2a78d6", "uses A": "#eb6834", "control": "#1baf7a"}
@@ -69,7 +71,7 @@ def legend_handles():
     return h
 
 
-def fig1(df, out):
+def fig1(df, out, label="PEMS04-12"):
     fig, axes = plt.subplots(3, 5, figsize=(15, 9.6))
     axes = axes.ravel()
     for k, p in enumerate(PROXIES):
@@ -83,7 +85,7 @@ def fig1(df, out):
     for ax in axes[len(PROXIES):]:
         ax.axis("off")
     axes[len(PROXIES)].legend(handles=legend_handles(), loc="center left", fontsize=9, title="architecture group", title_fontsize=9)
-    fig.suptitle("Fig. 1 — Zero-cost proxies vs. 20-epoch val MAE on PEMS04-12, N = 50 random DARTS-TS(+graph) architectures. "
+    fig.suptitle(f"Fig. 1 — Zero-cost proxies vs. 20-epoch val MAE on {label}, N = {len(df)} random DARTS-TS(+graph) architectures. "
                  "ρ = Spearman with −val MAE (positive = useful), 95% bootstrap CI.", fontsize=10, x=0.01, ha="left", color=INK)
     fig.tight_layout(rect=(0, 0, 1, 0.96))
     fig.savefig(out / "fig1_proxy_vs_mae_grid.png", dpi=160)
@@ -128,7 +130,7 @@ def fig3(df, out, base="nwot", name="fig3_spatial_vs_naswot.png"):
     axes[1].set_xscale("symlog", linthresh=max(df.loc[df.uses_A, col].min() * 0.5, 1e-12))
     sens = df[df.uses_A]
     rho_s, lo_s, hi_s = rho_ci(sens[col], sens.val_mae)
-    axes[1].set_title(f"S_spatial({base}) = |score(A) − mean score(π(A))|\nρ on the 28 uses-A archs = {rho_s:+.2f}  [{lo_s:+.2f}, {hi_s:+.2f}]", loc="left", fontsize=9)
+    axes[1].set_title(f"S_spatial({base}) = |score(A) − mean score(π(A))|\nρ on the {len(sens)} uses-A archs = {rho_s:+.2f}  [{lo_s:+.2f}, {hi_s:+.2f}]", loc="left", fontsize=9)
     axes[1].set_xlabel(f"S_spatial({base}), symlog (controls sit at exactly 0)")
     fig.legend(handles=legend_handles(), loc="lower center", fontsize=8, ncol=6, bbox_to_anchor=(0.5, 0.0))
     fig.suptitle(f"Fig. 3 — Experiment B with base {base}: the proxy itself (left) and its adjacency sensitivity (right) vs. val MAE", fontsize=10, x=0.01, ha="left")
@@ -139,13 +141,15 @@ def fig3(df, out, base="nwot", name="fig3_spatial_vs_naswot.png"):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--tables", default="results/tables")
-    ap.add_argument("--out", default="results/figs")
+    Root.add_args(ap)
+    ap.add_argument("--tables", default=None, help="default: <root>/tables")
+    ap.add_argument("--out", default=None, help="default: <root>/figs")
     args = ap.parse_args()
-    df = pd.read_csv(Path(args.tables) / "joined.csv")
-    out = Path(args.out)
+    root = Root.from_args(args)
+    df = pd.read_csv(Path(args.tables or root.tables) / "joined.csv")
+    out = Path(args.out or root.figs)
     out.mkdir(parents=True, exist_ok=True)
-    fig1(df, out)
+    fig1(df, out, root.label)
     fig2(df, out)
     fig3(df, out, "nwot", "fig3_spatial_vs_naswot.png")
     if "S_spatial_zico" in df:

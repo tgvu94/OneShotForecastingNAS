@@ -1,4 +1,4 @@
-"""Degree-preserving permutations of the PEMS04 adjacency (Section 3.4) -> results/data/pems04_adj_perm_{0..k-1}.npy.
+"""Degree-preserving permutations of a root's adjacency (Section 3.4) -> <root>/data/<ds>_adj_perm_{0..k-1}.npy.
 Thin CLI over ``pilot.adjacency.degree_preserving_permutations`` (the same files were first produced in Phase 3 by
 ``python -m pilot.adjacency --perms 8``); re-running with the same seed reproduces the same matrices."""
 from __future__ import annotations
@@ -9,15 +9,18 @@ from pathlib import Path
 
 import numpy as np
 
-from pilot.adjacency import DEFAULT_ADJ, degree_preserving_permutations, load_adj
+from pilot.adjacency import degree_preserving_permutations, load_adj
+from pilot.paths import Root
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--adj", default=DEFAULT_ADJ)
+    Root.add_args(ap)
+    ap.add_argument("--adj", default=None, help="default: <root>/data/<dataset>_adj.npy")
     ap.add_argument("--k", type=int, default=8)
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
+    args.adj = args.adj or Root.from_args(args).adj
     A = load_adj(args.adj)
     out = Path(args.adj)
     m = int(A.sum() // 2)

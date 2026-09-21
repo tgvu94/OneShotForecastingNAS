@@ -1,8 +1,9 @@
-"""PEMS04 adjacency (Section 3.4 / P3): binary symmetric ``A`` from the distance list, GCN normalisation,
-diffusion transition matrices, and degree-preserving permutations for Experiment B.
+"""Road-graph adjacency (Section 3.4 / P3): binary symmetric ``A`` from a ``from,to,cost`` distance list, GCN
+normalisation, diffusion transition matrices, and degree-preserving permutations for Experiment B.
 
-    python -m pilot.adjacency --distance-csv ~/scratch/all_datasets/PEMS/PEMS04.csv --out results/data/pems04_adj.npy \
-        --cross-check ~/scratch/all_datasets/PEMS/adj_PEMS04.pkl --perms 8
+    python -m pilot.adjacency --root results --perms 8 --cross-check ~/scratch/all_datasets/PEMS/adj_PEMS04.pkl
+    python -m pilot.adjacency --root results/pems08_h12 --perms 8 --cross-check ~/scratch/all_datasets/PEMS/adj_PEMS08.pkl
+(``--distance-csv``, ``--n`` and ``--out`` default to the root's dataset: PEMS04.csv / 307 / <root>/data/pems04_adj.npy.)
 """
 from __future__ import annotations
 
@@ -15,11 +16,15 @@ from pathlib import Path
 import numpy as np
 import torch
 
-DEFAULT_ADJ = "results/data/pems04_adj.npy"
+from pilot import datasets
+from pilot.paths import Root
+
+DEFAULT_ADJ = "results/data/pems04_adj.npy"   # = Root("results").adj; kept for callers that predate --root
 
 
-def load_pems04_adj(distance_csv: str | Path, n: int = 307) -> np.ndarray:
-    """Binary, symmetric, zero-diagonal (n, n) float32 matrix from a ``from,to,cost`` list (ids 0..n-1)."""
+def load_adj_from_distance_csv(distance_csv: str | Path, n: int) -> np.ndarray:
+    """Binary, symmetric, zero-diagonal (n, n) float32 matrix from a ``from,to,cost`` list; ids must lie in 0..n-1
+    (true for PEMS04.csv with n = 307 and PEMS08.csv with n = 170, checked 2026-09-21)."""
     A = np.zeros((n, n), dtype=np.float32)
     with open(distance_csv) as f:
         reader = csv.reader(f)
@@ -29,10 +34,16 @@ def load_pems04_adj(distance_csv: str | Path, n: int = 307) -> np.ndarray:
             if len(row) < 2:
                 continue
             i, j = int(row[0]), int(row[1])
+            if not (0 <= i < n and 0 <= j < n):
+                raise ValueError(f"{distance_csv}: sensor id {max(i, j)} outside 0..{n - 1}; wrong --n or the ids need a mapping file")
             if i != j:
                 A[i, j] = 1.0
                 A[j, i] = 1.0
     return A
+
+
+def load_pems04_adj(distance_csv: str | Path, n: int = 307) -> np.ndarray:
+    return load_adj_from_distance_csv(distance_csv, n)
 
 
 def check_adj(A: np.ndarray) -> dict:
@@ -88,15 +99,25 @@ def load_adj(path: str | Path = DEFAULT_ADJ) -> np.ndarray:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--distance-csv", required=True)
-    ap.add_argument("--n", type=int, default=307)
-    ap.add_argument("--out", default=DEFAULT_ADJ)
-    ap.add_argument("--cross-check", default=None, help="adj_PEMS04.pkl (ndarray) to compare against")
+    Root.add_args(ap)
+    ap.add_argument("--distance-csv", default=None, help="default: the dataset's distance list under $PILOT_DATA_ROOT")
+    ap.add_argument("--n", type=int, default=None, help="number of sensors (default: the dataset registry)")
+    ap.add_argument("--out", default=None, help="default: <root>/data/<dataset>_adj.npy")
+    ap.add_argument("--cross-check", default=None, help="adj_<DS>.pkl (ndarray or DCRNN [ids, id2idx, adj]) to compare against")
     ap.add_argument("--perms", type=int, default=8)
     ap.add_argument("--perm-seed", type=int, default=0)
     args = ap.parse_args()
+    root = Root.from_args(args)
+    if args.distance_csv is None:
+        args.distance_csv = datasets.distance_csv_path(root.dataset)
+        if args.distance_csv is None:
+            raise SystemExit(f"{root.dataset} has no distance list; pass --distance-csv")
+    if args.n is None:
+        args.n = datasets.n_nodes(root.dataset)
+    if args.out is None:
+        args.out = root.adj
 
-    A = load_pems04_adj(args.distance_csv, args.n)
+    A = load_adj_from_distance_csv(args.distance_csv, args.n)
     info = check_adj(A)
     print("A:", json.dumps(info))
     if args.cross_check:
