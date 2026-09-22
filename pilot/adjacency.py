@@ -46,6 +46,32 @@ def load_pems04_adj(distance_csv: str | Path, n: int = 307) -> np.ndarray:
     return load_adj_from_distance_csv(distance_csv, n)
 
 
+def load_dcrnn_pickle(path: str | Path):
+    """DCRNN ``adj_mx.pkl`` = ``[sensor_ids, sensor_id_to_index, adj]`` (adj: Gaussian-kernel weights, thresholded, directed,
+    self-loops on the diagonal) or a bare ndarray.  Returns (ids or None, adj as float32)."""
+    ref = pickle.load(open(path, "rb"), encoding="latin1")
+    if isinstance(ref, (list, tuple)):
+        ids = [str(i) for i in ref[0]] if len(ref) >= 3 else None
+        return ids, np.asarray(ref[-1], dtype=np.float32)
+    return None, np.asarray(ref, dtype=np.float32)
+
+
+def load_adj_from_pickle(path: str | Path, n: int | None = None) -> tuple[np.ndarray, dict]:
+    """Binary, symmetric, zero-diagonal A from a DCRNN-style weighted adjacency: an undirected edge wherever the weight is
+    nonzero in either direction (METR-LA: 1515 directed off-diagonal entries -> 1313 undirected edges, 1 isolated node)."""
+    ids, W = load_dcrnn_pickle(path)
+    if n is not None and W.shape != (n, n):
+        raise ValueError(f"{path}: adjacency is {W.shape}, expected ({n}, {n})")
+    B = (W != 0).astype(np.float32)
+    np.fill_diagonal(B, 0)
+    A = np.maximum(B, B.T)
+    meta = {"pickle_shape": list(W.shape), "pickle_nnz": int((W != 0).sum()), "pickle_diag_nnz": int((np.diag(W) != 0).sum()),
+            "directed_edges": int(B.sum()), "one_directional_pairs": int((B != B.T).sum() // 2), "weight_min": float(W.min()),
+            "weight_max": float(W.max()), "n_ids": len(ids) if ids else None, "first_ids": ids[:3] if ids else None,
+            "rule": "edge iff weight != 0 in either direction; diagonal dropped"}
+    return A, meta
+
+
 def check_adj(A: np.ndarray) -> dict:
     return {"shape": list(A.shape), "symmetric": bool(np.array_equal(A, A.T)), "binary": bool(set(np.unique(A)) <= {0.0, 1.0}),
             "zero_diag": bool((np.diag(A) == 0).all()), "n_undirected_edges": int(A.sum() // 2),
@@ -101,6 +127,8 @@ def main():
     ap = argparse.ArgumentParser()
     Root.add_args(ap)
     ap.add_argument("--distance-csv", default=None, help="default: the dataset's distance list under $PILOT_DATA_ROOT")
+    ap.add_argument("--from-pickle", default=None, help="build A from a DCRNN adj_mx.pkl instead of a distance list "
+                    "(default for a dataset without a distance list, e.g. metrla)")
     ap.add_argument("--n", type=int, default=None, help="number of sensors (default: the dataset registry)")
     ap.add_argument("--out", default=None, help="default: <root>/data/<dataset>_adj.npy")
     ap.add_argument("--cross-check", default=None, help="adj_<DS>.pkl (ndarray or DCRNN [ids, id2idx, adj]) to compare against")
@@ -108,17 +136,25 @@ def main():
     ap.add_argument("--perm-seed", type=int, default=0)
     args = ap.parse_args()
     root = Root.from_args(args)
-    if args.distance_csv is None:
-        args.distance_csv = datasets.distance_csv_path(root.dataset)
-        if args.distance_csv is None:
-            raise SystemExit(f"{root.dataset} has no distance list; pass --distance-csv")
     if args.n is None:
         args.n = datasets.n_nodes(root.dataset)
     if args.out is None:
         args.out = root.adj
+    if args.from_pickle is None and args.distance_csv is None:
+        args.distance_csv = datasets.distance_csv_path(root.dataset)
+        if args.distance_csv is None:
+            args.from_pickle = datasets.adj_pickle_path(root.dataset)
+            if args.from_pickle is None or not Path(args.from_pickle).exists():
+                raise SystemExit(f"{root.dataset} has neither a distance list nor an adjacency pickle; pass --distance-csv or --from-pickle")
 
-    A = load_adj_from_distance_csv(args.distance_csv, args.n)
+    if args.from_pickle:
+        A, src_meta = load_adj_from_pickle(args.from_pickle, args.n)
+        source = str(args.from_pickle)
+    else:
+        A, src_meta = load_adj_from_distance_csv(args.distance_csv, args.n), {}
+        source = str(args.distance_csv)
     info = check_adj(A)
+    info.update(src_meta)
     print("A:", json.dumps(info))
     if args.cross_check:
         ref = pickle.load(open(args.cross_check, "rb"), encoding="latin1")
@@ -139,7 +175,7 @@ def main():
             perm_files.append(str(pf))
             same = int((P * A).sum() // 2)
             print(f"perm {j}: {pf}  edges shared with A: {same}/{info['n_undirected_edges']}")
-    info.update({"source": str(args.distance_csv), "out": str(out), "perm_files": perm_files, "perm_seed": args.perm_seed})
+    info.update({"source": source, "out": str(out), "perm_files": perm_files, "perm_seed": args.perm_seed})
     out.with_suffix(".json").write_text(json.dumps(info, indent=2))
     print("saved", out)
 
