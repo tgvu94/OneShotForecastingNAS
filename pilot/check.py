@@ -813,8 +813,72 @@ def pilot2_phase3(args) -> bool:
     return bool(good)
 
 
+def pilot2_phase4(args) -> bool:
+    """Pilot 2, Phase 4 (ground truth at scale): >= 95 % of the --n seed-0 runs done (the rest listed for --retry-failed), seeds 1-2
+    done for the first 5 arch_ids, every arch has a proxy file with 0 errors and a spatial file with 0 errors, status.csv written,
+    and the seed-noise ceiling printed (Spearman over the repeated archs plus the within/across std ratio)."""
+    import statistics
+
+    from pilot.score_proxies import ORDER
+
+    root: Root = args.root_obj
+    good = True
+    archs = load_archs_safe(args.archs)
+    good &= _ok(len(archs) == args.n, f"{len(archs)} archs in {args.archs} (expected {args.n})")
+    done, failed, running, todo = [], [], [], []
+    val = {}
+    for r in archs:
+        m = Path(args.train_dir) / r["arch_id"] / "seed0" / "metrics.json"
+        rec = json.load(open(m)) if m.exists() else {}
+        st = rec.get("status")
+        (done if st == "done" else failed if st == "failed" else running if st == "running" else todo).append(r["arch_id"])
+        if st == "done":
+            val[r["arch_id"]] = rec["val_mae"]
+    good &= _ok(len(done) >= 0.95 * args.n, f"seed-0 trainings: {len(done)}/{args.n} done (>= 95 %), {len(failed)} failed, {len(running)} running, {len(todo)} not started")
+    if failed or running or todo:
+        print(f"  not done: failed {failed[:8]} running {running[:8]} not-started {todo[:8]}  -> pilot/submit.sh train {root.dir} {root.dataset} {root.horizon} (the runner retries failed runs itself)")
+    if val:
+        vals = list(val.values())
+        print(f"  val MAE over {len(vals)} done: mean {statistics.mean(vals):.4f} std {statistics.pstdev(vals):.4f} min {min(vals):.4f} max {max(vals):.4f}")
+    # seed noise on the first 5
+    first5 = archs[:5]
+    per = {s: [] for s in (0, 1, 2)}
+    for r in first5:
+        for s_ in (0, 1, 2):
+            m = Path(args.train_dir) / r["arch_id"] / f"seed{s_}" / "metrics.json"
+            rec = json.load(open(m)) if m.exists() else {}
+            per[s_].append(rec.get("val_mae") if rec.get("status") == "done" else None)
+    n_seed = sum(1 for s_ in (1, 2) for v in per[s_] if v is not None)
+    good &= _ok(n_seed == 10, f"seed-noise runs done: {n_seed}/10 (seeds 1, 2 on the first 5 arch_ids)")
+    if all(v is not None for s_ in (0, 1, 2) for v in per[s_]):
+        from scipy.stats import spearmanr
+        within = statistics.mean(statistics.pstdev([per[s_][i] for s_ in (0, 1, 2)]) for i in range(5))
+        across = statistics.pstdev(vals) if val else float("nan")
+        print(f"  seed-noise ceiling (5 archs): Spearman s0-s1 {spearmanr(per[0], per[1]).correlation:+.2f}, s0-s2 {spearmanr(per[0], per[2]).correlation:+.2f}, "
+              f"s1-s2 {spearmanr(per[1], per[2]).correlation:+.2f}; within-arch std {within:.4f} vs across-arch {across:.4f} (ratio {within / across if across else float('nan'):.2f})")
+    # proxies and spatial
+    n_pfile = n_perr = n_pincomplete = n_sfile = n_serr = 0
+    seeds = [x.strip() for x in args.seeds.split(",")]
+    for r in archs:
+        p = Path(args.proxies_dir) / f"{r['arch_id']}.json"
+        if p.exists():
+            n_pfile += 1
+            rec = json.load(open(p))
+            n_perr += len(rec.get("errors", {}))
+            if any(rec.get("scores", {}).get(name, {}).get(s_) is None for name in ORDER for s_ in seeds):
+                n_pincomplete += 1
+        sp = Path(args.spatial_dir) / f"{r['arch_id']}.json"
+        if sp.exists():
+            n_sfile += 1
+            n_serr += len(json.load(open(sp)).get("errors", {}))
+    good &= _ok(n_pfile == args.n and n_perr == 0 and n_pincomplete == 0, f"proxy files {n_pfile}/{args.n}, errors {n_perr}, incomplete ({len(ORDER)} names x {len(seeds)} seeds) {n_pincomplete}")
+    good &= _ok(n_sfile == args.n and n_serr == 0, f"spatial files {n_sfile}/{args.n}, errors {n_serr}" + ("" if n_sfile == args.n else f"  -> pilot/submit.sh spatial {root.dir} {root.dataset} {root.horizon}"))
+    good &= _ok(Path(args.status_csv).exists(), f"{args.status_csv} exists (pilot.status --root {root.dir} --timing-csv ...)")
+    return bool(good)
+
+
 PILOT1_CHECKS = {1: phase1, 2: phase2, 3: phase3, 4: phase4, 6: phase6, 7: phase7, 8: phase8, 9: phase9, 10: phase10}
-PILOT2_CHECKS = {1: pilot2_phase1, 2: pilot2_phase2, 3: pilot2_phase3}
+PILOT2_CHECKS = {1: pilot2_phase1, 2: pilot2_phase2, 3: pilot2_phase3, 4: pilot2_phase4}
 
 
 def main():
