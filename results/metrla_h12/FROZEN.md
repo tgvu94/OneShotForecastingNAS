@@ -10,3 +10,7 @@ only `d_output` (207 sensors) and the adjacency differ; the AdaptiveAdjOp embedd
 - Probe batch: `data/metrla_probe_batch.pt` (seed 0, 4 train batches of 32, repo scaler; sha1 in `data/metrla_probe_batch.json`).
 - Ground-truth schedule and proxy protocol: unchanged from Pilot 1 (batch 32, 20 epochs, patience 5, min 8 on val_mae; init seeds 0/1/2; `proxies/v1`, `proxies/spatial_v2`).
 - Decision rule and verdict: `DECISION.md`, written by `python -m pilot.check --phase 2 --pilot 2 --root results/metrla_h12`.
+
+## TFAS (Phase 7 probe, 2026-09-22)
+
+- tfas: not applicable — TFAS not usable as a distinct proxy: its score is ZiCo on Conv/Linear/Conv1d weights; the time-frequency awareness is an input augmentation (STL residual, |FFT|, Haar DWT) implemented only by its own TimesNet-family backbones. Composite temporal term = base proxy. Degenerate value stored as tfas_zico_cl. (TFAS commit `fd9150d`)
