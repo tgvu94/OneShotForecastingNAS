@@ -27,3 +27,11 @@ Frozen on 2026-09-20 (Phase 4 gate passed: best dev graph arch val MAE 0.1688 <=
 ## Pilot 2 (2026-09-21)
 
 - sha1 of `results/archs.jsonl` (50 lines, unchanged since the freeze): `ed7419b5c2d68eb86f6730b733cbf008aa83d3d7`. Used by the Pilot 2 phase checks; `results/pems04_h36/archs.jsonl` is a byte copy.
+
+## Pilot 2 Phase 3 (2026-09-22): the frozen set grows to 300
+
+- Lines 1-50: the Pilot 1 frozen 50, unchanged (sha1 of those 50 lines: `ed7419b5c2d68eb86f6730b733cbf008aa83d3d7`).
+- Lines 51-300: 250 new architectures, `python -m pilot.sample_archs --root results --n 250 --seed 2027 --space dartsts_graph_v1 --stratify`
+  (`random.Random(2027)`, edges_per_node 2, de-duplicated against the first 50; quotas scaled from 16/10/10/6/8 to 80/50/50/30/40), sampler / space code at fork commit `0d8e732`.
+- sha1 of the 300-line file: `58c853cdf10a505d2a1f7073c5a60252961b73b3`.
+- Setting for the scale-up: PEMS04 h12 (this tree), chosen by the Phase 2 decision (graph matters nowhere tested: h12, h36, METR-LA).

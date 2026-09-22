@@ -745,8 +745,76 @@ def pilot2_phase2(args) -> bool:
     return bool(good)
 
 
+def pilot2_phase3(args) -> bool:
+    """Pilot 2, Phase 3 (sample + freeze): <root>/archs.jsonl holds --n distinct ids with a per-arch JSON each; the block sampled
+    before the newest seed is byte-unchanged (its sha1 is the one recorded in FROZEN.md); the newest block's strata are within +-2 of
+    the scaled quotas; the root's adjacency is (n_nodes, n_nodes), symmetric, binary, matches the cross-check pickle when one was
+    given, and has 8 degree-preserving permutations; probe batch and naive baselines exist."""
+    import hashlib
+    import re
+    from collections import Counter
+
+    import numpy as np
+
+    from pilot import datasets
+    from pilot.adjacency import load_adj
+    from pilot.genotype import graph_family
+    from pilot.sample_archs import scaled_quota
+
+    root: Root = args.root_obj
+    good = True
+    archs = load_archs_safe(args.archs)
+    ids = [r["arch_id"] for r in archs]
+    good &= _ok(len(archs) == args.n and len(set(ids)) == args.n, f"{len(archs)} archs in {args.archs}, {len(set(ids))} distinct ids (expected {args.n})")
+    good &= _ok(all(r["genotype"]["space"] == "dartsts_graph_v1" for r in archs), "all archs in space dartsts_graph_v1")
+    missing = [a for a in ids if not (root.archs_dir / f"{a}.json").exists()]
+    good &= _ok(not missing, f"per-arch JSON files in {root.archs_dir}: {len(ids) - len(missing)}/{len(ids)} present")
+    # blocks by sampler seed, in file order
+    seeds = [r["sampler"]["seed"] for r in archs]
+    new_seed = seeds[-1] if seeds else None
+    n_old = next((i for i, s in enumerate(seeds) if s == new_seed), 0)
+    old_block, new_block = archs[:n_old], archs[n_old:]
+    frozen_txt = root.frozen_md.read_text() if root.frozen_md.exists() else ""
+    good &= _ok(bool(frozen_txt), f"{root.frozen_md} exists")
+    if n_old:
+        lines = Path(args.archs).read_text().splitlines(keepends=True)
+        sha_old = hashlib.sha1("".join(lines[:n_old]).encode()).hexdigest()
+        good &= _ok(sha_old[:12] in frozen_txt, f"first {n_old} lines (seed {seeds[0]}) unchanged: sha1 {sha_old[:12]} is recorded in FROZEN.md")
+    sha_all = hashlib.sha1(Path(args.archs).read_bytes()).hexdigest()
+    good &= _ok(sha_all[:12] in frozen_txt, f"FROZEN.md records the current file sha1 {sha_all[:12]} and seed {new_seed}: {str(new_seed) in frozen_txt}")
+    q = scaled_quota(len(new_block))
+    strata = Counter(r["sampler"].get("stratum") for r in new_block)
+    fams = Counter(graph_family(r["genotype"]) for r in new_block)
+    n_none, n_ctrl = fams.get("none", 0), fams.get("identity-only", 0) + fams.get("adaptive-only", 0)
+    n_gcn = sum(1 for r in new_block if graph_family(r["genotype"]) in ("gcn", "mixed"))
+    n_diff = sum(1 for r in new_block if graph_family(r["genotype"]) in ("diffusion", "mixed"))
+    print(f"  newest block: seed {new_seed}, {len(new_block)} archs; strata {dict(strata)}; quotas {q}; families {dict(fams)}")
+    good &= _ok(all(abs(strata.get(k, 0) - v) <= 2 for k, v in q.items()), "newest block: every stratum within +-2 of its scaled quota")
+    good &= _ok(n_none == q["none"] and n_gcn >= q["gcn"] and n_diff >= q["diffusion"] and n_ctrl >= q["control"],
+                f"newest block by family: {n_none} graph-blind (= {q['none']}), {n_gcn} with gcn (>= {q['gcn']}), {n_diff} with diffusion (>= {q['diffusion']}), {n_ctrl} controls (>= {q['control']})")
+    # adjacency, probe batch, baselines
+    n = datasets.n_nodes(root.dataset)
+    adj_path = Path(args.adj)
+    good &= _ok(adj_path.exists(), f"{adj_path} exists")
+    if adj_path.exists():
+        A = load_adj(adj_path)
+        good &= _ok(A.shape == (n, n) and np.array_equal(A, A.T) and set(np.unique(A)) <= {0.0, 1.0} and (np.diag(A) == 0).all(),
+                    f"A is {A.shape}, symmetric, binary, zero diagonal; {int(A.sum() // 2)} undirected edges, {int((A.sum(1) == 0).sum())} isolated")
+        info = json.load(open(adj_path.with_suffix(".json"))) if adj_path.with_suffix(".json").exists() else {}
+        if "matches_pickle_after_symmetrization" in info:
+            good &= _ok(info["matches_pickle_after_symmetrization"] is True, f"A matches the cross-check pickle after symmetrization (pickle nnz {info.get('pickle_nnz')})")
+        else:
+            good &= _ok(root.dataset == "metrla" or root.dataset == "pems04", f"adjacency was built with --cross-check ({root.dataset})")
+        perms = root.adj_perms()
+        good &= _ok(len(perms) == 8 and all(np.array_equal(load_adj(p).sum(1), A.sum(1)) and not np.array_equal(load_adj(p), A) for p in perms),
+                    f"{len(perms)} permutations, each degree-preserving and different from A")
+    good &= _ok(Path(args.probe).exists(), f"{args.probe} exists")
+    good &= _ok(Path(args.baselines).exists(), f"{args.baselines} exists")
+    return bool(good)
+
+
 PILOT1_CHECKS = {1: phase1, 2: phase2, 3: phase3, 4: phase4, 6: phase6, 7: phase7, 8: phase8, 9: phase9, 10: phase10}
-PILOT2_CHECKS = {1: pilot2_phase1, 2: pilot2_phase2}
+PILOT2_CHECKS = {1: pilot2_phase1, 2: pilot2_phase2, 3: pilot2_phase3}
 
 
 def main():

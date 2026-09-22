@@ -1,0 +1,10 @@
+# FROZEN: results/pems08_h12 — 150 architectures on PEMS08, horizon 12 (Pilot 2 Phase 3)
+
+Created 2026-09-22 at fork commit `0d8e732`.
+
+- Sampler: `python -m pilot.sample_archs --root results/pems08_h12 --n 150 --seed 2028 --space dartsts_graph_v1 --stratify` (`random.Random(2028)`, edges_per_node 2; quotas scaled from 16/10/10/6/8 to 48/30/30/18/24). Same genotype space as the PEMS04 sets; only `d_output` (170 sensors) and the adjacency differ.
+- sha1 of `archs.jsonl` (150 lines): `d8b13b5d58355c25965e80fe144e74c442f17b83`.
+- Setting: `PEMS/pems08/pems08_12` (`PEMS08.npz`, 17856 x 170 x 3, flow; window 96, horizon 12, 60/20/20 splits, normalisation as PEMS04).
+- Adjacency: `data/pems08_adj.npy` from `PEMS08.csv` (ids 0-169, 295 rows) via `pilot.adjacency --root results/pems08_h12 --perms 8 --cross-check adj_PEMS08.pkl`; 8 degree-preserving permutations, seed 0. Node order checked with `pilot.adj_sanity` (`tables/adj_sanity.json`).
+- Probe batch: `data/pems08_probe_batch.pt` (seed 0, 4 train batches of 32; sha1 in `data/pems08_probe_batch.json`).
+- Ground-truth schedule and proxy protocol: unchanged from Pilot 1 (batch 32, 20 epochs, patience 5, min 8 on val_mae; init seeds 0/1/2); seed 0 for all 150, seeds 1 and 2 for the first 5 arch_ids.
