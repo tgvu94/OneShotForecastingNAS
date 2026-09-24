@@ -176,3 +176,18 @@ results/tables_pilot2/*
 !results/tables_pilot2/*.md
 !results/tables_pilot2/*.csv
 !results/RESULTS_pilot2.md
+
+# Pilot 2 Phase 5: the Pilot 1 N = 50 tables/figures kept beside the N = 300 ones, plus the cross-dataset outputs
+!results/tables_n50/
+results/tables_n50/*
+!results/tables_n50/*.md
+!results/tables_n50/table_*.csv
+!results/tables_n50/joined.csv
+!results/tables_n50/subsample_curve.csv
+!results/figs_n50/
+results/figs_n50/*
+!results/figs_n50/*.png
+!results/figs_pilot2/
+results/figs_pilot2/*
+!results/figs_pilot2/*.png
+!results/tables_pilot2/*.json
