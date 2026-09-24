@@ -8,3 +8,7 @@ Created 2026-09-22 at fork commit `0d8e732`.
 - Adjacency: `data/pems08_adj.npy` from `PEMS08.csv` (ids 0-169, 295 rows) via `pilot.adjacency --root results/pems08_h12 --perms 8 --cross-check adj_PEMS08.pkl`; 8 degree-preserving permutations, seed 0. Node order checked with `pilot.adj_sanity` (`tables/adj_sanity.json`).
 - Probe batch: `data/pems08_probe_batch.pt` (seed 0, 4 train batches of 32; sha1 in `data/pems08_probe_batch.json`).
 - Ground-truth schedule and proxy protocol: unchanged from Pilot 1 (batch 32, 20 epochs, patience 5, min 8 on val_mae; init seeds 0/1/2); seed 0 for all 150, seeds 1 and 2 for the first 5 arch_ids.
+
+## TFAS (Phase 7 probe, 2026-09-24)
+
+- tfas: not applicable — TFAS not usable as a distinct proxy: its score is ZiCo on Conv/Linear/Conv1d weights; the time-frequency awareness is an input augmentation (STL residual, |FFT|, Haar DWT) implemented only by its own TimesNet-family backbones. Composite temporal term = base proxy. Degenerate value stored as tfas_zico_cl. (TFAS commit `fd9150d`)
