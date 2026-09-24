@@ -1,8 +1,8 @@
 """Road-graph adjacency (Section 3.4 / P3): binary symmetric ``A`` from a ``from,to,cost`` distance list, GCN
 normalisation, diffusion transition matrices, and degree-preserving permutations for Experiment B.
 
-    python -m pilot.adjacency --root results --perms 8 --cross-check ~/scratch/all_datasets/PEMS/adj_PEMS04.pkl
-    python -m pilot.adjacency --root results/pems08_h12 --perms 8 --cross-check ~/scratch/all_datasets/PEMS/adj_PEMS08.pkl
+    python -m pilot.adjacency --root results --perms 8 --cross-check $NAS_DATA_ROOT/PEMS/adj_PEMS04.pkl
+    python -m pilot.adjacency --root results/pems08_h12 --perms 8 --cross-check $NAS_DATA_ROOT/PEMS/adj_PEMS08.pkl
 (``--distance-csv``, ``--n`` and ``--out`` default to the root's dataset: PEMS04.csv / 307 / <root>/data/pems04_adj.npy.)
 """
 from __future__ import annotations

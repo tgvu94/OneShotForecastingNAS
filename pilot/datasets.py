@@ -1,7 +1,8 @@
 """Dataset registry (Pilot 2, Phase 1): everything that differs between PEMS04, PEMS08 and METR-LA in one place.
 
 The genotype space is identical across datasets; only the number of sensors (``d_output`` / ``n_nodes``), the data file and
-the adjacency source differ.  Raw data lives under ``$PILOT_DATA_ROOT`` (default ``~/scratch/all_datasets/PEMS``); a horizon
+the adjacency source differ.  Raw data lives under ``$PILOT_DATA_ROOT``, else ``$NAS_DATA_ROOT/PEMS`` (exported by
+``pilot/env.sh``: the ``all_datasets`` tree next to the ``nas/`` tree), else the legacy ``~/scratch/all_datasets/PEMS``; a horizon
 is a benchmark yaml ``experiments/configs/benchmark/<benchmark_dir>/<dataset>_<horizon>.yaml`` (the route Pilot 1 used).
 
     python -m pilot.datasets --list            # one line per dataset with the files that exist
@@ -17,7 +18,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 CONFIG_DIR = REPO / "experiments" / "configs"
-DATA_ROOT = Path(os.environ.get("PILOT_DATA_ROOT", "~/scratch/all_datasets/PEMS")).expanduser()
+DATA_ROOT = Path(os.environ.get("PILOT_DATA_ROOT")
+                 or (os.path.join(os.environ["NAS_DATA_ROOT"], "PEMS") if os.environ.get("NAS_DATA_ROOT") else "~/scratch/all_datasets/PEMS")).expanduser()
 DEFAULT_DATASET = "pems04"
 DEFAULT_HORIZON = 12
 

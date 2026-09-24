@@ -549,8 +549,10 @@ def phase10(args) -> bool:
         good &= _ok(all(f in txt for f in figs), f"RESULTS.md cites every figure ({len(figs)})")
         words = len(re.findall(r"\w+", txt))
         good &= _ok(500 <= words <= 1200, f"RESULTS.md is about one page ({words} words)")
-    tars = sorted(Path.home().glob("nas/backups/results-final*.tgz")) + sorted(Path.home().glob("scratch/backups/results-final*.tgz"))
-    good &= _ok(len(tars) >= 2, f"final tarball in two locations: {[str(t) for t in tars]}")
+    import os
+    nas_root = Path(os.environ.get("NAS_ROOT", Path.home() / "nas"))
+    tars = sorted((nas_root / "backups").glob("results-final*.tgz")) + sorted(Path.home().glob("scratch/backups/results-final*.tgz"))
+    good &= _ok(len(tars) >= 2, f"final tarball in two locations ($NAS_ROOT/backups and ~/scratch/backups): {[str(t) for t in tars]}")
     return bool(good)
 
 

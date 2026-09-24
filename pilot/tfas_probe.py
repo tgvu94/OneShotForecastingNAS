@@ -11,7 +11,7 @@
   with TFAS's own ``getgrad`` / ``caculate_zico`` on our 4 probe batches and stores it as ``tfas_zico_cl`` in
   ``results/proxies/v1/<id>.json`` (not part of the 19-name ``ORDER`` list).
 
-    python -m pilot.tfas_probe --tfas ~/nas/TFAS --seeds 0,1,2
+    python -m pilot.tfas_probe --tfas $NAS_ROOT/TFAS --seeds 0,1,2
 """
 from __future__ import annotations
 
