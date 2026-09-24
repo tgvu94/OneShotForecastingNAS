@@ -1,0 +1,23 @@
+{
+  "roots": [
+    "results",
+    "results/pems08_h12",
+    "results/pems04_h36",
+    "results/metrla_h12"
+  ],
+  "labels": [
+    "PEMS04-12",
+    "PEMS08-12",
+    "PEMS04-36",
+    "METRLA-12"
+  ],
+  "n50_csv": "results/tables_n50/table_A.csv",
+  "written": "2026-09-24T09:17:23",
+  "files": [
+    "compare_summary.json",
+    "cross_dataset.csv",
+    "cross_dataset.md",
+    "n50_vs_n300.csv",
+    "rank_agreement.csv"
+  ]
+}

@@ -879,8 +879,52 @@ def pilot2_phase4(args) -> bool:
     return bool(good)
 
 
+def pilot2_phase5(args) -> bool:
+    """Pilot 2, Phase 5 (analysis at scale): Table A of --root has a 95 % CI with half-width <= 0.15 for every proxy; every subgroup
+    column carries a CI (analyze --subgroup-ci); analyze ran in < 3 min; --compare-dir/cross_dataset.md exists and names the root
+    and at least one other root; fig4 / fig5 exist in --figs-pilot2-dir."""
+    import csv
+
+    root: Root = args.root_obj
+    good = True
+    tdir = Path(args.tables_dir)
+    summ = tdir / "analyze_summary.json"
+    good &= _ok(summ.exists(), f"{summ} exists")
+    if not summ.exists():
+        return False
+    sm = json.load(open(summ))
+    good &= _ok(sm["n_rows"] == sm["n_done"] == args.n, f"joined.csv rows {sm['n_rows']} == done trainings {sm['n_done']} == {args.n}")
+    good &= _ok(sm["seconds"] < 180, f"analyze.py ran in {sm['seconds']} s (< 180)")
+    good &= _ok(sm.get("subgroup_ci") is True, "analyze ran with --subgroup-ci")
+    rows = list(csv.DictReader(open(tdir / "table_A.csv")))
+    good &= _ok(len(rows) == 13, f"table_A.csv has {len(rows)} proxy rows (13)")
+    hw = {r["proxy"]: (float(r["ci_hi"]) - float(r["ci_lo"])) / 2 for r in rows}
+    worst = max(hw, key=hw.get)
+    good &= _ok(all(v <= 0.15 for v in hw.values()), f"CI half-widths: max {hw[worst]:.3f} ({worst}), mean {sum(hw.values()) / len(hw):.3f} (all <= 0.15)")
+    subs = ["graph-blind", "has graph", "uses A", "gcn (incl. mixed)", "diffusion (incl. mixed)", "head=mse", "head=mae", "head=quantile"]
+    missing = [(r["proxy"], s) for r in rows for s in subs if r.get(s) not in ("", None, "nan") and (r.get(s + " ci_lo") in ("", None, "nan") or r.get(s + " ci_hi") in ("", None, "nan"))]
+    good &= _ok(not missing, f"every reported subgroup Spearman carries a CI ({len(subs)} subgroups x {len(rows)} proxies; missing {missing[:3]})")
+    md = (tdir / "table_A.md").read_text()
+    good &= _ok(md.count("(") > 13 * 6, "table_A.md prints the subgroup CIs")
+    cdir = Path(args.compare_dir)
+    cx = cdir / "cross_dataset.md"
+    good &= _ok(cx.exists(), f"{cx} exists")
+    if cx.exists():
+        txt = cx.read_text()
+        others = [l for l in txt.splitlines() if l.startswith("| ") and "| `results" in l and root.label not in l.split("|")[1]]
+        good &= _ok(root.label in txt and len(others) >= 1, f"cross_dataset.md names {root.label} and {len(others)} other setting(s)")
+        good &= _ok("Does the proxy *ordering* transfer" in txt, "cross_dataset.md has the rank-agreement section")
+        good &= _ok("N = 50 (Pilot 1)" in txt, "cross_dataset.md has the N = 50 vs N = 300 section")
+    for f in ["cross_dataset.csv", "rank_agreement.csv", "n50_vs_n300.csv"]:
+        good &= _ok((cdir / f).exists(), f"{cdir / f} exists")
+    fdir = Path(args.figs_pilot2_dir)
+    for f in ["fig4_n50_vs_n300.png", "fig5_cross_dataset.png"]:
+        good &= _ok((fdir / f).exists(), f"{fdir / f} exists")
+    return bool(good)
+
+
 PILOT1_CHECKS = {1: phase1, 2: phase2, 3: phase3, 4: phase4, 6: phase6, 7: phase7, 8: phase8, 9: phase9, 10: phase10}
-PILOT2_CHECKS = {1: pilot2_phase1, 2: pilot2_phase2, 3: pilot2_phase3, 4: pilot2_phase4}
+PILOT2_CHECKS = {1: pilot2_phase1, 2: pilot2_phase2, 3: pilot2_phase3, 4: pilot2_phase4, 5: pilot2_phase5}
 
 
 def main():
@@ -908,6 +952,8 @@ def main():
     ap.add_argument("--spatial-dir", default=None)
     ap.add_argument("--tables-dir", default=None)
     ap.add_argument("--figs-dir", default=None)
+    ap.add_argument("--compare-dir", default="results/tables_pilot2", help="phase 5 (pilot 2): the --compare output directory")
+    ap.add_argument("--figs-pilot2-dir", default="results/figs_pilot2", help="phase 5 (pilot 2): fig4 / fig5 directory")
     args = ap.parse_args()
     root = Root.from_args(args)
     args.root_obj = root

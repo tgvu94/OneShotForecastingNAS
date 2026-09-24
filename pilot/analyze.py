@@ -2,6 +2,8 @@
 
     python -m pilot.analyze --root results                       # the Pilot 1 tree (PEMS04 h12)
     python -m pilot.analyze --root results/pems08_h12 --n-boot 2000 --subgroup-ci
+    python -m pilot.analyze --compare results results/pems08_h12 results/pems04_h36 results/metrla_h12 \
+        --n50 results/tables_n50/table_A.csv --out results/tables_pilot2          # Phase 5 cross-setting table
 (``--archs``, ``--proxies``, ``--spatial``, ``--train`` and ``--out`` default to the root's files.)
 
 Sign convention (Section 5): every score is correlated with -val_mae, so a *good* proxy has positive Spearman and the
@@ -309,9 +311,105 @@ def md_ci_summary(tA: pd.DataFrame, curve: pd.DataFrame, ceiling: dict, n: int =
     return "\n".join(lines)
 
 
+def compare_roots(roots: list, out: Path, n50_csv=None, proxies=PROXIES_PRIMARY) -> dict:
+    """Phase 5: one table with every root's Table A side by side, the rank agreement of the proxy *ordering* between the
+    first root and each other root, and (with --n50) the N = 50 vs N = 300 comparison for the first root."""
+    out.mkdir(parents=True, exist_ok=True)
+    tabs, summs = {}, {}
+    for r in roots:
+        tabs[r.label] = pd.read_csv(r.tables / "table_A.csv").set_index("proxy")
+        summs[r.label] = json.load(open(r.tables / "analyze_summary.json"))
+    labels = [r.label for r in roots]
+    rows = []
+    for p in proxies:
+        row = {"proxy": p}
+        for lab in labels:
+            t = tabs[lab]
+            if p in t.index:
+                row[f"{lab} n"] = int(t.loc[p, "n"])
+                for k in ("spearman", "ci_lo", "ci_hi", "partial_params"):
+                    row[f"{lab} {k}"] = float(t.loc[p, k])
+        rows.append(row)
+    df = pd.DataFrame(rows)
+    df.to_csv(out / "cross_dataset.csv", index=False)
+    ref = labels[0]
+    agree = []
+    for lab in labels[1:]:
+        a, b = df[f"{ref} spearman"], df[f"{lab} spearman"]
+        m = a.notna() & b.notna()
+        agree.append({"pair": f"{ref} vs {lab}", "n_proxies": int(m.sum()), "spearman_of_rhos": float(spearmanr(a[m], b[m]).correlation),
+                      "kendall_of_rhos": float(kendalltau(a[m], b[m]).correlation), "pearson_of_rhos": float(np.corrcoef(a[m], b[m])[0, 1]),
+                      "same_sign": int((np.sign(a[m]) == np.sign(b[m])).sum()),
+                      "top3_ref": ",".join(df.loc[a[m].nlargest(3).index, "proxy"]), "top3_other": ",".join(df.loc[b[m].nlargest(3).index, "proxy"])})
+    agree = pd.DataFrame(agree)
+    agree.to_csv(out / "rank_agreement.csv", index=False)
+    n50 = None
+    if n50_csv and Path(n50_csv).exists():
+        t50 = pd.read_csv(n50_csv).set_index("proxy")
+        t = tabs[ref]
+        rows = []
+        for p in proxies:
+            if p in t50.index and p in t.index:
+                r50, rN = t50.loc[p], t.loc[p]
+                rows.append({"proxy": p, "n50_spearman": float(r50.spearman), "n50_ci_lo": float(r50.ci_lo), "n50_ci_hi": float(r50.ci_hi),
+                             "n50_halfwidth": float((r50.ci_hi - r50.ci_lo) / 2), f"n{int(rN.n)}_spearman": float(rN.spearman), f"n{int(rN.n)}_ci_lo": float(rN.ci_lo),
+                             f"n{int(rN.n)}_ci_hi": float(rN.ci_hi), f"n{int(rN.n)}_halfwidth": float((rN.ci_hi - rN.ci_lo) / 2),
+                             "n50_inside_large_ci": bool(rN.ci_lo <= r50.spearman <= rN.ci_hi), "large_inside_n50_ci": bool(r50.ci_lo <= rN.spearman <= r50.ci_hi)})
+        n50 = pd.DataFrame(rows)
+        n50.to_csv(out / "n50_vs_n300.csv", index=False)
+    # markdown
+    L = [f"# Cross-setting comparison — {', '.join(labels)}", "",
+         "Spearman of the proxy (mean over 3 init seeds) with −val MAE (seed 0) on each setting, 95 % bootstrap CI, partial ρ | log params. "
+         "All roots use the same genotype space and schedule; only the data, the number of sensors and the adjacency differ.", ""]
+    L.append("| setting | root | N | seed-noise ceiling (s0-s1 / s0-s2 / s1-s2) | within / across std |")
+    L.append("|---|---|---|---|---|")
+    for r in roots:
+        c = summs[r.label].get("seed_ceiling", {})
+        L.append(f"| {r.label} | `{r.dir}` | {summs[r.label]['n_rows']} | {fmt(c.get('spearman_s0_s1'))} / {fmt(c.get('spearman_s0_s2'))} / {fmt(c.get('spearman_s1_s2'))} | "
+                 f"{c.get('within_arch_std_mean', float('nan')):.4f} / {c.get('across_arch_std', float('nan')):.4f} |")
+    L += ["", "| proxy | " + " | ".join(f"{lab} ρ (95 % CI) | partial" for lab in labels) + " |", "|---|" + "---|---|" * len(labels)]
+    order = df[f"{ref} spearman"].fillna(-9).sort_values(ascending=False).index
+    for i in order:
+        r = df.loc[i]
+        name = f"`{r.proxy}` (complexity baseline)" if r.proxy in ("params", "flops") else f"`{r.proxy}`"
+        cells = []
+        for lab in labels:
+            if f"{lab} spearman" in r and np.isfinite(r[f"{lab} spearman"]):
+                cells.append(f"{fmt(r[f'{lab} spearman'])} ({fmt(r[f'{lab} ci_lo'])}, {fmt(r[f'{lab} ci_hi'])}) | {fmt(r[f'{lab} partial_params'])}")
+            else:
+                cells.append("— | —")
+        L.append(f"| {name} | " + " | ".join(cells) + " |")
+    L += ["", f"## Does the proxy *ordering* transfer? (reference: {ref})", "",
+          "| pair | proxies | Spearman of the ρ vectors | Kendall | Pearson | same sign | top 3 (reference) | top 3 (other) |", "|---|---|---|---|---|---|---|---|"]
+    for _, a in agree.iterrows():
+        L.append(f"| {a.pair} | {a.n_proxies} | {fmt(a.spearman_of_rhos)} | {fmt(a.kendall_of_rhos)} | {fmt(a.pearson_of_rhos)} | {a.same_sign}/{a.n_proxies} | {a.top3_ref} | {a.top3_other} |")
+    if n50 is not None:
+        big = [c for c in n50.columns if c.endswith("_spearman") and not c.startswith("n50")][0].split("_")[0]
+        L += ["", f"## {ref}: N = 50 (Pilot 1) vs N = {big[1:]} (Pilot 2)", "",
+              f"| proxy | ρ at N = 50 (95 % CI) | half-width | ρ at N = {big[1:]} (95 % CI) | half-width | N = {big[1:]} estimate inside the N = 50 CI? | shift |", "|---|---|---|---|---|---|---|"]
+        for _, r in n50.sort_values(f"{big}_spearman", ascending=False).iterrows():
+            L.append(f"| `{r.proxy}` | {fmt(r.n50_spearman)} ({fmt(r.n50_ci_lo)}, {fmt(r.n50_ci_hi)}) | ±{r.n50_halfwidth:.2f} | {fmt(r[f'{big}_spearman'])} ({fmt(r[f'{big}_ci_lo'])}, {fmt(r[f'{big}_ci_hi'])}) | ±{r[f'{big}_halfwidth']:.2f} | {'yes' if r.large_inside_n50_ci else 'no'} | {r[f'{big}_spearman'] - r.n50_spearman:+.2f} |")
+        L.append("")
+        L.append(f"Mean CI half-width: ±{n50.n50_halfwidth.mean():.2f} at N = 50 vs ±{n50[f'{big}_halfwidth'].mean():.2f} at N = {big[1:]} (Fisher-z expectation ±{1.06 * 1.96 / math.sqrt(47):.2f} and ±{1.06 * 1.96 / math.sqrt(int(big[1:]) - 3):.2f}). "
+                 f"The N = {big[1:]} estimate lies inside the N = 50 interval for {int(n50.large_inside_n50_ci.sum())}/{len(n50)} proxies (the N = 50 point estimate lies inside the narrower N = {big[1:]} interval for {int(n50.n50_inside_large_ci.sum())}/{len(n50)} — the expected direction of disagreement: the small-sample point estimates scatter by ±0.25 around values now known to ±0.11). "
+                 "The first 50 architectures are a subset of the larger set, so the two estimates are not independent.")
+    (out / "cross_dataset.md").write_text("\n".join(L) + "\n")
+    meta = {"roots": [str(r.dir) for r in roots], "labels": labels, "n50_csv": str(n50_csv) if n50_csv else None,
+            "written": _now(), "files": sorted(p.name for p in out.iterdir())}
+    (out / "compare_summary.json").write_text(json.dumps(meta, indent=2))
+    return meta
+
+
+def _now():
+    import datetime as _dt
+    return _dt.datetime.now().isoformat(timespec="seconds")
+
+
 def main():
     ap = argparse.ArgumentParser()
     Root.add_args(ap)
+    ap.add_argument("--compare", nargs="+", default=None, help="Phase 5: roots to compare (first = reference); writes --out/cross_dataset.*")
+    ap.add_argument("--n50", default=None, help="with --compare: the N = 50 table_A.csv of the reference root (results/tables_n50/table_A.csv)")
     ap.add_argument("--archs", default=None, help="default: <root>/archs.jsonl")
     ap.add_argument("--proxies", default=None, help="default: <root>/proxies/v1")
     ap.add_argument("--spatial", default=None, help="default: <root>/proxies/spatial_v2")
@@ -320,6 +418,11 @@ def main():
     ap.add_argument("--n-boot", type=int, default=2000)
     ap.add_argument("--subgroup-ci", action="store_true", help="bootstrap CIs for every Table A subgroup column too")
     args = ap.parse_args()
+    if args.compare:
+        roots = [Root(r) for r in args.compare]
+        meta = compare_roots(roots, Path(args.out or "results/tables_pilot2"), args.n50)
+        print(json.dumps(meta, indent=2))
+        return
     root = Root.from_args(args)
     args.archs, args.proxies, args.spatial = args.archs or root.archs_jsonl, args.proxies or root.proxies_v1, args.spatial or root.spatial_v2
     args.train, args.out = args.train or root.train, args.out or root.tables
