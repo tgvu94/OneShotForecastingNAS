@@ -40,7 +40,7 @@ VERDICT = ("TFAS not usable as a distinct proxy: its score is ZiCo on Conv/Linea
 def main():
     ap = argparse.ArgumentParser()
     Root.add_args(ap)
-    ap.add_argument("--tfas", default=os.path.expanduser("~/nas/TFAS"))
+    ap.add_argument("--tfas", default=os.path.join(os.environ.get("NAS_ROOT", os.path.expanduser("~/nas")), "TFAS"))
     ap.add_argument("--archs", default=None)
     ap.add_argument("--seeds", default="0,1,2")
     ap.add_argument("--v1", default=None)

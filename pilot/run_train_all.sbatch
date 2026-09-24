@@ -4,7 +4,7 @@
 #   pass 1: seed 0 for all archs;  pass 2: seeds 1 and 2 for the first 5 arch_ids (seed-noise ceiling);
 #   pass 3: retry runs that failed once.  Every pass skips finished runs and honours other tasks' LOCK files.
 # ROOT / DATASET / HORIZON come from the environment (pilot/submit.sh exports them); defaults = the Pilot 1 tree.
-source "$HOME/nas/OneShotForecastingNAS/pilot/env.sh"
+source "$SLURM_SUBMIT_DIR/pilot/env.sh"     # submit.sh submits from the repo root
 ROOT="${ROOT:-results}"; DATASET="${DATASET:-pems04}"; HORIZON="${HORIZON:-12}"
 setting=(--root "$ROOT" --dataset "$DATASET" --horizon "$HORIZON")
 tag="${DATASET}_h${HORIZON}"

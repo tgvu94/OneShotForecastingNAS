@@ -1,7 +1,7 @@
 seed: 3
 
 benchmark:
-  dataset_root: /home/adamvu/scratch/all_datasets
+  dataset_root: ${oc.env:NAS_DATA_ROOT,${oc.env:HOME}/scratch/all_datasets}   # pilot/env.sh exports NAS_DATA_ROOT
   type: ???
   name: ???
   search_dataset_name: ???

@@ -26,7 +26,7 @@ from torch import nn
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--autocts", default=os.path.expanduser("~/nas/AutoCTS"))
+    ap.add_argument("--autocts", default=os.path.join(os.environ.get("NAS_ROOT", os.path.expanduser("~/nas")), "AutoCTS"))
     ap.add_argument("--data", default=os.path.expanduser("~/scratch/all_datasets/PEMS"))
     ap.add_argument("--epochs", type=int, default=1)
     ap.add_argument("--batch-size", type=int, default=64)
