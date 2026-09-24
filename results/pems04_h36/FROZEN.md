@@ -13,3 +13,9 @@ on 2026-09-20, sampler seed 2026, space `dartsts_graph_v1`; see `results/FROZEN.
 ## TFAS (Phase 7 probe, 2026-09-21)
 
 - tfas: not applicable — TFAS not usable as a distinct proxy: its score is ZiCo on Conv/Linear/Conv1d weights; the time-frequency awareness is an input augmentation (STL residual, |FFT|, Haar DWT) implemented only by its own TimesNet-family backbones. Composite temporal term = base proxy. Degenerate value stored as tfas_zico_cl. (TFAS commit `fd9150d`)
+
+## Archive (Pilot 2 Phase 6, 2026-09-24)
+
+- Pilot 2 archive: `$NAS_ROOT/backups/results-pilot2.tgz` and `~/scratch/backups/results-pilot2.tgz` (the whole `results/` tree incl. checkpoints of all four roots; size and sha1 in `results/RESULTS_pilot2.md`'s archive line and in `pilot2-results.md`), made at fork commit `3b42d35` after the Phase 5 outputs.
+- Everything except checkpoints and raw per-run JSONs is in git on `tgvu94/OneShotForecastingNAS:graph-ops`: `archs.jsonl`, `FROZEN.md`, `DECISION.md` (probe roots), `tables/*.md`, `tables/*.csv`, `figs/*.png` of every root, plus `results/tables_n50`, `results/figs_n50`, `results/tables_pilot2`, `results/figs_pilot2`, `results/RESULTS_pilot2.md`.
+- Pilot 2 phase checks 3, 4, 5, 6 PASS at this commit (`python -m pilot.check --phase N --pilot 2 --root <root> --n <N>`); phases 1 and 2 are point-in-time gates (see `pilot2-results.md`).

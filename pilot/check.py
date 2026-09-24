@@ -923,8 +923,64 @@ def pilot2_phase5(args) -> bool:
     return bool(good)
 
 
+def pilot2_phase6(args) -> bool:
+    """Pilot 2, Phase 6 (record + archive): results/RESULTS_pilot2.md cites every table / figure file of the two scale-up roots
+    (results, results/pems08_h12), of tables_pilot2 / figs_pilot2 and the two probe DECISION.md files; the archive tarball sits in
+    $NAS_ROOT/backups and ~/scratch/backups; every root's FROZEN.md has its archive block; the Pilot 2 phase checks 3, 4, 5 PASS
+    at this commit (phases 1 and 2 are point-in-time gates whose known exceptions are printed, not re-judged)."""
+    import copy
+    import os
+    import re
+
+    good = True
+    res = Path("results/RESULTS_pilot2.md")
+    good &= _ok(res.exists(), f"{res} exists")
+    if not res.exists():
+        return False
+    txt = res.read_text()
+    words = len(re.findall(r"\w+", txt))
+    good &= _ok(500 <= words <= 1500, f"RESULTS_pilot2.md is about one page ({words} words)")
+    roots = [Root("results"), Root("results/pems08_h12")]
+    for r in roots:
+        tables = sorted(p.name for p in r.tables.glob("table_*.md")) + ["ci_summary.md", "table_A_partial.md", "joined.csv", "table_B_detection.csv"]
+        figs = sorted(p.name for p in r.figs.glob("*.png"))
+        missing = [t for t in sorted(set(tables)) if t not in txt] + [f for f in figs if f not in txt]
+        good &= _ok(not missing and str(r.tables) in txt, f"RESULTS_pilot2.md cites `{r.tables}` and every table ({len(set(tables))}) and figure ({len(figs)}) name; missing {missing}")
+    extra = sorted(p.name for p in Path("results/tables_pilot2").glob("*.md")) + sorted(p.name for p in Path("results/tables_pilot2").glob("*.csv")) \
+        + sorted(p.name for p in Path("results/figs_pilot2").glob("*.png"))
+    missing = [f for f in extra if f not in txt]
+    good &= _ok(not missing, f"RESULTS_pilot2.md cites every tables_pilot2 / figs_pilot2 file ({len(extra)}); missing {missing}")
+    for r in (Root("results/pems04_h36"), Root("results/metrla_h12")):
+        good &= _ok(str(r.dir) in txt and r.decision_md.exists(), f"RESULTS_pilot2.md names `{r.dir}` and its DECISION.md exists")
+    for r in roots + [Root("results/pems04_h36"), Root("results/metrla_h12")]:
+        good &= _ok(r.frozen_md.exists() and "## Archive (Pilot 2 Phase 6" in r.frozen_md.read_text(), f"{r.frozen_md} has the Pilot 2 archive block")
+    nas_root = Path(os.environ.get("NAS_ROOT", Path.home() / "nas"))
+    tars = sorted((nas_root / "backups").glob("results-pilot2*.tgz")) + sorted(Path.home().glob("scratch/backups/results-pilot2*.tgz"))
+    good &= _ok(len(tars) >= 2, f"results-pilot2 tarball in two locations: {[str(t) for t in tars]}")
+    # the phase checks at this commit
+    for ph, root_dir, n in ((3, "results", 300), (3, "results/pems08_h12", 150), (4, "results", 300), (4, "results/pems08_h12", 150), (5, "results", 300)):
+        a = copy.copy(args)
+        a.root_obj = Root(root_dir)
+        a.n = n
+        for k, v in {"archs": a.root_obj.archs_jsonl, "probe": a.root_obj.probe, "proxies_dir": a.root_obj.proxies_v1, "train_dir": a.root_obj.train,
+                     "adj": a.root_obj.adj, "baselines": a.root_obj.naive_baselines, "status_csv": a.root_obj.status_csv,
+                     "spatial_dir": a.root_obj.spatial_v2, "tables_dir": a.root_obj.tables, "figs_dir": a.root_obj.figs}.items():
+            setattr(a, k, str(v))
+        print(f"  -- Pilot 2 phase {ph} on --root {root_dir} --n {n}")
+        import contextlib, io
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ok = PILOT2_CHECKS[ph](a)
+        fails = [l for l in buf.getvalue().splitlines() if "[FAIL]" in l]
+        good &= _ok(ok, f"Pilot 2 phase {ph} PASS on {root_dir}" + (f"; failing lines: {fails}" if fails else ""))
+    print("  [info] Pilot 2 phase 1 (regression on the N = 50 tree) and phase 2 (probe verdicts) are point-in-time gates: phase 1 no longer "
+          "reproduces the N = 50 tables because the tree holds 300 runs; phase 2 fails only the seed-ceiling >= 0.8 line on both probe roots "
+          "(0.20 at h36, 0.60 on METR-LA). Both are recorded in pilot2-results.md and are not re-judged here.")
+    return bool(good)
+
+
 PILOT1_CHECKS = {1: phase1, 2: phase2, 3: phase3, 4: phase4, 6: phase6, 7: phase7, 8: phase8, 9: phase9, 10: phase10}
-PILOT2_CHECKS = {1: pilot2_phase1, 2: pilot2_phase2, 3: pilot2_phase3, 4: pilot2_phase4, 5: pilot2_phase5}
+PILOT2_CHECKS = {1: pilot2_phase1, 2: pilot2_phase2, 3: pilot2_phase3, 4: pilot2_phase4, 5: pilot2_phase5, 6: pilot2_phase6}
 
 
 def main():
