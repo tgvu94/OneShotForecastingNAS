@@ -133,3 +133,33 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+logs/
+wandb/
+experiments/outputs/
+experiments/multirun/
+__pycache__/
+*.pyc
+results/*
+!results/*/
+results/*/*
+!results/*/*/
+results/*/*/*
+!results/*/*/archs*.jsonl
+!results/*/*/*.md
+!results/*/*/autocts_precheck.json
+!results/*/*/tables*/
+results/*/*/tables*/*
+!results/*/*/tables*/*.md
+!results/*/*/tables*/table_*.csv
+!results/*/*/tables*/joined.csv
+!results/*/*/tables*/subsample_curve.csv
+!results/*/compare/tables/*.csv
+!results/*/compare/tables/*.json
+!results/*/*/figs*/
+results/*/*/figs*/*
+!results/*/*/figs*/*.png
+experiments/ModelWeights/**/SampledNet/
+experiments/ModelWeights/**/pt_project/
+experiments/ModelWeights/**/without_selection/
+experiments/ModelWeights/**/trainer_info.pth
+experiments/ModelWeights/**/eval_res.json
