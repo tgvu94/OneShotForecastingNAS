@@ -1,0 +1,22 @@
+{
+  "roots": [
+    "results/stzero/pems04_h12",
+    "results/stzero/pems08_h12",
+    "results/stzero/pems04_h36",
+    "results/stzero/metrla_h12"
+  ],
+  "labels": [
+    "PEMS04-12",
+    "PEMS08-12",
+    "PEMS04-36",
+    "METRLA-12"
+  ],
+  "n50_csv": "results/stzero/pems04_h12/tables_n50/table_A.csv",
+  "files": [
+    "compare_summary.json",
+    "cross_dataset.csv",
+    "cross_dataset.md",
+    "n50_vs_n300.csv",
+    "rank_agreement.csv"
+  ]
+}
