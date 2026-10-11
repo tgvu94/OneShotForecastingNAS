@@ -9,6 +9,7 @@ from tsf_oneshot.cells.encoders.components import (
     IdentityEncoderModule,
     MLPMixEncoderModule
 )
+from tsf_oneshot.cells.encoders.graph_components import GRAPH_OPS, GRAPH_PRIMITIVES  # pilot W3
 from tsf_oneshot.cells.encoders.flat_components import (
     IdentityFlatEncoderModule, MLPFlatModule, NBEATSModule, NHitsModule, NBEATS_DEFAULT_THETA_DIMS
 )
