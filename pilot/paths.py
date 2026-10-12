@@ -24,8 +24,10 @@ _SETTING_RE = re.compile(r"^(?P<dataset>[a-z0-9]+)_h(?P<horizon>\d+)$")
 
 
 class Root:
-    def __init__(self, root_dir: str | Path = DEFAULT_ROOT, dataset: str | None = None, horizon: int | None = None):
+    def __init__(self, root_dir: str | Path = DEFAULT_ROOT, dataset: str | None = None, horizon: int | None = None,
+                 tables: str | None = None):
         self.dir = Path(root_dir)
+        self.tables_name = tables or "tables"  # e.g. "tables_n150": the tables of a subset of the root's architectures
         m = _SETTING_RE.match(self.dir.name)
         self.dataset = dataset or (m["dataset"] if m else self._infer_dataset())
         self.horizon = int(horizon if horizon is not None else (m["horizon"] if m else DEFAULT_HORIZON))
@@ -41,6 +43,14 @@ class Root:
     def for_setting(cls, dataset: str, horizon: int, base: str | Path = DEFAULT_BASE) -> "Root":
         """The conventional root of a setting: ``base/<ds>_h<h>``."""
         return cls(Path(base) / f"{dataset}_h{int(horizon)}", dataset, horizon)
+
+    @classmethod
+    def from_tables_dir(cls, path: str | Path) -> "Root":
+        """A root given either as its directory or as one of its tables directories (``<root>/tables_n150``)."""
+        p = Path(path)
+        if p.name.startswith("tables"):
+            return cls(p.parent, tables=p.name)
+        return cls(p)
 
     @classmethod
     def for_benchmark_name(cls, name: str, base: str | Path = DEFAULT_BASE) -> "Root":
@@ -93,7 +103,7 @@ class Root:
 
     @property
     def tables(self) -> Path:
-        return self.dir / "tables"
+        return self.dir / self.tables_name
 
     @property
     def figs(self) -> Path:
@@ -125,7 +135,8 @@ class Root:
         return self
 
     def __repr__(self) -> str:
-        return f"Root({str(self.dir)!r}, dataset={self.dataset!r}, horizon={self.horizon})"
+        extra = f", tables={self.tables_name!r}" if self.tables_name != "tables" else ""
+        return f"Root({str(self.dir)!r}, dataset={self.dataset!r}, horizon={self.horizon}{extra})"
 
     # ---- argparse plumbing
     @staticmethod

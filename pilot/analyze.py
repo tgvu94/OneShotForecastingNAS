@@ -4,6 +4,10 @@
     python -m pilot.analyze --root results/stzero/pems08_h12 --n-boot 2000 --subgroup-ci
     python -m pilot.analyze --compare results/stzero/pems04_h12 results/stzero/pems08_h12 results/stzero/pems04_h36 results/stzero/metrla_h12 \
         --n50 results/stzero/pems04_h12/tables_n50/table_A.csv --out results/stzero/compare/tables   # cross-setting table
+    python -m pilot.analyze --root results/stzero/pems04_h12 --ids results/stzero/compare/tables/matched_n150.txt --n-boot 2000 --subgroup-ci
+        # the same analysis on a subset of the root's architectures (one arch_id per line); writes to <root>/tables_n<count>
+    python -m pilot.analyze --compare results/stzero/pems04_h12/tables_n150 results/stzero/pems08_h12 results/stzero/metrla_h12 results/stzero/pems04_h36 \
+        --out results/stzero/compare/tables_n150                            # a --compare entry may be a root or one of its tables directories
 (``--archs``, ``--proxies``, ``--spatial``, ``--train`` and ``--out`` default to the root's files.)
 
 Sign convention: every score is correlated with -val_mae, so a *good* proxy has positive Spearman and the
@@ -361,11 +365,11 @@ def compare_roots(roots: list, out: Path, n50_csv=None, proxies=PROXIES_PRIMARY)
     L = [f"# Cross-setting comparison — {', '.join(labels)}", "",
          "Spearman of the proxy (mean over 3 init seeds) with −val MAE (seed 0) on each setting, 95 % bootstrap CI, partial ρ | log params. "
          "All roots use the same genotype space and schedule; only the data, the number of sensors and the adjacency differ.", ""]
-    L.append("| setting | root | N | seed-noise ceiling (s0-s1 / s0-s2 / s1-s2) | within / across std |")
+    L.append("| setting | tables | N | seed-noise ceiling (s0-s1 / s0-s2 / s1-s2) | within / across std |")
     L.append("|---|---|---|---|---|")
     for r in roots:
         c = summs[r.label].get("seed_ceiling", {})
-        L.append(f"| {r.label} | `{r.dir}` | {summs[r.label]['n_rows']} | {fmt(c.get('spearman_s0_s1'))} / {fmt(c.get('spearman_s0_s2'))} / {fmt(c.get('spearman_s1_s2'))} | "
+        L.append(f"| {r.label} | `{r.tables}` | {summs[r.label]['n_rows']} | {fmt(c.get('spearman_s0_s1'))} / {fmt(c.get('spearman_s0_s2'))} / {fmt(c.get('spearman_s1_s2'))} | "
                  f"{c.get('within_arch_std_mean', float('nan')):.4f} / {c.get('across_arch_std', float('nan')):.4f} |")
     L += ["", "| proxy | " + " | ".join(f"{lab} ρ (95 % CI) | partial" for lab in labels) + " |", "|---|" + "---|---|" * len(labels)]
     order = df[f"{ref} spearman"].fillna(-9).sort_values(ascending=False).index
@@ -394,7 +398,7 @@ def compare_roots(roots: list, out: Path, n50_csv=None, proxies=PROXIES_PRIMARY)
                  f"The N = {big[1:]} estimate lies inside the N = 50 interval for {int(n50.large_inside_n50_ci.sum())}/{len(n50)} proxies (the N = 50 point estimate lies inside the narrower N = {big[1:]} interval for {int(n50.n50_inside_large_ci.sum())}/{len(n50)} — the expected direction of disagreement: the small-sample point estimates scatter by ±0.25 around values now known to ±0.11). "
                  "The first 50 architectures are a subset of the larger set, so the two estimates are not independent.")
     (out / "cross_dataset.md").write_text("\n".join(L) + "\n")
-    meta = {"roots": [str(r.dir) for r in roots], "labels": labels, "n50_csv": str(n50_csv) if n50_csv else None,
+    meta = {"roots": [str(r.dir) for r in roots], "tables": [str(r.tables) for r in roots], "labels": labels, "n50_csv": str(n50_csv) if n50_csv else None,
             "files": sorted(p.name for p in out.iterdir())}
     (out / "compare_summary.json").write_text(json.dumps(meta, indent=2))
     return meta
@@ -413,19 +417,30 @@ def main():
     ap.add_argument("--out", default=None, help="default: <root>/tables")
     ap.add_argument("--n-boot", type=int, default=2000)
     ap.add_argument("--subgroup-ci", action="store_true", help="bootstrap CIs for every Table A subgroup column too")
+    ap.add_argument("--ids", default=None, help="file with one arch_id per line: analyse only these architectures of the root "
+                    "(results/stzero/compare/tables/matched_n150.txt); --out then defaults to <root>/tables_n<count>")
     args = ap.parse_args()
     if args.compare:
-        roots = [Root(r) for r in args.compare]
+        roots = [Root.from_tables_dir(r) for r in args.compare]
         meta = compare_roots(roots, Path(args.out or f"{COMPARE_DIR}/tables"), args.n50)
         print(json.dumps(meta, indent=2))
         return
     root = Root.from_args(args)
     args.archs, args.proxies, args.spatial = args.archs or root.archs_jsonl, args.proxies or root.proxies_v1, args.spatial or root.spatial_v2
-    args.train, args.out = args.train or root.train, args.out or root.tables
+    args.train = args.train or root.train
     t0 = time.time()
+    archs = load_archs(args.archs)
+    ids = None
+    if args.ids:
+        ids = [l.strip() for l in Path(args.ids).read_text().splitlines() if l.strip() and not l.startswith("#")]
+        have = {r["arch_id"] for r in archs}
+        missing = [i for i in ids if i not in have]
+        archs = [r for r in archs if r["arch_id"] in set(ids)]
+        print(f"--ids {args.ids}: {len(ids)} ids, {len(archs)} found in {args.archs}, {len(missing)} missing" + (f" (first: {missing[:3]})" if missing else ""))
+        args.out = args.out or root.dir / f"tables_n{len(archs)}"
+    args.out = args.out or root.tables
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    archs = load_archs(args.archs)
     df = load_joined(archs, args.proxies, args.spatial, args.train)
     df.to_csv(out / "joined.csv", index=False)
     n_done = sum(1 for r in archs if (Path(args.train) / r["arch_id"] / "seed0" / "metrics.json").exists()
@@ -456,7 +471,8 @@ def main():
     curve = subsample_curve(df, ["zico", "l2_norm_all", "params", "grasp_all", "zen", "nwot", "snip_all"])
     curve.to_csv(out / "subsample_curve.csv", index=False)
     (out / "ci_summary.md").write_text(md_ci_summary(tA, curve, ceiling, len(df), args.n_boot))
-    json.dump({"root": str(root.dir), "dataset": root.dataset, "horizon": root.horizon, "n_rows": int(len(df)), "n_done": n_done,
+    json.dump({"root": str(root.dir), "dataset": root.dataset, "horizon": root.horizon, "tables": str(out), "ids": args.ids,
+               "n_ids": len(ids) if ids is not None else None, "n_rows": int(len(df)), "n_done": n_done,
                "seed_ceiling": ceiling, "bases": bases, "subgroup_ci": args.subgroup_ci, "seconds": round(time.time() - t0, 1)},
               open(out / "analyze_summary.json", "w"), indent=2)
     print(tA[["proxy", "n", "spearman", "ci_lo", "ci_hi", "kendall", "partial_params"]].to_string(index=False, float_format=lambda v: f"{v:+.2f}"))
