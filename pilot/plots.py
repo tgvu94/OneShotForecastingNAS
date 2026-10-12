@@ -85,7 +85,7 @@ def fig1(df, out, label="PEMS04-12"):
     for ax in axes[len(PROXIES):]:
         ax.axis("off")
     axes[len(PROXIES)].legend(handles=legend_handles(), loc="center left", fontsize=9, title="architecture group", title_fontsize=9)
-    fig.suptitle(f"Fig. 1 — Zero-cost proxies vs. 20-epoch val MAE on {label}, N = {len(df)} random DARTS-TS(+graph) architectures. "
+    fig.suptitle(f"Zero-cost proxies vs. 20-epoch val MAE on {label}, N = {len(df)} random DARTS-TS(+graph) architectures. "
                  "ρ = Spearman with −val MAE (positive = useful), 95% bootstrap CI.", fontsize=10, x=0.01, ha="left", color=INK)
     fig.tight_layout(rect=(0, 0, 1, 0.96))
     fig.savefig(out / "proxy_vs_mae_grid.png", dpi=160)
@@ -112,7 +112,7 @@ def fig2(df, out):
     ax.set_ylabel("Spearman ρ with −val MAE")
     ax.set_ylim(-1, 1)
     ax.legend(loc="upper left", fontsize=9)
-    ax.set_title("Fig. 2 — Spearman per proxy by architecture group (whiskers: 95% bootstrap CI)", loc="left", fontsize=10)
+    ax.set_title("Spearman per proxy by architecture group (whiskers: 95% bootstrap CI)", loc="left", fontsize=10)
     fig.tight_layout()
     fig.savefig(out / "spearman_by_family.png", dpi=160)
     plt.close(fig)
@@ -133,7 +133,7 @@ def fig3(df, out, base="nwot", name="spatial_vs_naswot.png"):
     axes[1].set_title(f"S_spatial({base}) = |score(A) − mean score(π(A))|\nρ on the {len(sens)} uses-A archs = {rho_s:+.2f}  [{lo_s:+.2f}, {hi_s:+.2f}]", loc="left", fontsize=9)
     axes[1].set_xlabel(f"S_spatial({base}), symlog (controls sit at exactly 0)")
     fig.legend(handles=legend_handles(), loc="lower center", fontsize=8, ncol=6, bbox_to_anchor=(0.5, 0.0))
-    fig.suptitle(f"Fig. 3 — Experiment B with base {base}: the proxy itself (left) and its adjacency sensitivity (right) vs. val MAE", fontsize=10, x=0.01, ha="left")
+    fig.suptitle(f"Adjacency sensitivity with base {base}: the proxy itself (left) and its adjacency sensitivity (right) vs. val MAE", fontsize=10, x=0.01, ha="left")
     fig.tight_layout(rect=(0, 0.07, 1, 0.94))
     fig.savefig(out / name, dpi=160)
     plt.close(fig)
