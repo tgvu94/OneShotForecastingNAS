@@ -4,8 +4,8 @@ Idempotent: <root>/proxies/<version>/<arch_id>.json is merged, and a (proxy, see
 skipped unless --force.  Each JSON records torch version, fork commit, probe-batch SHA-1 and the NASLib commit,
 so later runs can be compared like-for-like.
 
-``--proxies`` takes the plan's 13 names (``fisher,flops,params,grad_norm,l2_norm,plain,grasp,jacov,nwot,snip,
-synflow,zen,zico``), ``all``, or stored names.  A plan name that has both a NASLib (Conv/Linear-only) and an
+``--proxies`` takes the plan's 14 names (``fisher,flops,params,grad_norm,l2_norm,plain,grasp,jacov,nwot,snip,
+synflow,zen,zico,swap``), ``all``, or stored names.  ``swap`` expands to ``swap`` (batch 32) + ``swap_b8`` (first 8 windows).  A plan name that has both a NASLib (Conv/Linear-only) and an
 all-parameter implementation expands to both, e.g. ``grad_norm`` -> ``grad_norm`` + ``grad_norm_all``.
 """
 from __future__ import annotations
@@ -36,10 +36,11 @@ PLAN_NAMES = {
     "grad_norm": ["grad_norm", "grad_norm_all"], "l2_norm": ["l2_norm", "l2_norm_all"],
     "plain": ["plain", "plain_all"], "grasp": ["grasp", "grasp_all"], "jacov": ["jacov"], "nwot": ["nwot"],
     "snip": ["snip", "snip_all"], "synflow": ["synflow", "synflow_all"], "zen": ["zen"], "zico": ["zico"],
+    "swap": ["swap", "swap_b8"],
 }
 # cheap and robust first, zico (4 batches) last
 ORDER = ["params", "flops", "l2_norm", "l2_norm_all", "grad_norm", "grad_norm_all", "snip", "snip_all", "plain",
-         "plain_all", "fisher", "synflow", "synflow_all", "jacov", "nwot", "zen", "grasp", "grasp_all", "zico"]
+         "plain_all", "fisher", "synflow", "synflow_all", "jacov", "nwot", "swap", "swap_b8", "zen", "grasp", "grasp_all", "zico"]
 ALL_STORED = set(ORDER)
 assert ALL_STORED == set(NASLIB_MEASURES) | set(extra.REGISTRY), (ALL_STORED ^ (set(NASLIB_MEASURES) | set(extra.REGISTRY)))
 

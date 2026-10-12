@@ -284,3 +284,48 @@ REGISTRY = {
     "zico": ("zico", zico),
 }
 ALIASES = {"grad_norm": "grad_norm_all"}  # alias; score_proxies maps the 13 plan names itself
+
+
+@torch.no_grad()
+def _swap_count(net: nn.Module, x: torch.Tensor):
+    """SWAP (Peng et al. 2026): hook every activation module, take the Signum of its *output* (ReLU gives {0, 1},
+    GELU / Tanh / SiLU / ELU give {-1, 0, 1}), and build one length-B vector per intermediate value (one column of the
+    (B, V) matrix).  SWAP-Score = number of distinct columns over all hooked layers, bounded by V.  Same hook set as
+    ``nwot``, so cuDNN GRU/LSTM and functional activations are not counted; ``n_hooks`` / ``n_values`` are recorded."""
+    B = x.shape[0]
+    cols, fired, skipped = [], [0], []
+
+    def hook(module, inp, out):
+        t = out[0] if isinstance(out, (tuple, list)) else out
+        if not torch.is_tensor(t) or t.dim() == 0 or t.shape[0] != B:
+            skipped.append(type(module).__name__ + str(tuple(t.shape) if torch.is_tensor(t) else ()))
+            return
+        cols.append(torch.sign(t.detach().reshape(B, -1)).to(torch.int8))
+        fired[0] += 1
+
+    handles = [m.register_forward_hook(hook) for m in net.modules() if isinstance(m, ACTIVATION_TYPES)]
+    try:
+        net(x)
+    finally:
+        for h in handles:
+            h.remove()
+    if not cols:
+        return 0.0, {"n_hooks": len(handles), "n_fired": 0, "n_values": 0, "batch": int(B), "n_skipped": len(skipped), "skipped": skipped[:10]}
+    M = torch.cat(cols, dim=1)                      # (B, V) of {-1, 0, 1}
+    distinct = torch.unique(M.t().contiguous(), dim=0).shape[0]
+    return float(distinct), {"n_hooks": len(handles), "n_fired": fired[0], "n_values": int(M.shape[1]), "batch": int(B),
+                             "n_skipped": len(skipped), "skipped": skipped[:10]}
+
+
+def swap(net: nn.Module, x: torch.Tensor):
+    """SWAP-Score on the full probe batch (32 windows)."""
+    return _swap_count(net, x)
+
+
+def swap_b8(net: nn.Module, x: torch.Tensor):
+    """SWAP-Score on the first 8 windows of the probe batch: the paper recommends batch 8-16 for small CNNs and reports a
+    drop from 0.933 to 0.649 between batch 8 and batch 128; both sizes are stored so the sensitivity can be read."""
+    return _swap_count(net, x[:8])
+
+
+REGISTRY.update({"swap": ("x", swap), "swap_b8": ("x", swap_b8)})

@@ -3,6 +3,9 @@
 # the root exists and holds archs.jsonl.  Usage:
 #   pilot/submit.sh train   [ROOT] [DATASET] [HORIZON]   -> ground-truth runner, job array: 6 tasks, at most 3 running, 8 h each (<= 48 GPU-h)
 #   pilot/submit.sh spatial [ROOT] [DATASET] [HORIZON]   -> spatial-sensitivity proxies: one 2 h job (no training)
+#   pilot/submit.sh proxies [ROOT] [DATASET] [HORIZON]   -> score the proxies named in $PROXIES (default all: only the names missing
+#                                                          from the stored files are computed) on ROOT and on $EXTRA_ROOTS: one 2 h job
+# AFTER=<jobid> adds --dependency=afterany:<jobid>; a dependent job waits, so only *running* jobs count toward the cap of 3.
 # Defaults: ROOT=results/stzero/pems04_h12 DATASET=pems04 HORIZON=12.  E.g.  pilot/submit.sh train results/stzero/pems04_h36 pems04 36
 # Every script resumes / skips finished work, so a killed job is simply resubmitted (resubmit it).
 set -euo pipefail
@@ -16,14 +19,21 @@ common=(--cpus-per-task=8 --mem=32G --account=def-rwpazzi_gpu --gres=gpu:nvidia_
 case "$mode" in
   train)   name=stzero;  extra=(--array=0-5%3 --time=08:00:00 --output="$NAS_ROOT/logs/stzero_${tag}_%A_%a.log");  script=pilot/run_train_all.sbatch ;;
   spatial) name=spatial; extra=(--time=02:00:00 --output="$NAS_ROOT/logs/spatial_${tag}_%j.log");                    script=pilot/score_spatial.sbatch ;;
-  *) echo "unknown mode $mode (train | spatial)"; exit 1 ;;
+  proxies) name=proxies; extra=(--time=02:00:00 --output="$NAS_ROOT/logs/proxies_${tag}_%j.log");                    script=pilot/score_proxies.sbatch
+           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,EXTRA_ROOTS=${EXTRA_ROOTS:-},PROXIES=${PROXIES:-}" ;;
+  *) echo "unknown mode $mode (train | spatial | proxies)"; exit 1 ;;
 esac
 if [ ! -s "$ROOT/archs.jsonl" ]; then echo "refusing: $ROOT/archs.jsonl missing or empty"; exit 1; fi
 if [ ! -s "$ROOT/data/${DATASET}_probe_batch.pt" ]; then echo "refusing: $ROOT/data/${DATASET}_probe_batch.pt missing (python -m pilot.data --save-probe-batch --root $ROOT)"; exit 1; fi
 if [ ! -s "$ROOT/data/${DATASET}_adj.npy" ]; then echo "refusing: $ROOT/data/${DATASET}_adj.npy missing (python -m pilot.adjacency --root $ROOT)"; exit 1; fi
 n=$(squeue -u "$USER" -h --name="$name" | wc -l)
 if [ "$n" -ge 1 ]; then echo "refusing: a $name job is already queued/running ($n) for $USER"; exit 1; fi
-n_all=$(squeue -u "$USER" -h | wc -l)
+if [ -n "${AFTER:-}" ]; then
+  extra+=(--dependency="afterany:$AFTER")
+  n_all=$(squeue -u "$USER" -h -t RUNNING | wc -l)
+else
+  n_all=$(squeue -u "$USER" -h | wc -l)
+fi
 if [ "$n_all" -ge 3 ]; then echo "refusing: $n_all jobs already queued/running for $USER (cap 3)"; exit 1; fi
 mkdir -p "$NAS_ROOT/logs"
 echo "submitting $mode for ROOT=$ROOT DATASET=$DATASET HORIZON=$HORIZON"
