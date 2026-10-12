@@ -24,6 +24,9 @@
     "cross_dataset.md",
     "matched_n150.txt",
     "n50_vs_n300.csv",
-    "rank_agreement.csv"
+    "rank_agreement.csv",
+    "spatial_coupling.csv",
+    "spatial_coupling.md",
+    "task_stats.csv"
   ]
 }

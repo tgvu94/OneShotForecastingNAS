@@ -8,6 +8,7 @@ Every score is correlated with **−val MAE**, so a *useful* proxy has a **posit
 
 | Proxy | Spearman | 95% CI | CI half-width | excludes 0? | excludes 0.737? |
 |---|---|---|---|---|---|
+| `zico_sizectrl` | 0.66 | (0.56, 0.75) | 0.09 | yes | no |
 | `zico` | 0.57 | (0.44, 0.67) | 0.11 | yes | yes |
 | `l2_norm_all` | 0.50 | (0.36, 0.62) | 0.13 | yes | yes |
 | `nwot` | 0.39 | (0.24, 0.52) | 0.14 | yes | yes |
@@ -75,6 +76,13 @@ Every score is correlated with **−val MAE**, so a *useful* proxy has a **posit
 | `snip_all` | 50 | -0.19 | -0.39 | -0.02 | 0.04 | 0.00 |
 | `snip_all` | 100 | -0.19 | -0.28 | -0.10 | 0.00 | 0.00 |
 | `snip_all` | 150 | -0.19 | -0.19 | -0.19 | 0.00 | 0.00 |
+| `zico_sizectrl` | 10 | +0.64 | +0.21 | +0.90 | 0.99 | 0.83 |
+| `zico_sizectrl` | 20 | +0.66 | +0.41 | +0.83 | 1.00 | 0.96 |
+| `zico_sizectrl` | 30 | +0.66 | +0.45 | +0.81 | 1.00 | 0.99 |
+| `zico_sizectrl` | 40 | +0.67 | +0.51 | +0.79 | 1.00 | 1.00 |
+| `zico_sizectrl` | 50 | +0.66 | +0.54 | +0.76 | 1.00 | 1.00 |
+| `zico_sizectrl` | 100 | +0.66 | +0.60 | +0.71 | 1.00 | 1.00 |
+| `zico_sizectrl` | 150 | +0.66 | +0.66 | +0.66 | 1.00 | 1.00 |
 
 ## How large must N be? (Fisher-z approximation, se ≈ 1.06/√(N−3), 95 % CI)
 

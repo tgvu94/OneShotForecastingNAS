@@ -1,10 +1,11 @@
-# Table A — Experiment A (13 proxies, all-parameter variants as primary)
+# Table A — 14 proxies (all-parameter variants as primary; swap_reg and zico_sizectrl are derived, see analyze.derived_scores)
 
 Spearman / Kendall of the proxy (mean over 3 init seeds) with −val MAE (seed 0, 20 epochs): positive = higher proxy, lower error. 95% CI = 2000-sample bootstrap. partial ρ = Spearman after regressing ranks on rank(log params). Subgroups with n < 8 are not reported.
 
 | Proxy | N | Spearman (95% CI) | ρ / ceiling | Kendall | p | partial ρ \| log params | seed CV | graph-blind (n=67) | has graph (n=83) | uses A (n=75) | gcn (incl. mixed) (n=56) | diffusion (incl. mixed) (n=63) |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | seed-noise ceiling (val MAE seed 0 vs 1 / 0 vs 2 / 1 vs 2) | 5 | 1.00 / 0.90 / 0.90 | 1.00 | — | — | — | within-arch std 0.0003 vs across-arch 0.0039 | — | — | — | — | — |
+| `zico_sizectrl` | 150 | 0.66 (0.56, 0.75) | +0.66 | 0.48 | 2.85e-20 | 0.67 | — | 0.66 (0.47, 0.79) | 0.55 (0.35, 0.70) | 0.51 (0.29, 0.68) | 0.52 (0.28, 0.70) | 0.50 (0.27, 0.68) |
 | `zico` | 150 | 0.57 (0.44, 0.67) | +0.57 | 0.40 | 4.11e-14 | 0.67 | 0.007 | 0.54 (0.31, 0.70) | 0.60 (0.43, 0.73) | 0.55 (0.37, 0.70) | 0.60 (0.37, 0.77) | 0.54 (0.33, 0.70) |
 | `l2_norm_all` | 150 | 0.50 (0.36, 0.62) | +0.50 | 0.35 | 6.05e-11 | 0.59 | 0.001 | 0.40 (0.16, 0.59) | 0.51 (0.31, 0.66) | 0.45 (0.24, 0.61) | 0.48 (0.23, 0.66) | 0.45 (0.22, 0.63) |
 | `nwot` | 150 | 0.39 (0.24, 0.52) | +0.39 | 0.26 | 9.62e-07 | 0.31 | 0.001 | 0.00 (-0.25, 0.24) | 0.12 (-0.11, 0.34) | 0.10 (-0.10, 0.31) | 0.16 (-0.10, 0.40) | 0.07 (-0.18, 0.31) |

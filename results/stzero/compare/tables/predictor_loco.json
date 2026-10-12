@@ -1,0 +1,67 @@
+{
+  "roots": [
+    "results/stzero/pems04_h12",
+    "results/stzero/pems08_h12",
+    "results/stzero/metrla_h12"
+  ],
+  "n_per_city": {
+    "pems04": 300,
+    "pems08": 150,
+    "metrla": 50
+  },
+  "arch_cols": [
+    "dec_gru",
+    "dec_linear",
+    "dec_lstm",
+    "dec_mlp_mix",
+    "dec_n_edges",
+    "dec_sep_tcn",
+    "dec_seq",
+    "dec_skip_connection",
+    "dec_tcn",
+    "dec_transformer",
+    "enc_gru",
+    "enc_lstm",
+    "enc_mlp_mix",
+    "enc_n_edges",
+    "enc_sep_tcn",
+    "enc_skip_connection",
+    "enc_tcn",
+    "enc_transformer",
+    "flat_mlp",
+    "flat_n_edges",
+    "flat_nbeats_g",
+    "flat_nbeats_s",
+    "flat_nbeats_t",
+    "flat_skip_connection",
+    "graph_adaptive",
+    "graph_diffusion",
+    "graph_gcn",
+    "graph_graph_identity",
+    "graph_n_edges",
+    "has_graph",
+    "head_mae",
+    "head_mse",
+    "head_quantile",
+    "log_flops",
+    "log_params"
+  ],
+  "task_cols": [
+    "n_nodes",
+    "r1_permille_w12",
+    "r2_permille_w12",
+    "acf_lag1",
+    "acf_lag12",
+    "acf_lag288",
+    "cv_median_node",
+    "frac_zero",
+    "density",
+    "naive_last_value_val_mae",
+    "diff_std_over_std"
+  ],
+  "seeds": [
+    0,
+    1,
+    2
+  ]
+}

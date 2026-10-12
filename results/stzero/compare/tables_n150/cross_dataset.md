@@ -11,6 +11,7 @@ Spearman of the proxy (mean over 3 init seeds) with −val MAE (seed 0) on each 
 
 | proxy | PEMS04-12 ρ (95 % CI) | partial | PEMS08-12 ρ (95 % CI) | partial | METRLA-12 ρ (95 % CI) | partial | PEMS04-36 ρ (95 % CI) | partial |
 |---|---|---|---|---|---|---|---|---|
+| `zico_sizectrl` | 0.66 (0.56, 0.75) | 0.67 | 0.31 (0.15, 0.45) | 0.31 | -0.05 (-0.35, 0.26) | -0.05 | 0.55 (0.32, 0.74) | 0.60 |
 | `zico` | 0.57 (0.44, 0.67) | 0.67 | 0.32 (0.15, 0.46) | 0.35 | -0.09 (-0.36, 0.20) | -0.07 | 0.71 (0.52, 0.82) | 0.56 |
 | `l2_norm_all` | 0.50 (0.36, 0.62) | 0.59 | 0.25 (0.09, 0.41) | 0.30 | 0.00 (-0.30, 0.29) | 0.07 | 0.59 (0.34, 0.76) | 0.37 |
 | `nwot` | 0.39 (0.24, 0.52) | 0.31 | 0.05 (-0.11, 0.22) | 0.01 | 0.05 (-0.25, 0.34) | 0.04 | 0.03 (-0.27, 0.31) | -0.22 |
@@ -24,11 +25,13 @@ Spearman of the proxy (mean over 3 init seeds) with −val MAE (seed 0) on each 
 | `grad_norm_all` | -0.16 (-0.31, -0.00) | -0.22 | -0.40 (-0.53, -0.24) | -0.47 | -0.44 (-0.66, -0.15) | -0.44 | -0.28 (-0.54, 0.01) | -0.51 |
 | `snip_all` | -0.19 (-0.34, -0.03) | -0.25 | -0.36 (-0.50, -0.20) | -0.44 | -0.39 (-0.62, -0.08) | -0.39 | -0.29 (-0.55, -0.01) | -0.52 |
 | `jacov` | -0.41 (-0.53, -0.29) | -0.46 | -0.10 (-0.25, 0.07) | -0.12 | -0.05 (-0.31, 0.23) | -0.05 | -0.15 (-0.40, 0.15) | -0.24 |
+| `swap` | — | — | — | — | — | — | — | — |
+| `swap_reg` | — | — | — | — | — | — | — | — |
 
 ## Does the proxy *ordering* transfer? (reference: PEMS04-12)
 
 | pair | proxies | Spearman of the ρ vectors | Kendall | Pearson | same sign | top 3 (reference) | top 3 (other) |
 |---|---|---|---|---|---|---|---|
-| PEMS04-12 vs PEMS08-12 | 13 | 0.79 | 0.56 | 0.74 | 12/13 | zico,l2_norm_all,nwot | grasp_all,zico,l2_norm_all |
-| PEMS04-12 vs METRLA-12 | 13 | 0.59 | 0.36 | 0.52 | 9/13 | zico,l2_norm_all,nwot | grasp_all,nwot,flops |
-| PEMS04-12 vs PEMS04-36 | 13 | 0.84 | 0.67 | 0.76 | 11/13 | zico,l2_norm_all,nwot | zico,l2_norm_all,params |
+| PEMS04-12 vs PEMS08-12 | 14 | 0.80 | 0.58 | 0.76 | 13/14 | zico_sizectrl,zico,l2_norm_all | grasp_all,zico,zico_sizectrl |
+| PEMS04-12 vs METRLA-12 | 14 | 0.49 | 0.30 | 0.50 | 9/14 | zico_sizectrl,zico,l2_norm_all | grasp_all,nwot,flops |
+| PEMS04-12 vs PEMS04-36 | 14 | 0.85 | 0.67 | 0.79 | 12/14 | zico_sizectrl,zico,l2_norm_all | zico,l2_norm_all,zico_sizectrl |

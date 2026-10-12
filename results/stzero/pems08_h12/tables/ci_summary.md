@@ -10,6 +10,7 @@ Every score is correlated with **−val MAE**, so a *useful* proxy has a **posit
 |---|---|---|---|---|---|
 | `grasp_all` | 0.47 | (0.32, 0.60) | 0.14 | yes | yes |
 | `zico` | 0.32 | (0.15, 0.46) | 0.15 | yes | yes |
+| `zico_sizectrl` | 0.31 | (0.15, 0.45) | 0.15 | yes | yes |
 | `l2_norm_all` | 0.25 | (0.09, 0.41) | 0.16 | yes | yes |
 | `params` | 0.10 | (-0.06, 0.28) | 0.17 | no | yes |
 | `nwot` | 0.05 | (-0.11, 0.22) | 0.16 | no | yes |
@@ -75,6 +76,13 @@ Every score is correlated with **−val MAE**, so a *useful* proxy has a **posit
 | `snip_all` | 50 | -0.36 | -0.53 | -0.19 | 0.00 | 0.00 |
 | `snip_all` | 100 | -0.37 | -0.46 | -0.27 | 0.00 | 0.00 |
 | `snip_all` | 150 | -0.36 | -0.36 | -0.36 | 0.00 | 0.00 |
+| `zico_sizectrl` | 10 | +0.30 | -0.32 | +0.73 | 0.82 | 0.37 |
+| `zico_sizectrl` | 20 | +0.32 | -0.04 | +0.61 | 0.92 | 0.35 |
+| `zico_sizectrl` | 30 | +0.31 | +0.07 | +0.56 | 0.97 | 0.27 |
+| `zico_sizectrl` | 40 | +0.29 | +0.09 | +0.52 | 0.99 | 0.22 |
+| `zico_sizectrl` | 50 | +0.30 | +0.12 | +0.48 | 1.00 | 0.19 |
+| `zico_sizectrl` | 100 | +0.31 | +0.22 | +0.41 | 1.00 | 0.06 |
+| `zico_sizectrl` | 150 | +0.31 | +0.31 | +0.31 | 1.00 | 0.00 |
 
 ## How large must N be? (Fisher-z approximation, se ≈ 1.06/√(N−3), 95 % CI)
 
