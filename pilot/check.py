@@ -481,7 +481,7 @@ def spatial(args) -> bool:
 
 def tables(args) -> bool:
     """Analysis artefacts: joined.csv rows == done seed-0 trainings, Table A has the 13 proxies + the ceiling row, Table B
-    has >= 3 rows, every main Spearman carries a CI, analyze.py ran in < 60 s, the 3 figures exist."""
+    has >= 3 rows, every main Spearman carries a CI, analyze.py ran in < 180 s, the 3 figures exist."""
     import csv
 
     good = True
@@ -492,7 +492,7 @@ def tables(args) -> bool:
         return False
     sm = json.load(open(summ))
     good &= _ok(sm["n_rows"] == sm["n_done"] == args.n, f"joined.csv rows {sm['n_rows']} == done trainings {sm['n_done']} == {args.n}")
-    good &= _ok(sm["seconds"] < 180, f"analyze.py ran in {sm["seconds"]} s (< 180; the subgroup bootstrap takes 80-100 s at N >= 150)")
+    good &= _ok(sm["seconds"] < 180, f"analyze.py ran in {sm['seconds']} s (< 180; the subgroup bootstrap takes 80-100 s at N >= 150)")
     rows = list(csv.DictReader(open(tdir / "table_A.csv")))
     good &= _ok(len(rows) >= 13, f"table_A.csv has {len(rows)} proxy rows (>= 13: the 13 primary names plus the stored SWAP / derived rows)")
     good &= _ok(all(r["ci_lo"] not in ("", "nan") and r["ci_hi"] not in ("", "nan") for r in rows), "every Table A Spearman has a 95% CI")
