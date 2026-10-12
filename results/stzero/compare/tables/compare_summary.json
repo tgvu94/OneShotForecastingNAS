@@ -5,6 +5,12 @@
     "results/stzero/pems04_h36",
     "results/stzero/metrla_h12"
   ],
+  "tables": [
+    "results/stzero/pems04_h12/tables",
+    "results/stzero/pems08_h12/tables",
+    "results/stzero/pems04_h36/tables",
+    "results/stzero/metrla_h12/tables"
+  ],
   "labels": [
     "PEMS04-12",
     "PEMS08-12",
@@ -16,6 +22,7 @@
     "compare_summary.json",
     "cross_dataset.csv",
     "cross_dataset.md",
+    "matched_n150.txt",
     "n50_vs_n300.csv",
     "rank_agreement.csv"
   ]

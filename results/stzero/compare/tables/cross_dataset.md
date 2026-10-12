@@ -2,12 +2,12 @@
 
 Spearman of the proxy (mean over 3 init seeds) with −val MAE (seed 0) on each setting, 95 % bootstrap CI, partial ρ | log params. All roots use the same genotype space and schedule; only the data, the number of sensors and the adjacency differ.
 
-| setting | root | N | seed-noise ceiling (s0-s1 / s0-s2 / s1-s2) | within / across std |
+| setting | tables | N | seed-noise ceiling (s0-s1 / s0-s2 / s1-s2) | within / across std |
 |---|---|---|---|---|
-| PEMS04-12 | `results/stzero/pems04_h12` | 300 | 1.00 / 0.90 / 0.90 | 0.0003 / 0.0033 |
-| PEMS08-12 | `results/stzero/pems08_h12` | 150 | 1.00 / 1.00 / 1.00 | 0.0003 / 0.0046 |
-| PEMS04-36 | `results/stzero/pems04_h36` | 50 | 0.20 / 0.60 / 0.60 | 0.0013 / 0.0064 |
-| METRLA-12 | `results/stzero/metrla_h12` | 50 | 0.60 / 0.90 / 0.70 | 0.0021 / 0.0129 |
+| PEMS04-12 | `results/stzero/pems04_h12/tables` | 300 | 1.00 / 0.90 / 0.90 | 0.0003 / 0.0033 |
+| PEMS08-12 | `results/stzero/pems08_h12/tables` | 150 | 1.00 / 1.00 / 1.00 | 0.0003 / 0.0046 |
+| PEMS04-36 | `results/stzero/pems04_h36/tables` | 50 | 0.20 / 0.60 / 0.60 | 0.0013 / 0.0064 |
+| METRLA-12 | `results/stzero/metrla_h12/tables` | 50 | 0.60 / 0.90 / 0.70 | 0.0021 / 0.0129 |
 
 | proxy | PEMS04-12 ρ (95 % CI) | partial | PEMS08-12 ρ (95 % CI) | partial | PEMS04-36 ρ (95 % CI) | partial | METRLA-12 ρ (95 % CI) | partial |
 |---|---|---|---|---|---|---|---|---|
