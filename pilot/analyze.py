@@ -30,9 +30,10 @@ from pilot.genotype import graph_family, load_archs
 from pilot.paths import COMPARE_DIR, Root
 
 PROXIES_PRIMARY = ["nwot", "zico", "synflow_all", "snip_all", "grad_norm_all", "grasp_all", "plain_all", "fisher", "jacov", "zen",
-                   "l2_norm_all", "params", "flops"]                      # the 13 of Table A (_all variants as primary)
+                   "l2_norm_all", "params", "flops",                      # the 13 of Table A (_all variants as primary)
+                   "swap", "swap_reg", "zico_sizectrl"]                   # SWAP, regularised SWAP, size-controlled ZiCo (rows appear when stored)
 PROXIES_NASLIB = ["synflow", "snip", "grad_norm", "grasp", "plain", "l2_norm"]  # Conv/Linear-only copies, appendix rows
-EXTRA = ["tfas_zico_cl"]
+EXTRA = ["tfas_zico_cl", "swap_b8"]                                    # degenerate / saturated scores, appendix rows
 CONTROL_FAMILIES = ("none", "identity-only", "adaptive-only")
 
 
@@ -82,6 +83,30 @@ def load_joined(archs, proxies_dir, spatial_dir, train_dir, seed=0) -> pd.DataFr
                 row[f"{base}_permmean"] = br.get("perm_mean_over_seeds", np.nan)
         rows.append(row)
     return pd.DataFrame(rows)
+
+
+def derived_scores(df: pd.DataFrame) -> dict:
+    """Label-free scores computed from the stored ones, no new forward pass.
+
+    * ``zico_sizectrl``: the size-controlled ZiCo of fallback F1, the residual of ZiCo after a least-squares regression on
+      log parameter count across the scored set.
+    * ``swap_reg``: regularised SWAP (Peng et al. 2026, Def. III.4), SWAP x exp(-(params - mu)^2 / sigma) with mu = mean and
+      sigma = variance of the parameter count over the scored set (the paper sets them from a sample of the space).
+    Returns the fitted constants for ``analyze_summary.json``."""
+    out = {}
+    if "zico" in df and df.zico.notna().sum() >= 4:
+        m = df.zico.notna() & df.params.notna()
+        lp = np.log(df.loc[m, "params"].values.astype(float))
+        X = np.c_[np.ones_like(lp), lp]
+        beta = np.linalg.lstsq(X, df.loc[m, "zico"].values.astype(float), rcond=None)[0]
+        df["zico_sizectrl"] = np.nan
+        df.loc[m, "zico_sizectrl"] = df.loc[m, "zico"].values - X @ beta
+        out["zico_sizectrl"] = {"intercept": float(beta[0]), "slope_log_params": float(beta[1]), "n": int(m.sum())}
+    if "swap" in df and df.swap.notna().sum() >= 4:
+        mu, var = float(df.params.mean()), float(df.params.var(ddof=0))
+        df["swap_reg"] = df.swap * np.exp(-((df.params - mu) ** 2) / var)
+        out["swap_reg"] = {"mu_params": mu, "sigma_params_var": var, "n": int(df.swap.notna().sum())}
+    return out
 
 
 def corr(df: pd.DataFrame, proxy: str, target: str = "val_mae", n_boot: int = 2000, seed: int = 0) -> dict:
@@ -442,6 +467,7 @@ def main():
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     df = load_joined(archs, args.proxies, args.spatial, args.train)
+    derived = derived_scores(df)
     df.to_csv(out / "joined.csv", index=False)
     n_done = sum(1 for r in archs if (Path(args.train) / r["arch_id"] / "seed0" / "metrics.json").exists()
                  and json.load(open(Path(args.train) / r["arch_id"] / "seed0" / "metrics.json")).get("status") == "done")
@@ -450,7 +476,7 @@ def main():
     print("seed ceiling:", ceiling)
     tA = table_A(df, PROXIES_PRIMARY, subgroup_ci=args.subgroup_ci, n_boot=args.n_boot)
     tA.to_csv(out / "table_A.csv", index=False)
-    (out / "table_A.md").write_text(md_table_A(tA, ceiling, "Table A — Experiment A (13 proxies, all-parameter variants as primary)"))
+    (out / "table_A.md").write_text(md_table_A(tA, ceiling, f"Table A — {len(tA)} proxies (all-parameter variants as primary; swap_reg and zico_sizectrl are derived, see analyze.derived_scores)"))
     tA2 = table_A(df, PROXIES_NASLIB + [e for e in EXTRA if e in df], n_boot=args.n_boot)
     tA2.to_csv(out / "table_A_naslib.csv", index=False)
     (out / "table_A_naslib.md").write_text(md_table_A(tA2, {}, "Table A (appendix) — NASLib Conv/Linear-only variants and the degenerate TFAS score"))
@@ -468,12 +494,13 @@ def main():
     tP = table_A_partial(df, PROXIES_PRIMARY)
     tP.to_csv(out / "table_A_partial.csv", index=False)
     (out / "table_A_partial.md").write_text(md_table_A_partial(tP))
-    curve = subsample_curve(df, ["zico", "l2_norm_all", "params", "grasp_all", "zen", "nwot", "snip_all"])
+    curve = subsample_curve(df, [p for p in ["zico", "l2_norm_all", "params", "grasp_all", "zen", "nwot", "snip_all", "swap", "zico_sizectrl"] if p in df])
     curve.to_csv(out / "subsample_curve.csv", index=False)
     (out / "ci_summary.md").write_text(md_ci_summary(tA, curve, ceiling, len(df), args.n_boot))
     json.dump({"root": str(root.dir), "dataset": root.dataset, "horizon": root.horizon, "tables": str(out), "ids": args.ids,
                "n_ids": len(ids) if ids is not None else None, "n_rows": int(len(df)), "n_done": n_done,
-               "seed_ceiling": ceiling, "bases": bases, "subgroup_ci": args.subgroup_ci, "seconds": round(time.time() - t0, 1)},
+               "seed_ceiling": ceiling, "bases": bases, "derived_scores": derived, "subgroup_ci": args.subgroup_ci,
+               "seconds": round(time.time() - t0, 1)},
               open(out / "analyze_summary.json", "w"), indent=2)
     print(tA[["proxy", "n", "spearman", "ci_lo", "ci_hi", "kendall", "partial_params"]].to_string(index=False, float_format=lambda v: f"{v:+.2f}"))
     print(f"done in {time.time() - t0:.1f}s -> {out}")

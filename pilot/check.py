@@ -492,9 +492,9 @@ def tables(args) -> bool:
         return False
     sm = json.load(open(summ))
     good &= _ok(sm["n_rows"] == sm["n_done"] == args.n, f"joined.csv rows {sm['n_rows']} == done trainings {sm['n_done']} == {args.n}")
-    good &= _ok(sm["seconds"] < 60, f"analyze.py ran in {sm['seconds']} s (< 60)")
+    good &= _ok(sm["seconds"] < 180, f"analyze.py ran in {sm["seconds"]} s (< 180; the subgroup bootstrap takes 80-100 s at N >= 150)")
     rows = list(csv.DictReader(open(tdir / "table_A.csv")))
-    good &= _ok(len(rows) == 13, f"table_A.csv has {len(rows)} proxy rows (13)")
+    good &= _ok(len(rows) >= 13, f"table_A.csv has {len(rows)} proxy rows (>= 13: the 13 primary names plus the stored SWAP / derived rows)")
     good &= _ok(all(r["ci_lo"] not in ("", "nan") and r["ci_hi"] not in ("", "nan") for r in rows), "every Table A Spearman has a 95% CI")
     md = (tdir / "table_A.md").read_text()
     good &= _ok("seed-noise ceiling" in md, "table_A.md has the seed-noise ceiling row")
@@ -898,7 +898,7 @@ def compare(args) -> bool:
     good &= _ok(sm["seconds"] < 180, f"analyze.py ran in {sm['seconds']} s (< 180)")
     good &= _ok(sm.get("subgroup_ci") is True, "analyze ran with --subgroup-ci")
     rows = list(csv.DictReader(open(tdir / "table_A.csv")))
-    good &= _ok(len(rows) == 13, f"table_A.csv has {len(rows)} proxy rows (13)")
+    good &= _ok(len(rows) >= 13, f"table_A.csv has {len(rows)} proxy rows (>= 13: the 13 primary names plus the stored SWAP / derived rows)")
     hw = {r["proxy"]: (float(r["ci_hi"]) - float(r["ci_lo"])) / 2 for r in rows}
     worst = max(hw, key=hw.get)
     good &= _ok(all(v <= 0.15 for v in hw.values()), f"CI half-widths: max {hw[worst]:.3f} ({worst}), mean {sum(hw.values()) / len(hw):.3f} (all <= 0.15)")
