@@ -15,6 +15,16 @@ only `d_output` (207 sensors) and the adjacency differ; the AdaptiveAdjOp embedd
 
 - tfas: not applicable — TFAS not usable as a distinct proxy: its score is ZiCo on Conv/Linear/Conv1d weights; the time-frequency awareness is an input augmentation (STL residual, |FFT|, Haar DWT) implemented only by its own TimesNet-family backbones. Composite temporal term = base proxy. Degenerate value stored as tfas_zico_cl. (TFAS commit `fd9150d`)
 
+## Extension to 150
+
+- Lines 1-50: the frozen 50, unchanged (sha1 of those 50 lines: `459b1db47a878f2c05a5023cc18e86bf20d19dbd`).
+- Lines 51-150: 100 new architectures, `python -m pilot.sample_archs --root results/stzero/metrla_h12 --n 100 --seed 2029 --space dartsts_graph_v1 --stratify`
+  (`random.Random(2029)`, edges_per_node 2, de-duplicated against the first 50; quotas scaled from 16/10/10/6/8 to 32/20/20/12/16; 457 redraws).
+- sha1 of the 150-line file: `11eac76e13dd5a61cf5bb5c9d972a136296f4d72`.
+- graph_family counts of the 150: none 48, gcn 12, mixed 57, diffusion 15, adaptive-only 17, identity-only 1.
+- Ground-truth schedule unchanged (PEMS04-tuned: batch 32, 20 epochs, patience 5, min 8). The earlier run stopped 41 of 50 architectures early under this schedule; the share of early-stopped runs and the head effect are reported beside the correlations.
+- Proxy set at this extension: the 19 stored names plus `swap` and `swap_b8` (SWAP-Score at batch 32 and on the first 8 windows).
+
 ## Archive
 
 - Archive: `$NAS_ROOT/backups/stzero.tgz` and `~/scratch/backups/stzero.tgz` (the whole `results/stzero/` tree incl. checkpoints of all four roots; size and sha1 in `results/stzero/compare/COMPARE.md`'s archive line).
