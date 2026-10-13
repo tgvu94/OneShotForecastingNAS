@@ -19,6 +19,10 @@ from pathlib import Path
 from pilot.paths import COMPARE_DIR, DEFAULT_BASE, Root
 
 
+DERIVED = {"swap", "swap_reg", "zico_sizectrl"}  # added by the stzero plan (item B); the 13 original names are the rest
+SATURATED = {"swap_b8"}  # SWAP on 8 windows: at most 2^8 = 256 distinct ReLU patterns, reached by every net
+
+
 def _ok(flag: bool, msg: str) -> bool:
     print(("  [ok]   " if flag else "  [FAIL] ") + msg)
     return flag
@@ -93,7 +97,8 @@ def smoke(args) -> bool:
 
 
 def proxies(args) -> bool:
-    """All 13 proxies on >= 5 archs: finite and not all equal; nwot hooked; 20-epoch schedule fits in 50 min."""
+    """Every plan name on >= 5 archs: finite and not all equal (except the names known to saturate, which must be finite);
+    nwot hooked; 20-epoch schedule fits in 50 min (from timing_smoke.csv, else from tables/status.csv)."""
     import statistics
 
     from pilot.score_proxies import ORDER, PLAN_NAMES
@@ -130,16 +135,19 @@ def proxies(args) -> bool:
                     means.append(statistics.mean(vs))
             spread = statistics.pstdev(means) if len(means) > 1 else 0.0
             err = next((r["errors"].get(name, {}).get("error", "")[:80] for r in recs.values() if name in r.get("errors", {})), "")
-            good &= _ok(not missing and spread > 0,
+            good &= _ok(not missing and (spread > 0 or name in SATURATED),
                         f"{name:14s}: {len(vals)}/{len(recs) * len(seeds)} finite values, std over {len(means)} arch means = {spread:.4g}"
+                        + ("  (saturates at 2^batch; appendix row)" if name in SATURATED else "")
                         + (f"  missing {missing[:3]}" if missing else "") + (f"  err: {err}" if err else ""))
     for aid, r in recs.items():
         for s in seeds:
             nh = r.get("meta", {}).get("nwot", {}).get(s, {}).get("n_hooks")
             good &= _ok(nh is not None and nh > 0, f"{aid} seed {s}: nwot n_hooks = {nh}")
-    # timing
+    # timing: the smoke table, else the status table the training array writes (same columns)
     tpath = Path(args.timing_csv)
-    good &= _ok(tpath.exists(), f"{tpath} exists")
+    if not tpath.exists() and (Path(args.status_csv).exists() if getattr(args, "status_csv", None) else False):
+        tpath = Path(args.status_csv)
+    good &= _ok(tpath.exists(), f"timing table {tpath} exists")
     if tpath.exists():
         import csv as _csv
         rows = [r for r in _csv.DictReader(open(tpath)) if r.get("status") == "done" and r.get("sec_per_epoch") not in ("", None)]
@@ -941,7 +949,7 @@ def archive(args) -> bool:
     txt = res.read_text()
     words = len(re.findall(r"\w+", txt))
     good &= _ok(500 <= words <= 1500, f"COMPARE.md is about one page ({words} words)")
-    roots = [Root(), Root(f"{DEFAULT_BASE}/pems08_h12")]
+    roots = [Root(), Root(f"{DEFAULT_BASE}/pems08_h12"), Root(f"{DEFAULT_BASE}/metrla_h12")]
     for r in roots:
         tables = sorted(p.name for p in r.tables.glob("table_*.md")) + ["ci_summary.md", "table_A_partial.md", "joined.csv", "table_B_detection.csv"]
         figs = sorted(p.name for p in r.figs.glob("*.png"))
@@ -951,17 +959,18 @@ def archive(args) -> bool:
     extra = sorted(p.name for p in ctab.glob("*.md")) + sorted(p.name for p in ctab.glob("*.csv")) + sorted(p.name for p in cfig.glob("*.png"))
     missing = [f for f in extra if f not in txt]
     good &= _ok(not missing, f"COMPARE.md cites every compare/tables and compare/figs file ({len(extra)}); missing {missing}")
-    probes = [Root(f"{DEFAULT_BASE}/pems04_h36"), Root(f"{DEFAULT_BASE}/metrla_h12")]
+    probes = [Root(f"{DEFAULT_BASE}/pems04_h36"), Root(f"{DEFAULT_BASE}/metrla_h12")]  # metrla_h12 keeps its probe DECISION.md and is also a full root
     for r in probes:
         good &= _ok(str(r.dir) in txt and r.decision_md.exists(), f"COMPARE.md names `{r.dir}` and its DECISION.md exists")
     for r in roots + probes:
         good &= _ok(r.frozen_md.exists() and "## Archive" in r.frozen_md.read_text(), f"{r.frozen_md} has the archive block")
     nas_root = Path(os.environ.get("NAS_ROOT", Path.home() / "nas"))
-    tars = sorted((nas_root / "backups").glob("stzero-*.tgz")) + sorted(Path.home().glob("scratch/backups/stzero-*.tgz"))
+    tars = sorted((nas_root / "backups").glob("stzero.tgz")) + sorted(Path.home().glob("scratch/backups/stzero.tgz"))
     good &= _ok(len(tars) >= 2, f"stzero archive tarball in two locations: {[str(t) for t in tars]}")
     # the gates at this commit
     r04, r08 = f"{DEFAULT_BASE}/pems04_h12", f"{DEFAULT_BASE}/pems08_h12"
-    for name, root_dir, n in (("extend", r04, 300), ("extend", r08, 150), ("scale", r04, 300), ("scale", r08, 150), ("compare", r04, 300)):
+    rla = f"{DEFAULT_BASE}/metrla_h12"
+    for name, root_dir, n in (("extend", r04, 300), ("extend", r08, 150), ("extend", rla, 150), ("scale", r04, 300), ("scale", r08, 150), ("scale", rla, 150), ("compare", r04, 300)):
         a = copy.copy(args)
         a.root_obj = Root(root_dir)
         a.n = n
@@ -982,9 +991,112 @@ def archive(args) -> bool:
     return bool(good)
 
 
+def verdict(args) -> bool:
+    """RQ1 and RQ9 read under the lines of the map (Branch 3 and Branch 3b tests, copied in stzero-plan.md Section 1).
+
+    Inputs: --matched-dir/cross_dataset.csv (the h12 datasets at the same N; the h36 probe column is ignored), each matched
+    table directory's table_A.csv (family CIs) and analyze_summary.json (seed ceiling), and --compare-dir/predictor_loco.csv
+    with --compare-dir/cross_dataset.csv (full N, the sets the predictor was scored on) for RQ9.
+    Conventions: "after size control" = partial Spearman on log params; the family CIs are bootstrap CIs of the raw Spearman
+    (analyze.py has no bootstrap for the partial); the second fail line uses the raw Spearman and its CI, under both readings
+    (A: the level of dataset A's best against the CI of dataset B's best; B: dataset A's best proxy scored on dataset B against
+    the CI of B's best).  The gate writes nothing; the person writes COMPARE.md.  Its exit status says whether every input was
+    found, not which verdict came out."""
+    import csv
+
+    import numpy as np
+
+    mdir = Path(args.matched_dir)
+    cdir = Path(args.compare_dir)
+    good = True
+    for f in (mdir / "cross_dataset.csv", mdir / "compare_summary.json", cdir / "predictor_loco.csv", cdir / "cross_dataset.csv"):
+        good &= _ok(f.exists(), f"{f} exists")
+    if not good:
+        return False
+    meta = json.load(open(mdir / "compare_summary.json"))
+    labels = [l for l in meta["labels"] if l.endswith("-12")]
+    tables = {l: Path(t) for l, t in zip(meta["labels"], meta["tables"])}
+    rows = list(csv.DictReader(open(mdir / "cross_dataset.csv")))
+    fl = lambda v: float(v) if v not in ("", None) else float("nan")  # noqa: E731
+    P = {r["proxy"]: {l: {k: fl(r.get(f"{l} {k}")) for k in ("spearman", "ci_lo", "ci_hi", "partial_params", "n")} for l in labels}
+         for r in rows if r["proxy"] not in ("params", "flops")}
+    ceil = {}
+    for l in labels:
+        s = json.load(open(tables[l] / "analyze_summary.json"))
+        ceil[l] = s.get("seed_ceiling", {}).get("spearman_s0_s1", float("nan"))
+        print(f"  [info] {l}: N = {s['n_rows']}, seed-noise ceiling (seed 0 vs 1, 5 repeated archs) = {ceil[l]:+.2f}, tables {tables[l]}")
+    ns = {P[p][l]["n"] for p in P for l in labels}
+    good &= _ok(len(ns) == 1, f"the same N on every dataset: {sorted(ns)}")
+    fams = ["graph-blind", "gcn (incl. mixed)", "diffusion (incl. mixed)"]
+    famci = {}
+    for l in labels:
+        tA = {r["proxy"]: r for r in csv.DictReader(open(tables[l] / "table_A.csv"))}
+        famci[l] = {p: all(fl(tA[p].get(f + " ci_lo")) > 0 for f in fams) if p in tA else False for p in P}
+    # ranks by partial rho inside each dataset
+    rank = {l: {p: 1 + sum(1 for q in P if P[q][l]["partial_params"] > P[p][l]["partial_params"]) for p in P} for l in labels}
+    print("  -- RQ1, proxies after size control (partial rho | log params), the seed ceiling beside every dataset")
+    for p in sorted(P, key=lambda q: -np.nanmean([P[q][l]["partial_params"] for l in labels])):
+        cells = " | ".join(f"{l} {P[p][l]['partial_params']:+.2f} (raw {P[p][l]['spearman']:+.2f} [{P[p][l]['ci_lo']:+.2f}, {P[p][l]['ci_hi']:+.2f}], "
+                           f"rank {rank[l][p]}, families>0 {'yes' if famci[l][p] else 'no'}, ceiling {ceil[l]:+.2f})" for l in labels)
+        print(f"     {p:14s} {cells}")
+    pass_hits = [p for p in P if sum(P[p][l]["partial_params"] >= 0.5 for l in labels) >= 2 and all(famci[l][p] for l in labels)
+                 and all(rank[l][p] <= 2 for l in labels)]
+    _ok(bool(pass_hits), f"RQ1 pass line (partial rho >= 0.5 on >= 2 of {len(labels)} datasets, family CIs exclude 0 everywhere, best or second best everywhere): {pass_hits or 'no proxy'}")
+    near = {p: sum(P[p][l]["partial_params"] >= 0.3 for l in labels) for p in P}
+    fail1 = all(v < 2 for v in near.values())
+    _ok(not fail1, f"RQ1 fail line 1 (no proxy >= 0.3 after size control on 2 of 3): {'MET' if fail1 else 'not met'}; proxies with >= 0.3 on >= 2 datasets: {[p for p, v in near.items() if v >= 2] or 'none'}")
+    best = {l: max(P, key=lambda p: P[p][l]["spearman"]) for l in labels}
+    print(f"  [info] best proxy by raw rho: {best}")
+    failA, failB = [], []
+    for a in labels:
+        for b in labels:
+            if a == b:
+                continue
+            lo, hi = P[best[b]][b]["ci_lo"], P[best[b]][b]["ci_hi"]
+            va = P[best[a]][a]["spearman"]
+            vb = P[best[a]][b]["spearman"]
+            if not (lo <= va <= hi):
+                failA.append(f"{best[a]} on {a} = {va:+.2f} outside {best[b]}'s {b} CI [{lo:+.2f}, {hi:+.2f}]")
+            if not (lo <= vb <= hi):
+                failB.append(f"{best[a]} ({a}'s best) on {b} = {vb:+.2f} outside {best[b]}'s {b} CI [{lo:+.2f}, {hi:+.2f}]")
+    _ok(not failA, f"RQ1 fail line 2, reading A (levels): {'MET: ' + '; '.join(failA) if failA else 'not met'}")
+    orig = [p for p in P if p not in DERIVED]
+    best13 = {l: max(orig, key=lambda p: P[p][l]["spearman"]) for l in labels}
+    failA13 = [f"{best13[a]} on {a} = {P[best13[a]][a]['spearman']:+.2f} outside {best13[b]}'s {b} CI [{P[best13[b]][b]['ci_lo']:+.2f}, {P[best13[b]][b]['ci_hi']:+.2f}]"
+               for a in labels for b in labels if a != b and not (P[best13[b]][b]["ci_lo"] <= P[best13[a]][a]["spearman"] <= P[best13[b]][b]["ci_hi"])]
+    print(f"  [info] reading A over the 13 original names only (best {best13}): {'MET: ' + '; '.join(failA13) if failA13 else 'not met'}")
+    _ok(not failB, f"RQ1 fail line 2, reading B (winner transfer): {'MET: ' + '; '.join(failB) if failB else 'not met'}")
+    for name, f2 in (("A", bool(failA)), ("B", bool(failB))):
+        v = "PASS" if pass_hits else ("FAIL" if (fail1 or f2) else "UNDECIDED (pass not met, no fail line met)")
+        print(f"  == RQ1 verdict, reading {name}: {v}")
+    # ---- RQ9 on the full-N sets the predictor was scored on
+    full = list(csv.DictReader(open(cdir / "cross_dataset.csv")))
+    fmeta = json.load(open(cdir / "compare_summary.json")) if (cdir / "compare_summary.json").exists() else {"labels": []}
+    flabels = [l for l in fmeta["labels"] if l.endswith("-12")]
+    PF = {r["proxy"]: {l: fl(r.get(f"{l} partial_params")) for l in flabels} for r in full if r["proxy"] not in ("params", "flops")}
+    blind = {l: max(((p, PF[p][l]) for p in PF if np.isfinite(PF[p][l])), key=lambda t: t[1]) for l in flabels}
+    worst, bestd = min(blind, key=lambda l: blind[l][1]), max(blind, key=lambda l: blind[l][1])
+    print(f"  [info] task-blind best after size control (full N): " + ", ".join(f"{l}: {blind[l][0]} {blind[l][1]:+.2f}" for l in flabels)
+          + f"; worst dataset {worst}, best dataset {bestd}")
+    _ok(len({blind[l][0] for l in flabels}) > 1, f"RQ9 'when' condition (the best proxy differs between datasets): {len({blind[l][0] for l in flabels})} distinct winners")
+    pred = list(csv.DictReader(open(cdir / "predictor_loco.csv")))
+    city = {"PEMS04-12": "pems04", "PEMS08-12": "pems08", "METRLA-12": "metrla"}
+    opt3 = {l: next((fl(r["partial_params"]) for r in pred if r["held_out"] == city[l] and r["predictor"] == "gbr arch + task stats"), float("nan")) for l in flabels}
+    arch_only = {l: max(fl(r["partial_params"]) for r in pred if r["held_out"] == city[l] and r["predictor"] in ("ridge arch-only", "gbr arch-only")) for l in flabels}
+    print("  [info] option 3 (gbr, architecture + task statistics), partial rho on the held-out city: " + ", ".join(f"{l} {opt3[l]:+.2f}" for l in flabels)
+          + "; architecture-only best: " + ", ".join(f"{l} {arch_only[l]:+.2f}" for l in flabels))
+    lift = opt3[worst] > 0.3
+    drop = blind[bestd][1] - opt3[bestd]
+    _ok(lift, f"RQ9 pass clause 1: option 3 lifts the worst dataset {worst} above 0.3 after size control: {opt3[worst]:+.2f} (task-blind {blind[worst][1]:+.2f})")
+    _ok(drop <= 0.1, f"RQ9 pass clause 2: option 3 lowers the best dataset {bestd} by no more than 0.1: {blind[bestd][1]:+.2f} -> {opt3[bestd]:+.2f}, drop {drop:+.2f}")
+    print(f"  [info] option 2 (injected series features) was dropped: the nets cannot take extra input channels without a new input layer")
+    print(f"  == RQ9 verdict (option 3, METR-LA and PEMS08 at N = 150, PEMS04 at N = 300): {'PASS' if lift and drop <= 0.1 else 'FAIL'}")
+    return bool(good)
+
+
 CHECKS = {"smoke": smoke, "proxies": proxies, "graph": graph, "freeze": freeze, "train": train, "spatial": spatial,
           "tables": tables, "robust": robust, "report": report, "roots": roots, "probe": probe, "extend": extend,
-          "scale": scale, "compare": compare, "archive": archive}
+          "scale": scale, "compare": compare, "archive": archive, "verdict": verdict}
 
 
 def main():
@@ -1013,6 +1125,7 @@ def main():
     ap.add_argument("--figs-dir", default=None)
     ap.add_argument("--compare-dir", default=f"{COMPARE_DIR}/tables", help="compare: the --compare output directory")
     ap.add_argument("--compare-figs-dir", default=f"{COMPARE_DIR}/figs", help="compare: the comparison figures directory")
+    ap.add_argument("--matched-dir", default=f"{COMPARE_DIR}/tables_n150", help="verdict: the --compare output at the same N on every dataset")
     args = ap.parse_args()
     root = Root.from_args(args)
     args.root_obj = root

@@ -1,6 +1,6 @@
 """Figures from <root>/tables/joined.csv (static PNGs, matplotlib).   python -m pilot.plots --root results/stzero/pems04_h12
 
-proxy_vs_mae_grid.png  : 13 scatter panels, proxy vs val MAE, hue = group (graph-blind / control / uses A), marker = graph family
+proxy_vs_mae_grid.png  : one scatter panel per proxy (up to 16), proxy vs val MAE, hue = group (graph-blind / control / uses A), marker = graph family
 spearman_by_family.png : grouped bars of Spearman(proxy, -val MAE) per proxy for all / graph-blind / has-graph, 95% bootstrap whiskers
 spatial_vs_naswot.png  : nwot vs val MAE and S_spatial(nwot) vs val MAE;  spatial_vs_zico.png: the same for zico
 
@@ -27,7 +27,7 @@ SURFACE, INK, INK2, MUTED, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#898781", "#
 GROUP_COLOR = {"graph-blind": "#2a78d6", "uses A": "#eb6834", "control": "#1baf7a"}
 FAMILY_MARKER = {"none": "o", "identity-only": "v", "adaptive-only": "D", "gcn": "o", "diffusion": "^", "mixed": "s"}
 PROXIES = ["nwot", "zico", "synflow_all", "snip_all", "grad_norm_all", "grasp_all", "plain_all", "fisher", "jacov", "zen",
-           "l2_norm_all", "params", "flops"]
+           "l2_norm_all", "params", "flops", "swap", "swap_reg", "zico_sizectrl"]   # the last three appear when stored
 LOGX = {"synflow_all", "params", "flops", "fisher", "l2_norm_all"}
 
 plt.rcParams.update({"font.family": "sans-serif", "font.size": 9, "axes.edgecolor": "#c3c2b7", "axes.labelcolor": INK2,
@@ -72,9 +72,11 @@ def legend_handles():
 
 
 def fig1(df, out, label="PEMS04-12"):
-    fig, axes = plt.subplots(3, 5, figsize=(15, 9.6))
+    proxies = [p for p in PROXIES if p in df]
+    nrow = 3 if len(proxies) < 15 else 4
+    fig, axes = plt.subplots(nrow, 5, figsize=(15, 3.2 * nrow))
     axes = axes.ravel()
-    for k, p in enumerate(PROXIES):
+    for k, p in enumerate(proxies):
         ax = axes[k]
         scatter(ax, df, p, logx=p in LOGX)
         rho, lo, hi = rho_ci(df[p], df.val_mae)
@@ -82,9 +84,9 @@ def fig1(df, out, label="PEMS04-12"):
         ax.set_xlabel(p + (" (log)" if p in LOGX else ""), fontsize=8)
         if k % 5 == 0:
             ax.set_ylabel("val MAE (seed 0)")
-    for ax in axes[len(PROXIES):]:
+    for ax in axes[len(proxies):]:
         ax.axis("off")
-    axes[len(PROXIES)].legend(handles=legend_handles(), loc="center left", fontsize=9, title="architecture group", title_fontsize=9)
+    axes[len(proxies)].legend(handles=legend_handles(), loc="center left", fontsize=9, title="architecture group", title_fontsize=9)
     fig.suptitle(f"Zero-cost proxies vs. 20-epoch val MAE on {label}, N = {len(df)} random DARTS-TS(+graph) architectures. "
                  "ρ = Spearman with −val MAE (positive = useful), 95% bootstrap CI.", fontsize=10, x=0.01, ha="left", color=INK)
     fig.tight_layout(rect=(0, 0, 1, 0.96))
@@ -95,20 +97,21 @@ def fig1(df, out, label="PEMS04-12"):
 def fig2(df, out):
     groups = [("all (n=%d)" % len(df), df, "#898781"), ("graph-blind (n=%d)" % (~df.has_graph).sum(), df[~df.has_graph], GROUP_COLOR["graph-blind"]),
               ("has graph (n=%d)" % df.has_graph.sum(), df[df.has_graph], GROUP_COLOR["uses A"])]
+    proxies = [p for p in PROXIES if p in df]
     fig, ax = plt.subplots(figsize=(13, 4.8))
     w = 0.26
-    xs = np.arange(len(PROXIES))
+    xs = np.arange(len(proxies))
     for gi, (lab, sub, col) in enumerate(groups):
-        vals = [rho_ci(sub[p], sub.val_mae) for p in PROXIES]
+        vals = [rho_ci(sub[p], sub.val_mae) for p in proxies]
         r = [v[0] for v in vals]
         err = [[v[0] - v[1] for v in vals], [v[2] - v[0] for v in vals]]
         ax.bar(xs + (gi - 1) * w, r, width=w - 0.03, color=col, edgecolor=SURFACE, linewidth=1, label=lab, zorder=3)
         ax.errorbar(xs + (gi - 1) * w, r, yerr=err, fmt="none", ecolor=INK2, elinewidth=0.9, capsize=2, zorder=4)
     ax.axhline(0, color="#c3c2b7", lw=1, zorder=2)
     ax.axhline(0.737, color=MUTED, lw=0.9, ls="--", zorder=2)
-    ax.text(len(PROXIES) - 0.5, 0.71, "LENAS naswot reference 0.737 (its space)", ha="right", va="top", fontsize=8, color=INK2)
+    ax.text(len(proxies) - 0.5, 0.71, "LENAS naswot reference 0.737 (its space)", ha="right", va="top", fontsize=8, color=INK2)
     ax.set_xticks(xs)
-    ax.set_xticklabels(PROXIES, rotation=30, ha="right")
+    ax.set_xticklabels(proxies, rotation=30, ha="right")
     ax.set_ylabel("Spearman ρ with −val MAE")
     ax.set_ylim(-1, 1)
     ax.legend(loc="upper left", fontsize=9)
@@ -175,18 +178,19 @@ def main():
     ap.add_argument("--out", default=None, help="default: <root>/figs")
     ap.add_argument("--compare", nargs="+", default=None, help="roots (first = reference) -> cross_dataset.png in --out")
     ap.add_argument("--n50", default=None, help="with --compare: N = 50 table_A.csv of the reference -> n50_vs_n300.png")
+    ap.add_argument("--name", default="cross_dataset.png", help="with --compare: file name of the comparison figure")
     args = ap.parse_args()
     if args.compare:
-        roots = [Root(r) for r in args.compare]
+        roots = [Root.from_tables_dir(r) for r in args.compare]   # a root, or one of its tables directories (<root>/tables_n150)
         out = Path(args.out or f"{COMPARE_DIR}/figs")
         out.mkdir(parents=True, exist_ok=True)
         panels = [(f"{r.label} (N = {len(pd.read_csv(r.tables / 'joined.csv'))})", pd.read_csv(r.tables / "table_A.csv")) for r in roots]
-        fig_ci_bars(panels, out, "cross_dataset.png",
+        fig_ci_bars(panels, out, args.name,
                     "Spearman per proxy on every setting (whiskers: 95 % bootstrap CI; same genotype space and schedule everywhere)")
         if args.n50 and Path(args.n50).exists():
             ref = roots[0]
             fig_ci_bars([(f"{ref.label}, N = 50", pd.read_csv(args.n50)), panels[0]], out, "n50_vs_n300.png",
-                        f"{ref.label}: the same 13 proxies at N = 50 and at N = {len(pd.read_csv(ref.tables / 'joined.csv'))} (whiskers: 95 % bootstrap CI)")
+                        f"{ref.label}: the same proxies at N = 50 and at N = {len(pd.read_csv(ref.tables / 'joined.csv'))} (whiskers: 95 % bootstrap CI)")
         print("figures ->", sorted(p.name for p in out.glob("*.png")))
         return
     root = Root.from_args(args)
