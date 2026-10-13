@@ -1,4 +1,4 @@
 pair,n_proxies,spearman_of_rhos,kendall_of_rhos,pearson_of_rhos,same_sign,top3_ref,top3_other
-PEMS04-12 vs PEMS08-12,14,0.7494505494505495,0.5384615384615384,0.7755049991733431,13,"zico_sizectrl,zico,l2_norm_all","grasp_all,zico,zico_sizectrl"
-PEMS04-12 vs PEMS04-36,14,0.8417582417582418,0.6703296703296704,0.8153512132320448,12,"zico_sizectrl,zico,l2_norm_all","zico,l2_norm_all,zico_sizectrl"
-PEMS04-12 vs METRLA-12,14,0.432967032967033,0.2527472527472528,0.49272858906168515,9,"zico_sizectrl,zico,l2_norm_all","grasp_all,nwot,flops"
+PEMS04-12 vs PEMS08-12,16,0.7588235294117647,0.5333333333333333,0.7717086103363829,15,"zico_sizectrl,zico,l2_norm_all","grasp_all,zico,zico_sizectrl"
+PEMS04-12 vs PEMS04-36,16,0.823529411764706,0.6333333333333333,0.8102202065992578,13,"zico_sizectrl,zico,l2_norm_all","zico,l2_norm_all,zico_sizectrl"
+PEMS04-12 vs METRLA-12,16,0.33529411764705885,0.26666666666666666,0.46311539790742773,8,"zico_sizectrl,zico,l2_norm_all","grasp_all,jacov,zico_sizectrl"

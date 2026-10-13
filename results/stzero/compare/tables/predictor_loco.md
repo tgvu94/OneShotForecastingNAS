@@ -6,15 +6,15 @@ With two training cities every task statistic takes two values in the training s
 
 | held-out city | N | trained on | predictor | rho (95 % CI) | partial rho (log params) |
 |---|---|---|---|---|---|
-| pems04 | 300 | pems08+metrla (200) | ridge arch-only | +0.54 (+0.45, +0.62) | +0.55 |
-| pems04 | 300 | pems08+metrla (200) | gbr arch-only | +0.53 (+0.44, +0.61) | +0.53 |
-| pems04 | 300 | pems08+metrla (200) | gbr arch + task stats | +0.53 (+0.44, +0.61) | +0.53 |
+| pems04 | 300 | pems08+metrla (300) | ridge arch-only | +0.51 (+0.41, +0.60) | +0.52 |
+| pems04 | 300 | pems08+metrla (300) | gbr arch-only | +0.46 (+0.36, +0.55) | +0.46 |
+| pems04 | 300 | pems08+metrla (300) | gbr arch + task stats | +0.50 (+0.41, +0.59) | +0.50 |
 | pems04 | 300 | pems04 (5-fold CV, reference) (300) | gbr arch-only, within city | +0.77 (+0.72, +0.82) | +0.77 |
-| pems08 | 150 | pems04+metrla (350) | ridge arch-only | +0.70 (+0.61, +0.78) | +0.70 |
-| pems08 | 150 | pems04+metrla (350) | gbr arch-only | +0.64 (+0.53, +0.72) | +0.65 |
-| pems08 | 150 | pems04+metrla (350) | gbr arch + task stats | +0.59 (+0.47, +0.68) | +0.59 |
+| pems08 | 150 | pems04+metrla (450) | ridge arch-only | +0.78 (+0.72, +0.83) | +0.78 |
+| pems08 | 150 | pems04+metrla (450) | gbr arch-only | +0.76 (+0.67, +0.83) | +0.76 |
+| pems08 | 150 | pems04+metrla (450) | gbr arch + task stats | +0.63 (+0.52, +0.72) | +0.62 |
 | pems08 | 150 | pems08 (5-fold CV, reference) (150) | gbr arch-only, within city | +0.86 (+0.82, +0.89) | +0.86 |
-| metrla | 50 | pems04+pems08 (450) | ridge arch-only | +0.44 (+0.19, +0.64) | +0.52 |
-| metrla | 50 | pems04+pems08 (450) | gbr arch-only | +0.49 (+0.24, +0.67) | +0.61 |
-| metrla | 50 | pems04+pems08 (450) | gbr arch + task stats | +0.58 (+0.37, +0.73) | +0.67 |
-| metrla | 50 | metrla (5-fold CV, reference) (50) | gbr arch-only, within city | +0.83 (+0.73, +0.88) | +0.83 |
+| metrla | 150 | pems04+pems08 (450) | ridge arch-only | +0.46 (+0.32, +0.58) | +0.49 |
+| metrla | 150 | pems04+pems08 (450) | gbr arch-only | +0.50 (+0.38, +0.60) | +0.52 |
+| metrla | 150 | pems04+pems08 (450) | gbr arch + task stats | +0.53 (+0.42, +0.63) | +0.55 |
+| metrla | 150 | metrla (5-fold CV, reference) (150) | gbr arch-only, within city | +0.86 (+0.82, +0.89) | +0.87 |

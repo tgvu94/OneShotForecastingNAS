@@ -1,63 +1,33 @@
-# Cross-setting results — plain-English reading
+# Cross-setting results: zero-cost proxies on a spatio-temporal graph search space, read under the research map
 
-**What was done.** The N = 50 benchmark was taken to paper scale on the same search space (DARTS-TS Seq/Flat operators plus a
-graph cell with GCN, diffusion, adaptive-adjacency and identity operators) and the same fixed schedule (20 epochs, batch 32,
-seed 0; three seeds on five architectures). Three questions, in order. (1) *Does the road graph carry any accuracy signal on a
-setting we can afford?* The frozen 50 were retrained at PEMS04 horizon 36 (`results/stzero/pems04_h36/`) and on METR-LA horizon 12
-(`results/stzero/metrla_h12/`, 207 sensors, DCRNN adjacency); each root has its `DECISION.md`. (2) *Do the N = 50 correlations survive
-N = 300?* 250 more architectures were sampled (seed 2027) and trained on PEMS04 horizon 12, so `results/stzero/pems04_h12/` now holds 300; the
-N = 50 tables are preserved in `results/stzero/pems04_h12/tables_n50/` and `results/stzero/pems04_h12/figs_n50/`. (3) *Do they transfer to a second road graph?*
-150 architectures (seed 2028) were trained on PEMS08 (`results/stzero/pems08_h12/`, 170 sensors). Every architecture has all 19
-proxy scores × 3 init seeds and the four spatial-sensitivity scores under 8 rewirings; ≈ 81 GPU-hours in total.
-Tables: `results/stzero/pems04_h12/tables/table_A.md`, `table_A_partial.md`, `table_A_naslib.md`, `table_B.md` (`table_B_zico.md`,
-`table_B_nwot.md`, `table_B_grad_norm_all.md`, `table_B_snip_all.md`, `table_B_detection.csv`), `ci_summary.md`, `joined.csv`;
-the same set under `results/stzero/pems08_h12/tables/`; the cross-setting comparison `results/stzero/compare/tables/cross_dataset.md`
-(`cross_dataset.csv`, `rank_agreement.csv`, `n50_vs_n300.csv`). Figures: `results/stzero/pems04_h12/figs/proxy_vs_mae_grid.png`,
-`spearman_by_family.png`, `spatial_vs_naswot.png`, `spatial_vs_zico.png` (same four under
-`results/stzero/pems08_h12/figs/`), `results/stzero/compare/figs/n50_vs_n300.png`, `results/stzero/compare/figs/cross_dataset.png`.
+**What was done.** One search space (DARTS-TS seq and flat operators plus a graph cell) and one schedule (batch 32, 20 epochs, patience 5) on three cities at the same N = 150: PEMS04 horizon 12 (`results/stzero/pems04_h12/`, 300 in total, the first 150 are the matched set), PEMS08 (`results/stzero/pems08_h12/`) and METR-LA (`results/stzero/metrla_h12/`, extended from 50 with seed 2029). The horizon-36 probe (`results/stzero/pems04_h36/`, 50 architectures) is a fourth column. Every architecture has 21 proxy names times 3 init seeds, SWAP among them, and four spatial-sensitivity scores under 8 rewirings. Two label-free scores are derived: the size-controlled ZiCo (the residual after a regression on log parameter count) and the regularised SWAP. Total cost about 98 GPU-hours.
 
-**The graph does not matter anywhere we tested.** At horizon 36 the graph-using architectures are no better than the
-graph-blind ones (median val MAE 0.2079 vs 0.2071, Mann–Whitney p = 0.69); on METR-LA, whose graph has six times PEMS04's
-edges per sensor, the same (0.2439 vs 0.2425, p = 0.35); and at N = 300 on PEMS04 horizon 12 the spatial sensitivity score has no
-correlation with accuracy on the 168 architectures that use the adjacency (−0.08), while detecting graph use perfectly (167/168
-beyond 3σ of the rewiring band, 168/168 prefer the true graph). PEMS08 is the one setting with a hint in the other direction
-(median 0.1740 vs 0.1754, p = 0.06), below the decision rule. So the scale-up ran on
-PEMS04 horizon 12, the learned spatial estimator is deprioritized as a *spatial* route, and the size-controlled ZiCo
-direction is the next experiment.
+**Files.** Per root, under `results/stzero/pems04_h12/tables`, `results/stzero/pems08_h12/tables` and `results/stzero/metrla_h12/tables`: `table_A.md`, `table_A_naslib.md`, `table_A_partial.md`, `table_B.md` (`table_B_zico.md`, `table_B_nwot.md`, `table_B_grad_norm_all.md`, `table_B_snip_all.md`, `table_B_detection.csv`), `ci_summary.md`, `joined.csv`; the matched PEMS04 set under `results/stzero/pems04_h12/tables_n150`. Figures per root: `proxy_vs_mae_grid.png`, `spearman_by_family.png`, `spatial_vs_naswot.png`, `spatial_vs_zico.png`. The comparison at the same N: `results/stzero/compare/tables_n150/cross_dataset.md`; at full N: `results/stzero/compare/tables/cross_dataset.md` (`cross_dataset.csv`, `rank_agreement.csv`, `n50_vs_n300.csv`). Item D: `spatial_coupling.md` (`spatial_coupling.csv`, `task_stats.csv`). Option 3: `predictor_loco.md` (`predictor_loco.csv`). Figures: `results/stzero/compare/figs/cross_dataset_matched_n150.png`, `cross_dataset.png`, `n50_vs_n300.png`. The verdict lines print with `python -m pilot.check --check verdict`.
 
-**The ground truth is well resolved at scale.** The 300 PEMS04 architectures span val MAE 0.168–0.213 (std 0.0033, eleven
-times the seed noise of 0.0003; the same five architectures rank identically under different seeds, Spearman 0.90–1.00), and
-the 150 PEMS08 ones 0.169–0.217 (std 0.0046; seed Spearman 1.00). All beat the naive last-value forecast by a wide margin.
-Two settings are weaker: at horizon 36 two single-seed outliers push the five-architecture seed Spearman to 0.20 although the
-noise-to-spread ratio (0.21) is ordinary, and on METR-LA 41 of 50 runs early-stopped under the PEMS04-tuned schedule and the
-loss head explains most of the spread — those two verdicts rest on the medians and the spatial score, not on proxy rankings.
+**RQ1 at the same N.** Spearman ρ of the proxy with −val MAE, 95 % bootstrap CI, and the partial ρ after the rank regression on log parameter count. The seed-noise ceiling (seed 0 against seed 1 on five repeated architectures) is 1.00 on PEMS04, 1.00 on PEMS08 and 0.60 on METR-LA.
 
-**Table A at N = 300 — ZiCo and the L2 norm survive size and family control on PEMS04.** ZiCo reaches Spearman 0.57 (95 % CI
-0.48–0.65; 0.63 after partialling out parameter count), the L2 norm 0.50 (0.55 partial), and both keep an interval that excludes
-zero inside every operator family (graph-blind 0.49 and 0.35; GCN 0.56 and 0.44; diffusion 0.61 and 0.52). Parameter count
-itself falls to 0.19 (0.47 at N = 50), FLOPs give 0.31. The "collapse per family" that Deng et al. report is real here for
-*other* proxies: naswot scores 0.34 overall but ≈ 0 inside every family — its correlation is the graph-vs-blind composition of
-the sample — and the gradient-magnitude family (SNIP, grad-norm, Fisher, plain) points the wrong way in every subgroup, as it
-did at N = 50. Intervals are now ±0.11 wide (±0.25 at N = 50); the N = 300 estimate lies inside the N = 50 interval for 11 of 13
-proxies, the exceptions being parameter count and synflow, which N = 50 had over- and under-stated.
+| Proxy | PEMS04, N = 150: ρ (CI), partial | PEMS08, N = 150 | METR-LA, N = 150 |
+|---|---|---|---|
+| ZiCo | 0.57 (0.44, 0.67), 0.67 | 0.32 (0.15, 0.46), 0.35 | 0.01 (−0.14, 0.16), 0.06 |
+| Size-controlled ZiCo | 0.66 (0.56, 0.75), 0.67 | 0.31 (0.15, 0.45), 0.31 | 0.06 (−0.10, 0.22), 0.06 |
+| L2 norm | 0.50 (0.36, 0.62), 0.59 | 0.25 (0.09, 0.41), 0.30 | 0.00 (−0.16, 0.16), 0.08 |
+| GraSP | 0.20 (0.03, 0.34), 0.23 | 0.47 (0.32, 0.60), 0.50 | 0.47 (0.33, 0.58), 0.47 |
+| SWAP, batch 32 | 0.26 (0.11, 0.41), 0.20 | 0.06 (−0.10, 0.23), 0.00 | −0.09 (−0.25, 0.06), −0.08 |
 
-**The ordering does not transfer across datasets.** On PEMS08 (N = 150) ZiCo drops to 0.32 (0.15–0.46) and the L2 norm to
-0.25, GraSP leads at 0.47, and the gradient family is strongly negative (−0.36 … −0.47); on METR-LA (N = 50) ZiCo is −0.09, the
-L2 norm 0.00, GraSP 0.43, Fisher −0.55. Rank agreement of the 13-proxy ordering with PEMS04 horizon 12 is 0.73 for PEMS08,
-0.82 for PEMS04 horizon 36 and 0.52 for METR-LA (`rank_agreement.csv`). The same search space and schedule, three road
-graphs, three different "best proxies": whatever a zero-cost proxy measures at initialization on this space is dataset-dependent.
+The gradient-magnitude family (SNIP, grad-norm, Fisher, plain) is negative on every city, −0.14 to −0.53. SWAP is weak everywhere and the regularised SWAP weaker; at batch 8 the score saturates at 256. The proxy ordering agrees between PEMS04 and PEMS08 at Spearman 0.80 and between PEMS04 and METR-LA at 0.39 (`rank_agreement.csv`).
 
-**What this decides.** (1) The benchmark's paper-grade claim is the positive resource result — "ZiCo and the
-L2 norm keep ρ ≈ 0.5–0.65 after size control, in every operator family, at N = 300 on PEMS04" — framed by the cross-dataset
-table, which is the benchmark's second contribution. (2) The adjacency-sensitivity proxy is closed as a ranking proxy on every tested setting;
-`S_spatial` remains a training-free "uses the graph" filter. A learned predictor over the operator vocabulary, rather than a
-spatial proxy, has its N = 300 ground truth and a hard transfer test (METR-LA) waiting. (3) The next experiment is the
-size-controlled ZiCo-style proxy, evaluated on both PEMS04 and PEMS08 against ZiCo and the L2 norm after partialling out log
-parameters, with METR-LA as the failure case to explain.
+**The loss head drives two of the three "best proxies".** The head is a sampled part of the architecture (MSE, MAE or quantile). On METR-LA it separates the val MAE medians, 0.234 for the MAE head against 0.261 for the MSE head, and 129 of 150 runs stopped early under the PEMS04-tuned schedule. GraSP reaches 0.47 on METR-LA and on PEMS08, but inside each head it falls to 0.04, 0.19 and 0.04 on METR-LA and to 0.13, 0.14 and 0.03 on PEMS08 (`table_A.md`, head columns). GraSP ranks heads, not architectures. ZiCo does the opposite on PEMS08: 0.32 overall, but 0.70 (0.54, 0.82) inside the MAE head and 0.59 (0.37, 0.74) inside the quantile head. On PEMS04 ZiCo keeps 0.51 to 0.75 inside every head. On METR-LA no proxy exceeds 0.19 inside any head. So the map's family control should include the head, and the within-head statement reads: ZiCo ranks architectures on PEMS04 and on PEMS08 except under the MSE head, and nothing ranks them on METR-LA.
 
-**Caveats.** One search space and one schedule; PEMS08 at N = 150 has intervals of ±0.16, so its subgroup numbers are
-tendencies; the two probe settings are N = 50; METR-LA's ground truth is early-stopped and head-dominated; the METR-LA
-adjacency inherits DCRNN's distance threshold; proxies were scored at random initialization in train mode with the RNG fixed
-before every forward. The "graph does not matter" result is a property of this space and schedule, not of traffic forecasting.
+**RQ1 verdict: FAIL.** The pass line is not met: no proxy keeps partial ρ ≥ 0.5 on two cities. The first fail line is not met: ZiCo, GraSP and the size-controlled ZiCo keep ≥ 0.3 on two cities. The second fail line is met. Under its transfer reading, ZiCo, the PEMS04 winner, scores 0.01 on METR-LA, outside GraSP's interval there (0.33, 0.58), and GraSP scores 0.20 on PEMS04, outside ZiCo's interval (0.44, 0.67). Under its level reading the line is met once the size-controlled ZiCo counts as a proxy (0.66 on PEMS04 against GraSP's intervals) and not met over the 13 original names. Either way the map sends the project to Branch 3b and down the ladder from F1.
 
-**Archive.** `$NAS_ROOT/backups/stzero.tgz` and `~/scratch/backups/stzero.tgz` (6.3G, sha1 5dcb05ba2fe2…), the whole `results/stzero/` tree with checkpoints.
+**F1 fails.** The size-controlled ZiCo does not beat ZiCo's partial ρ on two cities: 0.67 against 0.67 on PEMS04, 0.31 against 0.35 on PEMS08. The size signal is small here (parameter count alone 0.19 and 0.10), so there is little to remove.
+
+**RQ9 (Branch 3b): FAIL on the second clause.** Option 2, injected series features, was dropped: the past input width sets the first layer of every encoder operator and must equal the future width, so extra channels need a new input layer. Option 3 is a predictor on our labels in the simplest F2 form, operator counts per cell plus head, decoder, log parameters and log FLOPs, with the per-city task statistics of item D, fit on two cities and scored on the third (`predictor_loco.md`). After size control it reaches 0.50 on PEMS04 (held out, N = 300), 0.62 on PEMS08 and 0.55 on METR-LA; the architecture-only ridge reaches 0.52, 0.78 and 0.49. It lifts the worst city above 0.3 (clause 1 met) but lowers the best city from ZiCo's 0.63 to 0.50, a drop of 0.13 against the allowed 0.10 (clause 2 not met). The lift does not come from the task statistics: with two training cities each statistic takes two values. The within-city 5-fold reference is 0.77 to 0.87.
+
+**RQ2 closes.** `S_spatial` detects graph use on every root (56 of 84 GCN or diffusion architectures beyond 3 σ of the rewiring band on METR-LA, 168 of 168 prefer the true graph on PEMS04) and ranks nothing (ρ between −0.16 and −0.01). The spatial-coupling measures of BasicTS+ on the training split, z-scored, W = H = 12, give r1 = 29.6, 28.6 and 40.9 per mille and r2 = 51.5, 50.1 and 86.3 per mille for PEMS04, PEMS08 and METR-LA (`spatial_coupling.md`). All three sit in the group the paper calls high; the city with the highest coupling is the one where graph-using architectures do not beat graph-blind ones (`DECISION.md` in `results/stzero/metrla_h12`, Mann-Whitney p = 0.35) and where no proxy ranks. The lower end, a city with low coupling, is not in the benchmark, so the sentence "below X the score has nothing to predict" cannot be written from these data.
+
+**What this decides.** (1) The positive result is narrower than before: ZiCo and the L2 norm keep ρ 0.5 to 0.67 after size control on PEMS04 inside every operator family and every head; on PEMS08 ZiCo ranks inside the MAE and quantile heads. (2) No zero-cost proxy ranks architectures on METR-LA, where the head and early stopping set the ground truth. (3) The branch test fails, F1 fails, and the simplest F2 predictor transfers at 0.5 to 0.78 after size control. (4) Next: F2 proper, a predictor over operator descriptions with one operator family held out, and a METR-LA schedule without early stopping.
+
+**Caveats.** One search space and one schedule. The METR-LA ground truth is early-stopped and head-dominated; its seed ceiling is 0.60. The second fail line has two readings, and the derived proxy changes one of them. The predictor encodes operator counts, not a language-model embedding, and two training cities cannot identify its task-statistics term. Proxies were scored at random initialization in train mode with the RNG re-seeded before every forward.
+
+**Archive.** `$NAS_ROOT/backups/stzero.tgz` and `~/scratch/backups/stzero.tgz` (7.8 GB, 7,808,100,266 bytes, sha1 c0267b5c1f9eb440cf4883114cc0feb5e09e6be8), the whole `results/stzero/` tree with checkpoints of all four roots; this file and every table and figure are also in git.

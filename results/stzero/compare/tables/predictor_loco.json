@@ -7,7 +7,7 @@
   "n_per_city": {
     "pems04": 300,
     "pems08": 150,
-    "metrla": 50
+    "metrla": 150
   },
   "arch_cols": [
     "dec_gru",
