@@ -5,6 +5,8 @@
 #   pilot/submit.sh spatial [ROOT] [DATASET] [HORIZON]   -> spatial-sensitivity proxies: one 2 h job (no training)
 #   pilot/submit.sh proxies [ROOT] [DATASET] [HORIZON]   -> score the proxies named in $PROXIES (default all: only the names missing
 #                                                          from the stored files are computed) on ROOT and on $EXTRA_ROOTS: one 2 h job
+#   pilot/submit.sh basicts [ROOT] [DATASET] [HORIZON]   -> one timed BasicTS baseline run (MODEL=STID by default, CONFIG overrides the
+#                                                          config path) on $NAS_ROOT/BasicTS: one 2 h job; ROOT is unused
 # AFTER=<jobid> adds --dependency=afterany:<jobid>; a dependent job waits, so only *running* jobs count toward the cap of 3.
 # Defaults: ROOT=results/stzero/pems04_h12 DATASET=pems04 HORIZON=12.  E.g.  pilot/submit.sh train results/stzero/pems04_h36 pems04 36
 # Every script resumes / skips finished work, so a killed job is simply resubmitted (resubmit it).
@@ -21,11 +23,18 @@ case "$mode" in
   spatial) name=spatial; extra=(--time=02:00:00 --output="$NAS_ROOT/logs/spatial_${tag}_%j.log");                    script=pilot/score_spatial.sbatch ;;
   proxies) name=proxies; extra=(--time=02:00:00 --output="$NAS_ROOT/logs/proxies_${tag}_%j.log");                    script=pilot/score_proxies.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,EXTRA_ROOTS=${EXTRA_ROOTS:-},PROXIES=${PROXIES:-}" ;;
-  *) echo "unknown mode $mode (train | spatial | proxies)"; exit 1 ;;
+  basicts) name=basicts; extra=(--time=02:00:00 --output="$NAS_ROOT/logs/basicts_${MODEL:-STID}_${tag}_%j.log");     script=pilot/basicts_stid.sbatch
+           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,MODEL=${MODEL:-STID},CONFIG=${CONFIG:-}" ;;
+  *) echo "unknown mode $mode (train | spatial | proxies | basicts)"; exit 1 ;;
 esac
-if [ ! -s "$ROOT/archs.jsonl" ]; then echo "refusing: $ROOT/archs.jsonl missing or empty"; exit 1; fi
-if [ ! -s "$ROOT/data/${DATASET}_probe_batch.pt" ]; then echo "refusing: $ROOT/data/${DATASET}_probe_batch.pt missing (python -m pilot.data --save-probe-batch --root $ROOT)"; exit 1; fi
-if [ ! -s "$ROOT/data/${DATASET}_adj.npy" ]; then echo "refusing: $ROOT/data/${DATASET}_adj.npy missing (python -m pilot.adjacency --root $ROOT)"; exit 1; fi
+if [ "$mode" = basicts ]; then
+  if [ ! -d "$NAS_ROOT/BasicTS/datasets/$(tr a-z A-Z <<<"$DATASET" | sed "s/METRLA/METR-LA/;s/PEMSBAY/PEMS-BAY/")" ]; then echo "refusing: BasicTS dataset folder for $DATASET missing (run its scripts/data_preparation script)"; exit 1; fi
+  if [ ! -x "$HOME/basicts-venv/bin/python" ]; then echo "refusing: ~/basicts-venv missing"; exit 1; fi
+else
+  if [ ! -s "$ROOT/archs.jsonl" ]; then echo "refusing: $ROOT/archs.jsonl missing or empty"; exit 1; fi
+  if [ ! -s "$ROOT/data/${DATASET}_probe_batch.pt" ]; then echo "refusing: $ROOT/data/${DATASET}_probe_batch.pt missing (python -m pilot.data --save-probe-batch --root $ROOT)"; exit 1; fi
+  if [ ! -s "$ROOT/data/${DATASET}_adj.npy" ]; then echo "refusing: $ROOT/data/${DATASET}_adj.npy missing (python -m pilot.adjacency --root $ROOT)"; exit 1; fi
+fi
 n=$(squeue -u "$USER" -h --name="$name" | wc -l)
 if [ "$n" -ge 1 ]; then echo "refusing: a $name job is already queued/running ($n) for $USER"; exit 1; fi
 if [ -n "${AFTER:-}" ]; then
