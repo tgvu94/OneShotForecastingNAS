@@ -13,7 +13,7 @@ setting=(--root "$ROOT" --dataset "$DATASET" --horizon "$HORIZON")
 tag="${DATASET}_h${HORIZON}"
 MAX_EPOCHS="${MAX_EPOCHS:-20}"; PATIENCE="${PATIENCE:-5}"; MIN_EPOCHS="${MIN_EPOCHS:-8}"; TRAIN_EXTRA="${TRAIN_EXTRA:-}"
 SCORE_PROXIES="${SCORE_PROXIES:-1}"; SEED_SUBSET="${SEED_SUBSET:-5}"; LIMIT="${LIMIT:-}"
-sched=(--max-epochs "$MAX_EPOCHS" --patience "$PATIENCE" --min-epochs "$MIN_EPOCHS" --extra "$TRAIN_EXTRA")
+sched=(--max-epochs "$MAX_EPOCHS" --patience "$PATIENCE" --min-epochs "$MIN_EPOCHS" "--extra=$TRAIN_EXTRA")
 lim=(); [ -n "$LIMIT" ] && lim=(--limit "$LIMIT")
 if [ -n "${SLURM_ARRAY_TASK_ID:-}" ]; then shard="$((SLURM_ARRAY_TASK_ID % 3))/3"; shardargs=(--shard "$shard"); first=$((SLURM_ARRAY_TASK_ID % 3 == 0));
 else shard="none"; shardargs=(); first=1; SLURM_ARRAY_TASK_ID=single; fi
@@ -21,7 +21,8 @@ echo "schedule: ${sched[*]} limit=${LIMIT:-all} seed_subset=$SEED_SUBSET score_p
 echo "task $SLURM_ARRAY_TASK_ID on $(hostname) root $ROOT ($tag) shard $shard start $(date -Is)"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 if [ "$first" -eq 1 ] && [ "$SCORE_PROXIES" = 1 ]; then
-  python -m pilot.score_proxies "${setting[@]}" --proxies all --seeds 0,1,2 2>&1 | tee -a "logs/proxies_${tag}.log" | grep -v "Warning\|warn\|W0[0-9]\|coefficients\|_VF"
+  MASKARG=(); case " $TRAIN_EXTRA " in *" --mask-zeros "*) MASKARG=(--mask-zeros);; esac
+  python -m pilot.score_proxies "${setting[@]}" --proxies all --seeds 0,1,2 "${MASKARG[@]}" 2>&1 | tee -a "logs/proxies_${tag}.log" | grep -v "Warning\|warn\|W0[0-9]\|coefficients\|_VF"
 fi
 python -m pilot.run_train_all "${setting[@]}" --seeds 0 "${sched[@]}" "${lim[@]}" "${shardargs[@]}"
 if [ "$SEED_SUBSET" != 0 ]; then python -m pilot.run_train_all "${setting[@]}" --limit "$SEED_SUBSET" --seeds 1,2 "${sched[@]}" "${shardargs[@]}"; fi

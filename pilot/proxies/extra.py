@@ -266,6 +266,88 @@ def zico(net: nn.Module, batches: list[dict], loss_fn, device: torch.device):
     return float(score), {"n_batches": len(batches), "n_param_tensors_used": n_used, "n_param_tensors_zero": n_zero}
 
 
+def _grad_log_terms(net: nn.Module, batches: list[dict], lossfn, device: torch.device, reseed: int = 20260) -> dict:
+    """ZiCo's per-parameter-tensor term under ``lossfn``: log( sum_{i: std_i > 0} mean|g|_i / std_i ) over >= 2 batches,
+    or None when the sum is 0.  The same loop as :func:`zico`, kept separate so that one gradient pass serves several sums.
+    The RNG is re-seeded before every forward (``reseed + batch index``), so that two passes with different losses see the
+    same dropout masks and differ in the loss alone; :func:`zico` itself does not re-seed (its stored values predate this)."""
+    grads = {}
+    saved_extras = net.batch_extras
+    for i, b in enumerate(batches):
+        x, target = b["x_past"].to(device), b["target"].to(device)
+        net.batch_extras = {"x_future": b["x_future"], "loc": b["loc"], "scale": b["scale"]}
+        net.zero_grad(set_to_none=True)
+        torch.manual_seed(reseed + i)
+        torch.cuda.manual_seed_all(reseed + i)
+        out = net(x)
+        loss = lossfn(out, target)
+        loss.backward()
+        for name, p in net.named_parameters():
+            if p.requires_grad and p.grad is not None:
+                grads.setdefault(name, []).append(p.grad.detach().clone())
+    net.zero_grad(set_to_none=True)
+    net.batch_extras = saved_extras
+    terms = {}
+    for name, gs in grads.items():
+        if len(gs) < 2:
+            continue
+        g = torch.stack(gs, 0)
+        std = g.std(dim=0, unbiased=False)
+        nz = std > 0
+        tmpsum = (g.abs().mean(dim=0)[nz] / std[nz]).sum().item()
+        terms[name] = math.log(tmpsum) if tmpsum > 0 else None
+    return terms
+
+
+SPATIAL_OP_TYPES = None  # resolved lazily: the operators that read or build an adjacency
+
+
+def spatial_param_names(net: nn.Module) -> set[str]:
+    """Names of the parameters that belong to an adjacency-reading operator (GCNOp, DiffusionConvOp, AdaptiveAdjOp).
+    Everything else, the seq and flat nets, the graph net's embedding and heads, is temporal for the GLASS split."""
+    global SPATIAL_OP_TYPES
+    if SPATIAL_OP_TYPES is None:
+        from tsf_oneshot.cells.encoders.graph_components import AdaptiveAdjOp, DiffusionConvOp, GCNOp
+        SPATIAL_OP_TYPES = (GCNOp, DiffusionConvOp, AdaptiveAdjOp)
+    names = set()
+    for mname, m in net.named_modules():
+        if isinstance(m, SPATIAL_OP_TYPES):
+            for pname, _ in m.named_parameters(recurse=True):
+                names.add(f"{mname}.{pname}" if mname else pname)
+    return names
+
+
+def zico_glass_group(net: nn.Module, batches: list[dict], loss_fn, device: torch.device) -> dict:
+    """GLASS = ZiCo with (1) the head's loss replaced by the unit-gradient surrogate and (2) the layer sum split into
+    temporal and spatial parts: glass = glass_t + glass_s (lambda = 1).  Also the split of ZiCo under the head's own loss
+    (zico_t, zico_s), so that change 1 and change 2 are separable.  One gradient pass per loss; graph-blind nets get
+    glass_s = zico_s = 0 with n_spatial = 0."""
+    from pilot.proxies.wrapper import unit_loss_fn
+    spatial = spatial_param_names(net)
+    out = {}
+    for tag, lf in (("zico", loss_fn), ("glass", unit_loss_fn)):
+        terms = _grad_log_terms(net, batches, lf, device)
+        st = sum(v for n, v in terms.items() if v is not None and n not in spatial)
+        ss = sum(v for n, v in terms.items() if v is not None and n in spatial)
+        n_t = sum(1 for n, v in terms.items() if v is not None and n not in spatial)
+        n_s = sum(1 for n, v in terms.items() if v is not None and n in spatial)
+        meta = {"n_batches": len(batches), "n_temporal_tensors": n_t, "n_spatial_tensors": n_s,
+                "n_zero": sum(1 for v in terms.values() if v is None), "loss": "head" if tag == "zico" else "unit-gradient L1"}
+        out[f"{tag}_t"] = (float(st), meta)
+        out[f"{tag}_s"] = (float(ss), meta)
+        if tag == "glass":
+            out["glass"] = (float(st + ss), {**meta, "lambda": 1.0})
+    return out
+
+
+def nwot_per_layer(net: nn.Module, x: torch.Tensor):
+    """LENAS-style scaled naswot: the score divided by the number of hooked activation layers (LENAS divides by the
+    channel count, which is constant, 32, in this space)."""
+    s, meta = nwot(net, x)
+    n = max(meta["n_fired"], 1)
+    return s / n, {**meta, "divisor": "n_fired"}
+
+
 # name -> (kind, callable).  kind tells score_proxies what to pass.
 #   "net"   : f(net)                           "x"     : f(net, x)
 #   "loss"  : f(net, x, target, loss_fn)       "zico"  : f(net, batches, loss_fn, device)
@@ -282,6 +364,13 @@ REGISTRY = {
     "nwot": ("x", nwot),
     "zen": ("x", zen),
     "zico": ("zico", zico),
+    "nwot_per_layer": ("x", nwot_per_layer),
+    # one gradient pass per loss serves five stored names (kind "zicogroup": f(net, batches, loss_fn, device) -> {name: (v, meta)})
+    "zico_t": ("zicogroup", zico_glass_group),
+    "zico_s": ("zicogroup", zico_glass_group),
+    "glass": ("zicogroup", zico_glass_group),
+    "glass_t": ("zicogroup", zico_glass_group),
+    "glass_s": ("zicogroup", zico_glass_group),
 }
 ALIASES = {"grad_norm": "grad_norm_all"}  # alias; score_proxies maps the 13 plan names itself
 

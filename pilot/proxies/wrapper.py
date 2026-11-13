@@ -18,9 +18,44 @@ import torch
 from torch import nn
 from torch.nn.modules.batchnorm import _BatchNorm
 
+from tsf_oneshot.prediction_heads.heads import _masked_l1
 from tsf_oneshot.training.training_utils import rescale_output
 
 _LAST: dict = {}
+_MASK: dict = {"zero_code": None}   # set by score_proxies --mask-zeros: per-node code of a raw 0 after normalisation
+
+
+def set_zero_code(zero_code):
+    """None = unmasked (stzero protocol); a tensor [N] = skip the targets that were 0 in the raw data (benchst protocol)."""
+    _MASK["zero_code"] = zero_code
+
+
+def target_mask(targets: torch.Tensor):
+    zc = _MASK["zero_code"]
+    if zc is None:
+        return None
+    return (targets - zc.to(targets.device, targets.dtype)).abs() > 1e-4
+
+
+def _preds_and_targets(outputs: torch.Tensor, targets: torch.Tensor):
+    raw = _LAST["raw"]
+    if isinstance(raw, (list, tuple)):
+        raw = [outputs if q is _LAST["median"] else q for q in raw]
+    else:
+        raw = outputs
+    pred = rescale_output(raw, _LAST["loc"], _LAST["scale"], device=outputs.device)
+    targets = targets[: outputs.shape[0]].to(device=outputs.device, dtype=outputs.dtype)
+    return pred, targets
+
+
+def unit_loss_fn(outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    """The GLASS surrogate: a loss whose gradient is +-1 at every output.  For MSE, MAE and pinball heads the sign of
+    dL/dX is sign(X - y), so this is the L1 loss applied to every output of the head (mean over the quantile outputs).
+    Under the MAE head it equals the head's own loss, so GLASS = ZiCo there (the implementation check)."""
+    pred, targets = _preds_and_targets(outputs, targets)
+    preds = list(pred) if isinstance(pred, (list, tuple)) else [pred]
+    m = target_mask(targets)
+    return sum(_masked_l1(targets, p, m) for p in preds) / len(preds)
 
 
 def loss_fn(outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
@@ -29,14 +64,8 @@ def loss_fn(outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
     ``outputs`` is what the wrapper returned (the median for the quantile head).  If a measure transformed it
     (GRASP divides by its temperature T) the transformed tensor replaces the median so gradients still flow
     through the measure's graph."""
-    raw, head = _LAST["raw"], _LAST["head"]
-    if isinstance(raw, (list, tuple)):
-        raw = [outputs if q is _LAST["median"] else q for q in raw]
-    else:
-        raw = outputs
-    pred = rescale_output(raw, _LAST["loc"], _LAST["scale"], device=outputs.device)
-    targets = targets[: outputs.shape[0]].to(device=outputs.device, dtype=outputs.dtype)
-    return head.loss(targets, pred)
+    pred, targets = _preds_and_targets(outputs, targets)
+    return _LAST["head"].loss(targets, pred, mask=target_mask(targets))
 
 
 class ProxyWrapper(nn.Module):

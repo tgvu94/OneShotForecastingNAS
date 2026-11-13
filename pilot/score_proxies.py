@@ -37,10 +37,12 @@ PLAN_NAMES = {
     "plain": ["plain", "plain_all"], "grasp": ["grasp", "grasp_all"], "jacov": ["jacov"], "nwot": ["nwot"],
     "snip": ["snip", "snip_all"], "synflow": ["synflow", "synflow_all"], "zen": ["zen"], "zico": ["zico"],
     "swap": ["swap", "swap_b8"],
+    "glass": ["glass", "glass_t", "glass_s", "zico_t", "zico_s"], "nwot_per_layer": ["nwot_per_layer"],
 }
 # cheap and robust first, zico (4 batches) last
 ORDER = ["params", "flops", "l2_norm", "l2_norm_all", "grad_norm", "grad_norm_all", "snip", "snip_all", "plain",
-         "plain_all", "fisher", "synflow", "synflow_all", "jacov", "nwot", "swap", "swap_b8", "zen", "grasp", "grasp_all", "zico"]
+         "plain_all", "fisher", "synflow", "synflow_all", "jacov", "nwot", "nwot_per_layer", "swap", "swap_b8", "zen", "grasp", "grasp_all", "zico",
+         "zico_t", "zico_s", "glass", "glass_t", "glass_s"]
 ALL_STORED = set(ORDER)
 assert ALL_STORED == set(NASLIB_MEASURES) | set(extra.REGISTRY), (ALL_STORED ^ (set(NASLIB_MEASURES) | set(extra.REGISTRY)))
 
@@ -103,6 +105,10 @@ def score_one(g: dict, dims: dict, batches: list[dict], proxies: list[str], seed
                     value, meta = group_cache[fn][name]
                 elif kind == "zico":
                     value, meta = fn(fresh(), batches, loss_fn, device)
+                elif kind == "zicogroup":
+                    if fn not in group_cache:
+                        group_cache[fn] = fn(fresh(), batches, loss_fn, device)
+                    value, meta = group_cache[fn][name]
                 else:
                     raise KeyError(kind)
             value = float(value)
@@ -135,8 +141,16 @@ def main():
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--limit", type=int, default=None, help="score only the first N archs")
+    ap.add_argument("--mask-zeros", action="store_true", help="loss-based proxies skip the targets that are 0 in the raw data (benchst protocol)")
     args = ap.parse_args()
     root = Root.from_args(args)
+    if args.mask_zeros:
+        from pilot.data import get_cfg, zero_code_for
+        from pilot.datasets import benchmark_for
+        from pilot.proxies.wrapper import set_zero_code
+        zc, share = zero_code_for(get_cfg(benchmark_for(root.dataset, root.horizon)))
+        set_zero_code(zc)
+        print(f"mask-zeros: {share:.4f} of the raw entries are 0; loss-based proxies skip them")
     args.archs, args.out = args.archs or root.archs_jsonl, args.out or root.proxies_v1
     args.probe, args.adj = args.probe or root.probe, args.adj or root.adj
 
@@ -162,7 +176,7 @@ def main():
         rec = json.load(open(path)) if path.exists() else {
             "arch_id": aid, "space": g["space"], "proxy_version": PROXY_VERSION, "benchmark": dims.get("benchmark"),
             "scores": {}, "meta": {}, "errors": {}, "seconds": {}}
-        rec.update({"probe_batch_sha1": probe_sha1, "fork_commit": commit, "naslib_commit": NASLIB_COMMIT,
+        rec.update({"probe_batch_sha1": probe_sha1, "fork_commit": commit, "naslib_commit": NASLIB_COMMIT, "mask_zeros": bool(args.mask_zeros),
                     "torch": torch.__version__, "device": str(device),
                     "gpu": torch.cuda.get_device_name(0) if device.type == "cuda" else None,
                     "updated": _dt.datetime.now().isoformat(timespec="seconds")})

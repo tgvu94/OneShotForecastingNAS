@@ -31,7 +31,7 @@ case "$mode" in
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,MAX_EPOCHS=${MAX_EPOCHS:-20},PATIENCE=${PATIENCE:-5},MIN_EPOCHS=${MIN_EPOCHS:-8},TRAIN_EXTRA=${TRAIN_EXTRA:-},SCORE_PROXIES=${SCORE_PROXIES:-0},SEED_SUBSET=${SEED_SUBSET:-0},LIMIT=${LIMIT:-}" ;;
   spatial) name=spatial; extra=(--time=02:00:00 --output="$NAS_ROOT/logs/spatial_${tag}_%j.log");                    script=pilot/score_spatial.sbatch ;;
   proxies) name=proxies; extra=(--time=02:00:00 --output="$NAS_ROOT/logs/proxies_${tag}_%j.log");                    script=pilot/score_proxies.sbatch
-           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,EXTRA_ROOTS=${EXTRA_ROOTS:-},PROXIES=${PROXIES:-}" ;;
+           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,EXTRA_ROOTS=${EXTRA_ROOTS:-},PROXIES=${PROXIES:-},MASK_ZEROS=${MASK_ZEROS:-0}" ;;
   basicts) name=basicts; extra=(--time=02:00:00 --output="$NAS_ROOT/logs/basicts_${MODEL:-STID}_${tag}_%j.log");     script=pilot/basicts_stid.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,MODEL=${MODEL:-STID},CONFIG=${CONFIG:-}" ;;
   ablation) name=abl_$DATASET; extra=(--time=08:00:00 --output="$NAS_ROOT/logs/ablation_STID_${tag}_%j.log");   script=pilot/basicts_ablation.sbatch

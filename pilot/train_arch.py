@@ -164,12 +164,8 @@ def main(argv=None) -> int:
                                  steps_per_epoch=len(train_loader))
     zero_code, zero_share = None, None
     if args.mask_zeros:
-        raw = np.load(Path(cfg.benchmark.dataset_root) / cfg.benchmark.type / cfg.benchmark.file_name, allow_pickle=True)["data"][:, :, 0]
-        n_train = int(len(raw) * 0.6)
-        mu, sd = raw[:n_train].mean(0), raw[:n_train].std(0)
-        sd = np.where(sd == 0, 1.0, sd)  # sklearn StandardScaler convention, as in experiments/datasets/get_PEMS_dataset.py
-        zero_code = torch.tensor((0.0 - mu) / sd, dtype=torch.float32)
-        zero_share = float((raw == 0).mean())
+        from pilot.data import zero_code_for
+        zero_code, zero_share = zero_code_for(cfg)
         print(f"mask-zeros: {zero_share:.4f} of the raw entries are 0; they are skipped in the loss and the metrics")
     trainer = PilotTrainer(
         model=model, w_optimizer=optimizer, lr_scheduler_w=scheduler,

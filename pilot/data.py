@@ -141,6 +141,18 @@ def preprocess_batch(X: dict, target_scaler, window_size: int, device: torch.dev
     return x_past, x_future, loc, scale
 
 
+def zero_code_for(cfg) -> tuple[torch.Tensor, float]:
+    """Per-node value that a raw 0 (missing reading) takes after the dataset normalisation of
+    experiments/datasets/get_PEMS_dataset.py (StandardScaler on the first 60 % of the rows), and the raw zero share.
+    A target equals this code (within 1e-4) exactly when the raw value was 0; checked on METR-LA and PEMS04 with zero
+    disagreement.  Used by train_arch --mask-zeros and score_proxies --mask-zeros."""
+    raw = np.load(Path(cfg.benchmark.dataset_root) / cfg.benchmark.type / cfg.benchmark.file_name, allow_pickle=True)["data"][:, :, 0]
+    n_train = int(len(raw) * 0.6)
+    mu, sd = raw[:n_train].mean(0), raw[:n_train].std(0)
+    sd = np.where(sd == 0, 1.0, sd)  # sklearn StandardScaler convention
+    return torch.tensor((0.0 - mu) / sd, dtype=torch.float32), float((raw == 0).mean())
+
+
 def repo_loss(model, target: torch.Tensor, prediction, loc, scale, device: torch.device) -> torch.Tensor:
     """The loss SampledForecastingNetTrainer.update_weights minimises: the head's loss on the
     rescaled prediction against the raw (dataset-normalised) future targets."""
