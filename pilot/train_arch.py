@@ -40,6 +40,9 @@ def parse_args(argv=None):
     ap.add_argument("--num-workers", type=int, default=2)
     ap.add_argument("--out-root", default=None, help="default: <root>/train")
     ap.add_argument("--prune-ckpt", action="store_true", help="delete ckpt.pt once status is done")
+    ap.add_argument("--device", default="cuda", help="cuda (the benchmark) or cpu (smoke tests on a login node)")
+    ap.add_argument("--smoke-batches", type=int, default=None,
+                    help="debug only: every loader yields its first N batches; recorded in the schedule, never a benchmark label")
     ap.add_argument("--mask-zeros", action="store_true",
                     help="mask the targets that are 0 in the raw data (missing sensor readings) in the training loss and in val/test MAE and MSE")
     args = ap.parse_args(argv)
@@ -104,19 +107,26 @@ def main(argv=None) -> int:
             return (targets - self.zero_code.to(targets.device, targets.dtype)).abs() > 1e-4
 
         def evaluate(self, test_loader, epoch, loader_type: str = "test"):
-            """The repo's evaluate with masked and unmasked sums.  Keys 'MAE loss' / 'MSE loss' are masked when zero_code is set."""
+            """SampledForecastingNetTrainer.evaluate with masked and unmasked sums.  'MAE loss' / 'MSE loss' are masked when
+            zero_code is set; the unmasked values and the masked share are returned beside them."""
             sums = {"mse": 0.0, "mae": 0.0, "n": 0.0, "mse_all": 0.0, "mae_all": 0.0, "n_all": 0.0}
             self.model.eval()
             for (test_X, test_y) in test_loader:
                 x_past_test, x_future_test, scale_value_test = self.preprocessing(test_X)
                 target_test = test_y["future_targets"].float()
-                with torch.no_grad():
-                    prediction_test, w_dag_test = self.model(x_past_test, x_future_test, return_w_head=True)
-                    if not self.forecast_only:
-                        prediction_test = prediction_test[-1]
-                    prediction_test = self.model.get_inference_prediction(prediction_test, w_dag_test)
-                    prediction_test = rescale_output(prediction_test, *scale_value_test, device=self.device).cpu()
-                diff = (prediction_test - target_test).double()
+                x_past_test_, x_future_test_ = x_past_test.clone(), x_future_test.clone()
+                pred_test = torch.zeros_like(target_test)
+                for shift in range(self.sample_interval):
+                    x_past_s = x_past_test_[:, self.data_indices + shift]
+                    x_future_s = x_future_test_[:, self.target_indices + shift]
+                    with torch.no_grad():
+                        prediction_test = self.model(x_past_s, x_future_s)
+                        prediction_test = self.model.get_inference_prediction(prediction_test)
+                        if not self.forecast_only:
+                            prediction_test = prediction_test[-1]
+                        prediction_test = rescale_output(prediction_test, *scale_value_test, device=self.device).cpu()
+                    pred_test[:, self.target_indices + shift] = prediction_test
+                diff = (pred_test - target_test).double()
                 sums["mse_all"] += float((diff ** 2).sum()); sums["mae_all"] += float(diff.abs().sum()); sums["n_all"] += diff.numel()
                 m = self.mask_from(target_test)
                 if m is None:
@@ -124,10 +134,9 @@ def main(argv=None) -> int:
                 else:
                     md = m.double()
                     sums["mse"] += float(((diff ** 2) * md).sum()); sums["mae"] += float((diff.abs() * md).sum()); sums["n"] += float(md.sum())
-            out = {"MSE loss": sums["mse"] / max(sums["n"], 1.0), "MAE loss": sums["mae"] / max(sums["n"], 1.0),
-                   "MSE loss unmasked": sums["mse_all"] / max(sums["n_all"], 1.0), "MAE loss unmasked": sums["mae_all"] / max(sums["n_all"], 1.0),
-                   "masked share": 1.0 - sums["n"] / max(sums["n_all"], 1.0)}
-            return out
+            return {"MSE loss": sums["mse"] / max(sums["n"], 1.0), "MAE loss": sums["mae"] / max(sums["n"], 1.0),
+                    "MSE loss unmasked": sums["mse_all"] / max(sums["n_all"], 1.0), "MAE loss unmasked": sums["mae_all"] / max(sums["n_all"], 1.0),
+                    "masked share": 1.0 - sums["n"] / max(sums["n_all"], 1.0)}
 
         def train_epoch(self, epoch: int):
             self.model.train()
@@ -148,12 +157,26 @@ def main(argv=None) -> int:
     g = rec_arch["genotype"]
     print(f"arch {args.arch_id}: {summarize(g)}")
     out_dir.mkdir(parents=True, exist_ok=True)
-    device = torch.device("cuda")
+    device = torch.device(args.device)
 
     cfg = get_cfg(args.benchmark)
     seed_everything(args.seed)
     dataset, (train_loader, val_loader, test_loader), dims = get_dataset_and_loaders(
         cfg, batch_size=args.batch_size, num_workers=args.num_workers)
+    if args.smoke_batches:
+        import itertools
+
+        class _FirstBatches:
+            def __init__(self, loader, n):
+                self.loader, self.n = loader, n
+
+            def __iter__(self):
+                return itertools.islice(iter(self.loader), self.n)
+
+            def __len__(self):
+                return min(self.n, len(self.loader))
+        train_loader, val_loader, test_loader = (_FirstBatches(l, args.smoke_batches) for l in (train_loader, val_loader, test_loader))
+        print(f"SMOKE: {args.smoke_batches} batches per loader on {device}; the result is not a label")
     seed_everything(args.seed)  # init seed, immediately before build
     model = build_discrete_net(g, dims, adj_path=args.adj)
     n_params = count_params(model)
@@ -193,7 +216,7 @@ def main(argv=None) -> int:
         "lr_scheduler": OmegaConf.to_container(cfg.lr_scheduler_eval, resolve=True),
         "grad_clip": float(cfg.train.grad_clip), "amp": bool(cfg.train.amp_enable),
         "target_scaler": str(cfg.train.targe_scaler), "loss": f"head={g['head']}" + (", zeros masked" if args.mask_zeros else ""),
-        "mask_zeros": bool(args.mask_zeros), "zero_share_raw": zero_share,
+        "mask_zeros": bool(args.mask_zeros), "zero_share_raw": zero_share, "smoke_batches": args.smoke_batches, "device": str(device),
         "metric": "MAE/MSE on dataset-normalised targets" + (", raw zeros masked" if args.mask_zeros else ""),
         "train_windows": dims["split_sizes"][0], "iters_per_epoch": len(train_loader),
     }
@@ -223,7 +246,8 @@ def main(argv=None) -> int:
         scheduler.load_state_dict(ck["scheduler"])
         trainer.scaler.load_state_dict(ck["amp_scaler"])
         torch.set_rng_state(ck["rng"]["torch"])
-        torch.cuda.set_rng_state_all(ck["rng"]["cuda"])
+        if device.type == "cuda" and ck["rng"].get("cuda"):
+            torch.cuda.set_rng_state_all(ck["rng"]["cuda"])
         np.random.set_state(ck["rng"]["numpy"])
         import random as _random
         _random.setstate(ck["rng"]["python"])
@@ -234,13 +258,14 @@ def main(argv=None) -> int:
 
     base = {"arch_id": args.arch_id, "space": g["space"], "seed": args.seed, "params": n_params,
             "flops": flops, "flops_note": flops_note, "schedule": schedule, "fork_commit": fork_commit(),
-            "torch": torch.__version__, "gpu": torch.cuda.get_device_name(0)}
+            "torch": torch.__version__, "gpu": torch.cuda.get_device_name(0) if device.type == "cuda" else None}
     write_json(metrics_path, {**base, "status": "running", "epochs_run": len(history), "history": history,
                               "started_at": _dt.datetime.now().isoformat(timespec="seconds")})
 
     stopped_early = False
     for epoch in range(start_epoch, args.epochs):
-        torch.cuda.reset_peak_memory_stats(device)
+        if device.type == "cuda":
+            torch.cuda.reset_peak_memory_stats(device)
         t0 = time.time()
         val_res, test_res = trainer.train_epoch(epoch)
         seconds = time.time() - t0
@@ -252,7 +277,7 @@ def main(argv=None) -> int:
                    "masked_share_val": float(val_res["masked share"]), "masked_share_test": float(test_res["masked share"])}
                   if args.mask_zeros else {}),
                "lr": float(optimizer.param_groups[0]["lr"]), "seconds": round(seconds, 1),
-               "peak_mem_gb": round(torch.cuda.max_memory_allocated(device) / 1e9, 3),
+               "peak_mem_gb": round(torch.cuda.max_memory_allocated(device) / 1e9, 3) if device.type == "cuda" else 0.0,
                "wall": _dt.datetime.now().isoformat(timespec="seconds")}
         history.append(row)
         new_file = not log_path.exists()
@@ -276,7 +301,7 @@ def main(argv=None) -> int:
                     "scheduler": scheduler.state_dict(), "amp_scaler": trainer.scaler.state_dict(),
                     "epoch": epoch + 1, "history": history, "best": best, "no_improve": no_improve,
                     "train_seconds": train_seconds,
-                    "rng": {"torch": torch.get_rng_state(), "cuda": torch.cuda.get_rng_state_all(),
+                    "rng": {"torch": torch.get_rng_state(), "cuda": torch.cuda.get_rng_state_all() if device.type == "cuda" else [],
                             "numpy": np.random.get_state(), "python": _random.getstate()}}, ckpt_path)
         write_json(metrics_path, {**base, "status": "running", "epochs_run": len(history), "history": history})
         if not math.isfinite(row["val_mae"]):
