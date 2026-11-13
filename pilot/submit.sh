@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# The only way jobs get submitted; never call sbatch directly.  Guards: no job of the same name queued, < 3 jobs in total,
+# The only way jobs get submitted; never call sbatch directly.  Guards: no job of the same name queued, < 5 jobs in total,
 # the root exists and holds archs.jsonl.  Usage:
-#   pilot/submit.sh train   [ROOT] [DATASET] [HORIZON]   -> ground-truth runner, job array: 6 tasks, at most 3 running, 8 h each (<= 48 GPU-h)
+#   pilot/submit.sh train   [ROOT] [DATASET] [HORIZON]   -> ground-truth runner, job array: 6 tasks, at most $ARRAY_MAX (default 3) running, 8 h each
 #   pilot/submit.sh spatial [ROOT] [DATASET] [HORIZON]   -> spatial-sensitivity proxies: one 2 h job (no training)
 #   pilot/submit.sh proxies [ROOT] [DATASET] [HORIZON]   -> score the proxies named in $PROXIES (default all: only the names missing
 #                                                          from the stored files are computed) on ROOT and on $EXTRA_ROOTS: one 2 h job
@@ -9,7 +9,8 @@
 #                                                          config path) on $NAS_ROOT/BasicTS: one 2 h job; ROOT is unused
 #   pilot/submit.sh ablation [ROOT] [DATASET] [HORIZON]  -> the STID single-part ablation replication on DATASET (6 variants x 3 seeds,
 #                                                          pilot/basicts_ablation.sbatch): one 8 h job named abl_<DATASET>; ROOT is unused
-# AFTER=<jobid> adds --dependency=afterany:<jobid>; a dependent job waits, so only *running* jobs count toward the cap of 3.
+# AFTER=<jobid> adds --dependency=afterany:<jobid>; a dependent job waits, so only *running* jobs count toward the cap of 5.
+# CAP (default 5) is the total number of queued or running jobs allowed; ARRAY_MAX (default 3) throttles the train array.
 # Defaults: ROOT=results/stzero/pems04_h12 DATASET=pems04 HORIZON=12.  E.g.  pilot/submit.sh train results/stzero/pems04_h36 pems04 36
 # Every script resumes / skips finished work, so a killed job is simply resubmitted (resubmit it).
 set -euo pipefail
@@ -21,7 +22,7 @@ tag="${DATASET}h${HORIZON}"
 common=(--cpus-per-task=8 --mem=32G --account=def-rwpazzi_gpu --gres=gpu:nvidia_h100_80gb_hbm3_3g.40gb:1
         --export="ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON")
 case "$mode" in
-  train)   name=stzero;  extra=(--array=0-5%3 --time=08:00:00 --output="$NAS_ROOT/logs/stzero_${tag}_%A_%a.log");  script=pilot/run_train_all.sbatch ;;
+  train)   name=stzero;  extra=(--array=0-5%${ARRAY_MAX:-3} --time=08:00:00 --output="$NAS_ROOT/logs/stzero_${tag}_%A_%a.log");  script=pilot/run_train_all.sbatch ;;
   spatial) name=spatial; extra=(--time=02:00:00 --output="$NAS_ROOT/logs/spatial_${tag}_%j.log");                    script=pilot/score_spatial.sbatch ;;
   proxies) name=proxies; extra=(--time=02:00:00 --output="$NAS_ROOT/logs/proxies_${tag}_%j.log");                    script=pilot/score_proxies.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,EXTRA_ROOTS=${EXTRA_ROOTS:-},PROXIES=${PROXIES:-}" ;;
@@ -47,7 +48,8 @@ if [ -n "${AFTER:-}" ]; then
 else
   n_all=$(squeue -u "$USER" -h | wc -l)
 fi
-if [ "$n_all" -ge 3 ]; then echo "refusing: $n_all jobs already queued/running for $USER (cap 3)"; exit 1; fi
+CAP=${CAP:-5}
+if [ "$n_all" -ge "$CAP" ]; then echo "refusing: $n_all jobs already queued/running for $USER (cap $CAP)"; exit 1; fi
 mkdir -p "$NAS_ROOT/logs"
 echo "submitting $mode for ROOT=$ROOT DATASET=$DATASET HORIZON=$HORIZON"
 sbatch "${common[@]}" "${extra[@]}" --job-name="$name" "$script"
