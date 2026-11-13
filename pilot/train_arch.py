@@ -40,6 +40,8 @@ def parse_args(argv=None):
     ap.add_argument("--num-workers", type=int, default=2)
     ap.add_argument("--out-root", default=None, help="default: <root>/train")
     ap.add_argument("--prune-ckpt", action="store_true", help="delete ckpt.pt once status is done")
+    ap.add_argument("--mask-zeros", action="store_true",
+                    help="mask the targets that are 0 in the raw data (missing sensor readings) in the training loss and in val/test MAE and MSE")
     args = ap.parse_args(argv)
     root = Root.from_args(args)
     args.archs = str(args.archs or root.archs_jsonl)
@@ -81,6 +83,7 @@ def main(argv=None) -> int:
     from omegaconf import OmegaConf
     from tsf_oneshot.training.samplednet_trainer import SampledForecastingNetTrainer
     from tsf_oneshot.training.utils import LR_SCHEDULER_TYPE, get_lr_scheduler, get_optimizer
+    from tsf_oneshot.training.training_utils import rescale_output
 
     from pilot.build_net import build_discrete_net, count_params
     from pilot.data import get_cfg, get_dataset_and_loaders, seed_everything
@@ -90,7 +93,41 @@ def main(argv=None) -> int:
     wandb.init(mode="disabled")
 
     class PilotTrainer(SampledForecastingNetTrainer):
-        """train_epoch of the repo, plus the mean training loss of the epoch."""
+        """train_epoch of the repo, plus the mean training loss of the epoch.  With ``zero_code`` set (per-node value that a
+        raw 0 takes after the dataset normalisation), the training loss and the val/test metrics skip those targets."""
+
+        zero_code = None  # torch tensor [N] or None
+
+        def mask_from(self, targets: torch.Tensor):
+            if self.zero_code is None:
+                return None
+            return (targets - self.zero_code.to(targets.device, targets.dtype)).abs() > 1e-4
+
+        def evaluate(self, test_loader, epoch, loader_type: str = "test"):
+            """The repo's evaluate with masked and unmasked sums.  Keys 'MAE loss' / 'MSE loss' are masked when zero_code is set."""
+            sums = {"mse": 0.0, "mae": 0.0, "n": 0.0, "mse_all": 0.0, "mae_all": 0.0, "n_all": 0.0}
+            self.model.eval()
+            for (test_X, test_y) in test_loader:
+                x_past_test, x_future_test, scale_value_test = self.preprocessing(test_X)
+                target_test = test_y["future_targets"].float()
+                with torch.no_grad():
+                    prediction_test, w_dag_test = self.model(x_past_test, x_future_test, return_w_head=True)
+                    if not self.forecast_only:
+                        prediction_test = prediction_test[-1]
+                    prediction_test = self.model.get_inference_prediction(prediction_test, w_dag_test)
+                    prediction_test = rescale_output(prediction_test, *scale_value_test, device=self.device).cpu()
+                diff = (prediction_test - target_test).double()
+                sums["mse_all"] += float((diff ** 2).sum()); sums["mae_all"] += float(diff.abs().sum()); sums["n_all"] += diff.numel()
+                m = self.mask_from(target_test)
+                if m is None:
+                    sums["mse"], sums["mae"], sums["n"] = sums["mse_all"], sums["mae_all"], sums["n_all"]
+                else:
+                    md = m.double()
+                    sums["mse"] += float(((diff ** 2) * md).sum()); sums["mae"] += float((diff.abs() * md).sum()); sums["n"] += float(md.sum())
+            out = {"MSE loss": sums["mse"] / max(sums["n"], 1.0), "MAE loss": sums["mae"] / max(sums["n"], 1.0),
+                   "MSE loss unmasked": sums["mse_all"] / max(sums["n_all"], 1.0), "MAE loss unmasked": sums["mae_all"] / max(sums["n_all"], 1.0),
+                   "masked share": 1.0 - sums["n"] / max(sums["n_all"], 1.0)}
+            return out
 
         def train_epoch(self, epoch: int):
             self.model.train()
@@ -125,6 +162,15 @@ def main(argv=None) -> int:
     optimizer = get_optimizer(cfg_optimizer=cfg.w_optimizer_eval, optim_groups=optim_groups, wd_in_p_groups=True)
     scheduler = get_lr_scheduler(optimizer=optimizer, cfg_lr_scheduler=cfg.lr_scheduler_eval,
                                  steps_per_epoch=len(train_loader))
+    zero_code, zero_share = None, None
+    if args.mask_zeros:
+        raw = np.load(Path(cfg.benchmark.dataset_root) / cfg.benchmark.type / cfg.benchmark.file_name, allow_pickle=True)["data"][:, :, 0]
+        n_train = int(len(raw) * 0.6)
+        mu, sd = raw[:n_train].mean(0), raw[:n_train].std(0)
+        sd = np.where(sd == 0, 1.0, sd)  # sklearn StandardScaler convention, as in experiments/datasets/get_PEMS_dataset.py
+        zero_code = torch.tensor((0.0 - mu) / sd, dtype=torch.float32)
+        zero_share = float((raw == 0).mean())
+        print(f"mask-zeros: {zero_share:.4f} of the raw entries are 0; they are skipped in the loss and the metrics")
     trainer = PilotTrainer(
         model=model, w_optimizer=optimizer, lr_scheduler_w=scheduler,
         train_loader=train_loader, val_loader=val_loader, test_loader=test_loader,
@@ -132,6 +178,13 @@ def main(argv=None) -> int:
         lagged_values=dataset.lagged_value, sample_interval=1,
         target_scaler=TargetScaler(cfg.train.targe_scaler), grad_clip=cfg.train.grad_clip,
         device=device, amp_enable=cfg.train.amp_enable)
+    if zero_code is not None:
+        trainer.zero_code = zero_code
+        _orig_loss = model.get_individual_training_loss
+
+        def _masked_individual_loss(targets, predictions, _orig=_orig_loss):
+            return _orig(targets, predictions, mask=trainer.mask_from(targets))
+        model.get_individual_training_loss = _masked_individual_loss
 
     min_epochs = min(args.min_epochs, args.epochs)
     schedule = {
@@ -141,7 +194,9 @@ def main(argv=None) -> int:
         "optimizer": OmegaConf.to_container(cfg.w_optimizer_eval, resolve=True),
         "lr_scheduler": OmegaConf.to_container(cfg.lr_scheduler_eval, resolve=True),
         "grad_clip": float(cfg.train.grad_clip), "amp": bool(cfg.train.amp_enable),
-        "target_scaler": str(cfg.train.targe_scaler), "loss": f"head={g['head']}",
+        "target_scaler": str(cfg.train.targe_scaler), "loss": f"head={g['head']}" + (", zeros masked" if args.mask_zeros else ""),
+        "mask_zeros": bool(args.mask_zeros), "zero_share_raw": zero_share,
+        "metric": "MAE/MSE on dataset-normalised targets" + (", raw zeros masked" if args.mask_zeros else ""),
         "train_windows": dims["split_sizes"][0], "iters_per_epoch": len(train_loader),
     }
 
@@ -195,6 +250,9 @@ def main(argv=None) -> int:
         row = {"epoch": epoch, "train_loss": trainer.last_train_loss,
                "val_mse": float(val_res["MSE loss"]), "val_mae": float(val_res["MAE loss"]),
                "test_mse": float(test_res["MSE loss"]), "test_mae": float(test_res["MAE loss"]),
+               **({"val_mae_unmasked": float(val_res["MAE loss unmasked"]), "test_mae_unmasked": float(test_res["MAE loss unmasked"]),
+                   "masked_share_val": float(val_res["masked share"]), "masked_share_test": float(test_res["masked share"])}
+                  if args.mask_zeros else {}),
                "lr": float(optimizer.param_groups[0]["lr"]), "seconds": round(seconds, 1),
                "peak_mem_gb": round(torch.cuda.max_memory_allocated(device) / 1e9, 3),
                "wall": _dt.datetime.now().isoformat(timespec="seconds")}

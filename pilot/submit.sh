@@ -2,6 +2,9 @@
 # The only way jobs get submitted; never call sbatch directly.  Guards: no job of the same name queued, < 5 jobs in total,
 # the root exists and holds archs.jsonl.  Usage:
 #   pilot/submit.sh train   [ROOT] [DATASET] [HORIZON]   -> ground-truth runner, job array: 6 tasks, at most $ARRAY_MAX (default 3) running, 8 h each
+#   pilot/submit.sh trainone [ROOT] [DATASET] [HORIZON] -> one unsharded job (default 3 h, TIME overrides) of the same runner: pre-checks
+#                                                          (LIMIT=2 trains two archs), no proxies and no seed subset unless set
+#   Env for train/trainone: JOB_NAME, MAX_EPOCHS, PATIENCE, MIN_EPOCHS, TRAIN_EXTRA (e.g. --mask-zeros), SCORE_PROXIES, SEED_SUBSET, LIMIT
 #   pilot/submit.sh spatial [ROOT] [DATASET] [HORIZON]   -> spatial-sensitivity proxies: one 2 h job (no training)
 #   pilot/submit.sh proxies [ROOT] [DATASET] [HORIZON]   -> score the proxies named in $PROXIES (default all: only the names missing
 #                                                          from the stored files are computed) on ROOT and on $EXTRA_ROOTS: one 2 h job
@@ -22,7 +25,10 @@ tag="${DATASET}h${HORIZON}"
 common=(--cpus-per-task=8 --mem=32G --account=def-rwpazzi_gpu --gres=gpu:nvidia_h100_80gb_hbm3_3g.40gb:1
         --export="ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON")
 case "$mode" in
-  train)   name=stzero;  extra=(--array=0-5%${ARRAY_MAX:-3} --time=08:00:00 --output="$NAS_ROOT/logs/stzero_${tag}_%A_%a.log");  script=pilot/run_train_all.sbatch ;;
+  train)   name=${JOB_NAME:-stzero};  extra=(--array=0-5%${ARRAY_MAX:-3} --time=08:00:00 --output="$NAS_ROOT/logs/${JOB_NAME:-stzero}_${tag}_%A_%a.log");  script=pilot/run_train_all.sbatch
+           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,MAX_EPOCHS=${MAX_EPOCHS:-20},PATIENCE=${PATIENCE:-5},MIN_EPOCHS=${MIN_EPOCHS:-8},TRAIN_EXTRA=${TRAIN_EXTRA:-},SCORE_PROXIES=${SCORE_PROXIES:-1},SEED_SUBSET=${SEED_SUBSET:-5},LIMIT=${LIMIT:-}" ;;
+  trainone) name=${JOB_NAME:-trainone}; extra=(--time=${TIME:-03:00:00} --output="$NAS_ROOT/logs/${JOB_NAME:-trainone}_${tag}_%j.log"); script=pilot/run_train_all.sbatch
+           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,MAX_EPOCHS=${MAX_EPOCHS:-20},PATIENCE=${PATIENCE:-5},MIN_EPOCHS=${MIN_EPOCHS:-8},TRAIN_EXTRA=${TRAIN_EXTRA:-},SCORE_PROXIES=${SCORE_PROXIES:-0},SEED_SUBSET=${SEED_SUBSET:-0},LIMIT=${LIMIT:-}" ;;
   spatial) name=spatial; extra=(--time=02:00:00 --output="$NAS_ROOT/logs/spatial_${tag}_%j.log");                    script=pilot/score_spatial.sbatch ;;
   proxies) name=proxies; extra=(--time=02:00:00 --output="$NAS_ROOT/logs/proxies_${tag}_%j.log");                    script=pilot/score_proxies.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,EXTRA_ROOTS=${EXTRA_ROOTS:-},PROXIES=${PROXIES:-}" ;;
@@ -30,7 +36,7 @@ case "$mode" in
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,MODEL=${MODEL:-STID},CONFIG=${CONFIG:-}" ;;
   ablation) name=abl_$DATASET; extra=(--time=08:00:00 --output="$NAS_ROOT/logs/ablation_STID_${tag}_%j.log");   script=pilot/basicts_ablation.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,VARIANTS=${VARIANTS:-},SEEDS=${SEEDS:-}" ;;
-  *) echo "unknown mode $mode (train | spatial | proxies | basicts | ablation)"; exit 1 ;;
+  *) echo "unknown mode $mode (train | trainone | spatial | proxies | basicts | ablation)"; exit 1 ;;
 esac
 if [ "$mode" = basicts ] || [ "$mode" = ablation ]; then
   if [ ! -d "$NAS_ROOT/BasicTS/datasets/$(tr a-z A-Z <<<"$DATASET" | sed "s/METRLA/METR-LA/;s/PEMSBAY/PEMS-BAY/")" ]; then echo "refusing: BasicTS dataset folder for $DATASET missing (run its scripts/data_preparation script)"; exit 1; fi

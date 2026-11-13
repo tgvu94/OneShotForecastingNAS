@@ -7,6 +7,23 @@ import torch.nn.functional as F
 from torch.distributions import Beta, Distribution, Gamma, Normal, Poisson, StudentT
 
 
+def _masked_mean(elementwise: torch.Tensor, mask: torch.Tensor | None) -> torch.Tensor:
+    """Mean over the entries where ``mask`` is True; the plain mean when ``mask`` is None.
+    ``mask`` broadcasts against ``elementwise`` (pilot: [B, T, N] bool, True = observed target)."""
+    if mask is None:
+        return torch.mean(elementwise)
+    m = torch.broadcast_to(mask, elementwise.shape).to(elementwise.dtype)
+    return (elementwise * m).sum() / m.sum().clamp_min(1.0)
+
+
+def _masked_mse(targets, predictions, mask):
+    return _masked_mean((targets - predictions) ** 2, mask)
+
+
+def _masked_l1(targets, predictions, mask):
+    return _masked_mean((targets - predictions).abs(), mask)
+
+
 class QuantileHead(nn.Module):
     def __init__(self,
                  d_model: int,
@@ -24,7 +41,7 @@ class QuantileHead(nn.Module):
     def forward(self, x: torch.Tensor) -> list[torch.Tensor]:
         return [net(x) for net in self.nets]
 
-    def loss(self, targets: torch.Tensor, predictions: list[torch.Tensor]):
+    def loss(self, targets: torch.Tensor, predictions: list[torch.Tensor], mask: torch.Tensor | None = None):
         assert len(predictions) == len(self.quantiles)
         losses_all = []
         for q, y_pred in zip(self.quantiles, predictions):
@@ -35,7 +52,7 @@ class QuantileHead(nn.Module):
 
         losses_all = torch.mean(torch.concat(losses_all, dim=-1), dim=-1)
 
-        return torch.mean(losses_all)
+        return _masked_mean(losses_all, mask)
 
     def get_inference_pred(self, predictions: list[torch.Tensor]):
         return predictions[self.val_out_idx]
@@ -53,16 +70,16 @@ class MSEOutput(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x)
 
-    def loss(self, targets: torch.Tensor, predictions: torch.Tensor):
-        return F.mse_loss(targets, predictions)
+    def loss(self, targets: torch.Tensor, predictions: torch.Tensor, mask: torch.Tensor | None = None):
+        return _masked_mse(targets, predictions, mask)
 
     def get_inference_pred(self, predictions: torch.Tensor):
         return predictions
 
 
 class MAEOutput(MSEOutput):
-    def loss(self, targets: torch.Tensor, predictions: torch.Tensor):
-        return F.l1_loss(targets, predictions)
+    def loss(self, targets: torch.Tensor, predictions: torch.Tensor, mask: torch.Tensor | None = None):
+        return _masked_l1(targets, predictions, mask)
 
     def get_inference_pred(self, predictions: torch.Tensor):
         return predictions
@@ -79,16 +96,16 @@ class FlatMSEOutput(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x
 
-    def loss(self, targets: torch.Tensor, predictions: torch.Tensor):
-        return F.mse_loss(targets, predictions)
+    def loss(self, targets: torch.Tensor, predictions: torch.Tensor, mask: torch.Tensor | None = None):
+        return _masked_mse(targets, predictions, mask)
 
     def get_inference_pred(self, predictions: torch.Tensor):
         return predictions
 
 
 class FlatMAEOutput(FlatMSEOutput):
-    def loss(self, targets: torch.Tensor, predictions: torch.Tensor):
-        return F.l1_loss(targets, predictions)
+    def loss(self, targets: torch.Tensor, predictions: torch.Tensor, mask: torch.Tensor | None = None):
+        return _masked_l1(targets, predictions, mask)
 
 
 class FlatQuantileOutput(nn.Module):
@@ -181,8 +198,8 @@ class DistProjectionLayer(nn.Module):
     def dist_cls(self) -> Type[Distribution]:
         raise NotImplementedError
 
-    def loss(self, targets: torch.Tensor, predictions: Distribution):
-        return - predictions.log_prob(targets).mean()
+    def loss(self, targets: torch.Tensor, predictions: Distribution, mask: torch.Tensor | None = None):
+        return - _masked_mean(predictions.log_prob(targets), mask)
 
     def get_inference_pred(self, predictions: Distribution):
         samples = predictions.rsample((self.inference_num_samples,))

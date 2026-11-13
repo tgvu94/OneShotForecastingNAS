@@ -192,7 +192,7 @@ class AbstractForecastingNetworkController(nn.Module):
     def get_validation_loss(self, targets: torch.Tensor, predictions: list[torch.Tensor], w_dag: torch.Tensor):
         raise NotImplementedError
 
-    def get_individual_training_loss(self, targets: torch.Tensor, predictions: list[torch.Tensor]):
+    def get_individual_training_loss(self, targets: torch.Tensor, predictions: list[torch.Tensor], mask: torch.Tensor | None = None):
         raise NotImplementedError
 
     def weights(self):
@@ -386,8 +386,8 @@ class ForecastingDARTSNetworkController(AbstractForecastingNetworkController):
             losses
         )
 
-    def get_individual_training_loss(self, targets: torch.Tensor, predictions: list[torch.Tensor]):
-        losses = [head.loss(targets=targets, predictions=pred) for pred, head in
+    def get_individual_training_loss(self, targets: torch.Tensor, predictions: list[torch.Tensor], mask: torch.Tensor | None = None):
+        losses = [head.loss(targets=targets, predictions=pred, mask=mask) for pred, head in
                   zip(predictions, self.net.heads)]
         return losses
 
@@ -556,8 +556,8 @@ class ForecastingGDASNetworkController(AbstractForecastingNetworkController):
             for _ie, (head, pred) in enumerate(zip(self.heads, predictions))
         )
 
-    def get_individual_training_loss(self, targets: torch.Tensor, predictions: list[torch.Tensor]):
-        losses = [head.loss(targets=targets, predictions=pred) for pred, head in
+    def get_individual_training_loss(self, targets: torch.Tensor, predictions: list[torch.Tensor], mask: torch.Tensor | None = None):
+        losses = [head.loss(targets=targets, predictions=pred, mask=mask) for pred, head in
                   zip(predictions, self.net.heads)]
         return losses
 
