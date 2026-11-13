@@ -1,0 +1,23 @@
+{
+ "pems04": {
+  "sigma_seed": 0.0003955296328249537,
+  "sigma_seed_n_arch": 5,
+  "n": 300,
+  "target": "test_mae",
+  "max_epochs": 20
+ },
+ "pems08": {
+  "sigma_seed": 0.0008616946994814542,
+  "sigma_seed_n_arch": 5,
+  "n": 150,
+  "target": "test_mae",
+  "max_epochs": 20
+ },
+ "metrla": {
+  "sigma_seed": 0.005941336148244898,
+  "sigma_seed_n_arch": 5,
+  "n": 150,
+  "target": "test_mae",
+  "max_epochs": 20
+ }
+}
