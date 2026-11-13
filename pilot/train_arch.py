@@ -176,11 +176,13 @@ def main(argv=None) -> int:
         device=device, amp_enable=cfg.train.amp_enable)
     if zero_code is not None:
         trainer.zero_code = zero_code
-        _orig_loss = model.get_individual_training_loss
+        # the discrete nets (MixedConcatSampledNet and its graph subclass) compute the training loss through
+        # get_training_loss(target, prediction) -> self.head.loss(target, prediction); the mask goes in there
+        assert hasattr(model, "get_training_loss") and hasattr(model, "head"), type(model).__name__
 
-        def _masked_individual_loss(targets, predictions, _orig=_orig_loss):
-            return _orig(targets, predictions, mask=trainer.mask_from(targets))
-        model.get_individual_training_loss = _masked_individual_loss
+        def _masked_training_loss(target, prediction):
+            return model.head.loss(target, prediction, mask=trainer.mask_from(target))
+        model.get_training_loss = _masked_training_loss
 
     min_epochs = min(args.min_epochs, args.epochs)
     schedule = {
