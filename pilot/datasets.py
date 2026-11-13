@@ -35,6 +35,21 @@ DATASETS = {
     "metrla": {"benchmark_dir": "PEMS/metrla", "file_name": "METR-LA.npz", "distance_csv": None,
                "adj_pickle": "adj_METR-LA.pkl", "sensor_ids": "metrla_graph_sensor_ids.txt",
                "raw_distances": "metrla_distances_la_2012.csv", "n_nodes": 207},
+    # Candidate cities of the shared-list benchmark (statistics first, roots only if chosen).  PEMS03's distance list uses the
+    # real sensor ids (PEMS03.txt gives the order); PEMS07 ships a ready 883 x 883 adjacency pickle.
+    "pems03": {"benchmark_dir": "PEMS/pems03", "file_name": "PEMS03.npz", "distance_csv": None,
+               "adj_pickle": None, "sensor_ids": "PEMS03.txt", "raw_distances": "PEMS03_distances.csv", "n_nodes": 358},
+    "pems07": {"benchmark_dir": "PEMS/pems07", "file_name": "PEMS07.npz", "distance_csv": None,
+               "adj_pickle": "adj_PEMS07.pkl", "n_nodes": 883},
+    "pemsbay": {"benchmark_dir": "PEMS/pemsbay", "file_name": "PEMS-BAY.npz", "distance_csv": None,
+                "adj_pickle": "adj_mx_bay.pkl", "sensor_ids": "PEMS-BAY_sensor_ids.txt", "raw_distances": "bay_distances.csv", "n_nodes": 325},
+    # Non-California candidates, prepared by pilot.prepare_city (10-minute steps; speed).
+    "chengdu": {"benchmark_dir": "PEMS/chengdu", "file_name": "CHENGDU.npz", "distance_csv": None,
+                "adj_pickle": "adj_CHENGDU.pkl", "n_nodes": 524},
+    "shenzhen": {"benchmark_dir": "PEMS/shenzhen", "file_name": "SHENZHEN.npz", "distance_csv": None,
+                 "adj_pickle": "adj_SHENZHEN.pkl", "n_nodes": 627},
+    "expytky": {"benchmark_dir": "PEMS/expytky", "file_name": "EXPYTKY.npz", "distance_csv": None,
+                "adj_pickle": "adj_EXPYTKY.pkl", "sensor_ids": "EXPYTKY_link_ids.txt", "n_nodes": 1843},
 }
 _BENCH_RE = re.compile(r"^(?P<dataset>[a-z0-9]+)_(?P<horizon>\d+)$")
 
