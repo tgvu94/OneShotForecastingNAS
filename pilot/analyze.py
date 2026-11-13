@@ -31,7 +31,8 @@ from pilot.paths import COMPARE_DIR, Root
 
 PROXIES_PRIMARY = ["nwot", "zico", "synflow_all", "snip_all", "grad_norm_all", "grasp_all", "plain_all", "fisher", "jacov", "zen",
                    "l2_norm_all", "params", "flops",                      # the 13 of Table A (_all variants as primary)
-                   "swap", "swap_reg", "zico_sizectrl"]                   # SWAP, regularised SWAP, size-controlled ZiCo (rows appear when stored)
+                   "swap", "swap_reg", "zico_sizectrl",                   # SWAP, regularised SWAP, size-controlled ZiCo (rows appear when stored)
+                   "zico_t", "zico_s", "glass", "glass_t", "glass_s", "nwot_per_layer"]  # GLASS family and per-layer naswot (rows appear when stored)
 PROXIES_NASLIB = ["synflow", "snip", "grad_norm", "grasp", "plain", "l2_norm"]  # Conv/Linear-only copies, appendix rows
 EXTRA = ["tfas_zico_cl", "swap_b8"]                                    # degenerate / saturated scores, appendix rows
 CONTROL_FAMILIES = ("none", "identity-only", "adaptive-only")

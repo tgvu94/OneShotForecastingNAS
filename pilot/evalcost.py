@@ -36,7 +36,8 @@ from pilot.analyze import derived_scores, partial_spearman
 from pilot.paths import COMPARE_DIR, Root
 
 PROXIES = ["zico", "zico_sizectrl", "swap", "swap_reg", "nwot", "synflow_all", "snip_all", "grasp_all", "grad_norm_all",
-           "fisher", "jacov", "zen", "l2_norm_all", "plain_all"]
+           "fisher", "jacov", "zen", "l2_norm_all", "plain_all",
+           "zico_t", "zico_s", "glass", "glass_t", "glass_s", "nwot_per_layer"]
 FLOORS = ["params", "flops"]
 PROXY_COST_H = 0.0   # a zero-cost proxy costs seconds per architecture; recorded as 0 on the GPU-hour axis, stated in the md
 
