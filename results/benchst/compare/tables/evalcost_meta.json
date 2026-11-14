@@ -1,0 +1,23 @@
+{
+ "metrla": {
+  "sigma_seed": 0.0034916029937815977,
+  "sigma_seed_n_arch": 5,
+  "n": 150,
+  "target": "test_mae",
+  "max_epochs": 20
+ },
+ "chengdu": {
+  "sigma_seed": 0.001793607678058571,
+  "sigma_seed_n_arch": 5,
+  "n": 150,
+  "target": "test_mae",
+  "max_epochs": 20
+ },
+ "shenzhen": {
+  "sigma_seed": 0.0014053566216508232,
+  "sigma_seed_n_arch": 5,
+  "n": 150,
+  "target": "test_mae",
+  "max_epochs": 20
+ }
+}

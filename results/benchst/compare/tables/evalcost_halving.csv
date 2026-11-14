@@ -1,0 +1,19 @@
+city,evaluator,kind,r0,eta,regret_top1,regret_best_of_5,pick_rank_pct,gpu_hours,rounds,dropped_top10_round1,regret_top1_sigma,regret_best_of_5_sigma
+metrla,sh_r1_eta2,successive halving,1,2,0.0,0.0,0.0,6.446166666666664,6,2,0.0,0.0
+metrla,sh_r1_eta3,successive halving,1,3,0.0,0.0,0.0,5.777111111111109,4,3,0.0,0.0
+metrla,sh_r2_eta2,successive halving,2,2,0.0,0.0,0.0,10.676194444444448,5,1,0.0,0.0
+metrla,sh_r2_eta3,successive halving,2,3,0.0,0.0,0.0,9.84755555555556,4,2,0.0,0.0
+metrla,sh_r3_eta2,successive halving,3,2,0.0,0.0,0.0,14.053111111111113,4,0,0.0,0.0
+metrla,sh_r3_eta3,successive halving,3,3,0.0,0.0,0.0,12.701583333333334,3,1,0.0,0.0
+chengdu,sh_r1_eta2,successive halving,1,2,0.0019208051546945049,0.0,1.342281879194631,3.9776666666666673,6,6,1.070917112026201,0.0
+chengdu,sh_r1_eta3,successive halving,1,3,0.002992274428112174,0.0,6.0402684563758395,3.3840833333333324,4,9,1.668299296840131,0.0
+chengdu,sh_r2_eta2,successive halving,2,2,0.002992274428112174,0.0,6.0402684563758395,6.696694444444445,5,5,1.668299296840131,0.0
+chengdu,sh_r2_eta3,successive halving,2,3,0.002992274428112174,0.0,6.0402684563758395,5.972138888888887,4,7,1.668299296840131,0.0
+chengdu,sh_r3_eta2,successive halving,3,2,0.002992274428112174,0.0,6.0402684563758395,8.552777777777784,4,1,1.668299296840131,0.0
+chengdu,sh_r3_eta3,successive halving,3,3,0.002992274428112174,0.0,6.0402684563758395,7.690972222222222,3,5,1.668299296840131,0.0
+shenzhen,sh_r1_eta2,successive halving,1,2,0.0,0.0,0.0,4.984333333333334,6,6,0.0,0.0
+shenzhen,sh_r1_eta3,successive halving,1,3,0.0,0.0,0.0,4.597666666666666,4,7,0.0,0.0
+shenzhen,sh_r2_eta2,successive halving,2,2,0.0,0.0,0.0,8.330250000000001,5,6,0.0,0.0
+shenzhen,sh_r2_eta3,successive halving,2,3,0.0,0.0,0.0,7.357555555555554,4,7,0.0,0.0
+shenzhen,sh_r3_eta2,successive halving,3,2,0.0,0.0,0.0,11.218805555555557,4,5,0.0,0.0
+shenzhen,sh_r3_eta3,successive halving,3,3,0.0,0.0,0.0,9.948305555555558,3,6,0.0,0.0
