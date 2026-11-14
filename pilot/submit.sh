@@ -31,9 +31,9 @@ case "$mode" in
   trainone) name=${JOB_NAME:-trainone}; extra=(--time=${TIME:-03:00:00} --output="$NAS_ROOT/logs/${JOB_NAME:-trainone}_${tag}_%j.log"); script=pilot/run_train_all.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,MAX_EPOCHS=${MAX_EPOCHS:-20},PATIENCE=${PATIENCE:-5},MIN_EPOCHS=${MIN_EPOCHS:-8},TRAIN_EXTRA=${TRAIN_EXTRA:-},SCORE_PROXIES=${SCORE_PROXIES:-0},SEED_SUBSET=${SEED_SUBSET:-0},LIMIT=${LIMIT:-}" ;;
   spatial) name=spatial; extra=(--time=${TIME:-02:00:00} --output="$NAS_ROOT/logs/spatial_${tag}_%j.log");            script=pilot/score_spatial.sbatch
-           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,MASK_ZEROS=${MASK_ZEROS:-0},SPATIAL_BASE=${SPATIAL_BASE:-}" ;;
+           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,MASK_ZEROS=${MASK_ZEROS:-0}" ;;   # SPATIAL_BASE is a comma list: ALL carries it; a listed value would be split
   proxies) name=proxies; extra=(--time=02:00:00 --output="$NAS_ROOT/logs/proxies_${tag}_%j.log");                    script=pilot/score_proxies.sbatch
-           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,EXTRA_ROOTS=${EXTRA_ROOTS:-},PROXIES=${PROXIES:-},MASK_ZEROS=${MASK_ZEROS:-0}" ;;
+           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,EXTRA_ROOTS=${EXTRA_ROOTS:-},MASK_ZEROS=${MASK_ZEROS:-0}" ;;   # PROXIES is a comma list: ALL carries it
   basicts) name=basicts; extra=(--time=02:00:00 --output="$NAS_ROOT/logs/basicts_${MODEL:-STID}_${tag}_%j.log");     script=pilot/basicts_stid.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,MODEL=${MODEL:-STID},CONFIG=${CONFIG:-}" ;;
   ablation) name=abl_$DATASET; extra=(--time=08:00:00 --output="$NAS_ROOT/logs/ablation_STID_${tag}_%j.log");   script=pilot/basicts_ablation.sbatch
