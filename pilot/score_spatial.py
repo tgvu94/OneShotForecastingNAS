@@ -6,6 +6,9 @@ Graph-blind archs never see A, so their S_spatial is 0 up to float noise (the bu
 
     python -m pilot.score_spatial --root results --base nwot,zico,grad_norm_all,snip_all --seeds 0,1,2
 (``--adj``, ``--perms``, ``--probe``, ``--v1`` and ``--out`` default to the root's files.)
+The five names of the ZiCo split and GLASS (zico_t, zico_s, glass, glass_t, glass_s) share one gradient pass per loss
+and per adjacency (extra.zico_glass_group).  ``--mask-zeros`` skips the raw-zero targets in every loss-based base, as
+score_proxies does under the benchst protocol; the stored record carries the flag.
 """
 from __future__ import annotations
 
@@ -39,6 +42,7 @@ BASES = {  # base proxy -> how to call it on a fresh wrapper copy (same code as 
     "snip_all": lambda w, x, t, b, d: extra.grad_group_all(w, x, t, loss_fn)["snip_all"],
     "zen": lambda w, x, t, b, d: extra.zen(w, x),
 }
+GROUP_BASES = ("zico_t", "zico_s", "glass", "glass_t", "glass_s")  # one call of extra.zico_glass_group serves all five
 
 
 def fork_commit():
@@ -48,17 +52,27 @@ def fork_commit():
         return None
 
 
-def score_under(wrapper, A: np.ndarray, base: str, x, target, batches, device, seed: int):
+def score_under(wrapper, A: np.ndarray, base: str, x, target, batches, device, seed: int, cache: dict | None = None, key=None):
     """Score one adjacency on a fresh copy.  The RNG is re-seeded right before the forward so that the dropout masks
     (the nets are scored in train mode, as in score_proxies) are identical under A and under every pi_j(A): the only
     thing that differs between the calls is the adjacency.  spatial_v1 did not do this and its controls showed a 1-3 %
-    "sensitivity" that was pure dropout noise."""
+    "sensitivity" that was pure dropout noise.
+    A base in GROUP_BASES is read from ``cache[key]`` when present; the first group base computes the whole group on
+    its own copy and stores it, so the five names cost one gradient pass per loss and adjacency."""
+    if base in GROUP_BASES and cache is not None and key in cache:
+        return cache[key][base]
     cp = wrapper.get_prunable_copy()
     if hasattr(cp.net, "graph_net"):
         cp.net.graph_net.set_adjacency(A)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    value, meta = BASES[base](cp, x, target, batches, device)
+    if base in GROUP_BASES:
+        group = {k: (float(v), m) for k, (v, m) in extra.zico_glass_group(cp, batches, loss_fn, device).items()}
+        if cache is not None:
+            cache[key] = group
+        value, meta = group[base]
+    else:
+        value, meta = BASES[base](cp, x, target, batches, device)
     del cp
     return float(value), meta
 
@@ -76,8 +90,16 @@ def main():
     ap.add_argument("--probe", default=None, help="default: <root>/data/<dataset>_probe_batch.pt")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--mask-zeros", action="store_true", help="loss-based bases skip the targets that are 0 in the raw data (benchst protocol)")
     args = ap.parse_args()
     root = Root.from_args(args)
+    if args.mask_zeros:
+        from pilot.data import get_cfg, zero_code_for
+        from pilot.datasets import benchmark_for
+        from pilot.proxies.wrapper import set_zero_code
+        zc, share = zero_code_for(get_cfg(benchmark_for(root.dataset, root.horizon)))
+        set_zero_code(zc)
+        print(f"mask-zeros: {share:.4f} of the raw entries are 0; loss-based bases skip them")
     args.archs, args.adj, args.v1 = args.archs or root.archs_jsonl, args.adj or root.adj, args.v1 or root.proxies_v1
     args.out, args.probe = args.out or root.spatial_v2, args.probe or root.probe
     args.perms = [str(p) for p in (args.perms or root.adj_perms())]
@@ -85,9 +107,9 @@ def main():
         raise SystemExit(f"no permuted adjacencies for {root} (python -m pilot.permute_adj --root {root.dir})")
 
     bases = [b.strip() for b in args.base.split(",") if b.strip()]
-    unknown = [b for b in bases if b not in BASES]
+    unknown = [b for b in bases if b not in BASES and b not in GROUP_BASES]
     if unknown:
-        raise SystemExit(f"unknown base proxies {unknown}; known {sorted(BASES)}")
+        raise SystemExit(f"unknown base proxies {unknown}; known {sorted(BASES) + list(GROUP_BASES)}")
     seeds = [int(s) for s in args.seeds.split(",") if s.strip()]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     A = load_adj(args.adj)
@@ -113,7 +135,7 @@ def main():
         rec = json.load(open(path)) if path.exists() and not args.force else {
             "arch_id": aid, "space": g["space"], "version": SPATIAL_VERSION, "graph_family": graph_family(g), "bases": {}, "errors": {}}
         rec.update({"perm_files": perm_files, "perm_sha1": perm_sha1, "probe_batch_sha1": probe_sha1, "fork_commit": commit,
-                    "torch": torch.__version__, "updated": _dt.datetime.now().isoformat(timespec="seconds")})
+                    "mask_zeros": bool(args.mask_zeros), "torch": torch.__version__, "updated": _dt.datetime.now().isoformat(timespec="seconds")})
         v1 = json.load(open(Path(args.v1) / f"{aid}.json")) if (Path(args.v1) / f"{aid}.json").exists() else {"scores": {}}
         t0 = time.time()
         for seed in seeds:
@@ -121,14 +143,15 @@ def main():
             if not todo:
                 continue
             seed_everything(seed, deterministic=True)
+            cache: dict = {}   # (adjacency key) -> the ZiCo/GLASS group of this arch and seed
             net = build_discrete_net(g, dims, adjacency=A).to(device)
             wrapper = ProxyWrapper(net, {"x_future": b0["x_future"], "loc": b0["loc"], "scale": b0["scale"]}).to(device)
             for base in todo:
                 br = rec["bases"].setdefault(base, {"A": {}, "A_v1": {}, "perm": {}, "perm_mean": {}, "perm_std": {},
                                                     "S_spatial": {}, "z_spatial": {}, "meta": {}})
                 try:
-                    vA, mA = score_under(wrapper, A, base, x, target, batches, device, seed)
-                    vals = [score_under(wrapper, P, base, x, target, batches, device, seed)[0] for P in perms]
+                    vA, mA = score_under(wrapper, A, base, x, target, batches, device, seed, cache, "A")
+                    vals = [score_under(wrapper, P, base, x, target, batches, device, seed, cache, j)[0] for j, P in enumerate(perms)]
                     mean_j, std_j = statistics.mean(vals), statistics.pstdev(vals)
                     br["A"][str(seed)] = vA
                     br["A_v1"][str(seed)] = v1["scores"].get(base, {}).get(str(seed))

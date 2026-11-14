@@ -3,12 +3,14 @@
 # ROOT / DATASET / HORIZON come from the environment (pilot/submit.sh exports them); defaults = PEMS04 h12.
 source "$SLURM_SUBMIT_DIR/pilot/env.sh"     # submit.sh submits from the repo root
 ROOT="${ROOT:-results/stzero/pems04_h12}"; DATASET="${DATASET:-pems04}"; HORIZON="${HORIZON:-12}"
+BASE="${SPATIAL_BASE:-nwot,zico,grad_norm_all,snip_all}"            # SPATIAL_BASE adds e.g. the ZiCo split and GLASS
+MASKARG=(); [ "${MASK_ZEROS:-0}" = 1 ] && MASKARG=(--mask-zeros)    # MASK_ZEROS=1: benchst protocol, as in score_proxies
 setting=(--root "$ROOT" --dataset "$DATASET" --horizon "$HORIZON")
 tag="${DATASET}_h${HORIZON}"
 echo "spatial job $SLURM_JOB_ID on $(hostname) root $ROOT ($tag) start $(date -Is)"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 python -m pilot.permute_adj "${setting[@]}" --k 8 --seed 0 2>&1 | tee -a "logs/perm_${tag}.log"
-python -m pilot.score_spatial "${setting[@]}" --base nwot,zico,grad_norm_all,snip_all --seeds 0,1,2 2>&1 | tee -a "logs/spatial_${tag}.log" | grep -v "Warning\|warn\|W0[0-9]\|coefficients\|_VF"
+python -m pilot.score_spatial "${setting[@]}" --base "$BASE" --seeds 0,1,2 "${MASKARG[@]}" 2>&1 | tee -a "logs/spatial_${tag}.log" | grep -v "Warning\|warn\|W0[0-9]\|coefficients\|_VF"
 if [ -d "$NAS_ROOT/TFAS" ]; then
   python -m pilot.tfas_probe "${setting[@]}" --tfas "$NAS_ROOT/TFAS" --seeds 0,1,2 2>&1 | tee -a "logs/tfas_${tag}.log" | grep -v "Warning\|warn\|W0[0-9]\|coefficients\|_VF" | tail -3
 fi
