@@ -11,6 +11,8 @@
     python -m pilot.evalscreen operator_traits      # a predictor on operator traits, city and operator family held out together
     python -m pilot.evalscreen label_share          # a sparse (architecture, city) label matrix shared by the cities
     python -m pilot.evalscreen variance             # the share of the label variance of each design axis, against the seed variance
+    python -m pilot.evalscreen fresh_list --fresh results/freshlist/pemsbay_h12 --roots <source roots>   # a second list at a city: predictor,
+                                                    # search-space rules, design axes and the top of the list; nothing is fit on it
     out = results/evalscreen/compare/tables
 
 No training, no forward pass, no GPU.  Reads <root>/tables/joined.csv, <root>/train/<id>/seed*/metrics.json and
@@ -125,6 +127,13 @@ class City:
         return np.array([float(ser[a]) if a in ser.index else np.nan for a in self.ids])
 
 
+def city_key(r: Root) -> str:
+    """The key of a root in every table: the dataset for a benchst root (so the stored tables keep their names), else
+    <experiment>/<dataset>, so that two roots of one city (a second list) do not collide."""
+    exp = r.dir.parent.name
+    return r.dataset if exp == "benchst" else f"{exp}/{r.dataset}"
+
+
 def load_cities(roots: list[Root]) -> dict:
     out = {}
     for r in roots:
@@ -132,7 +141,8 @@ def load_cities(roots: list[Root]) -> dict:
         val = [curves[a].val_mae.values.astype(float) for a in df.arch_id]
         trn = [curves[a].train_loss.values.astype(float) for a in df.arch_id]
         cumh = [np.concatenate([[0.0], np.cumsum(curves[a].seconds.values.astype(float))]) / 3600 for a in df.arch_id]
-        out[r.dataset] = City(r.dataset, df, val, trn, cumh, {**aux["meta"], **cost})
+        k = city_key(r)
+        out[k] = City(k, df, val, trn, cumh, {**aux["meta"], **cost, "dataset": r.dataset, "experiment": r.dir.parent.name})
     return out
 
 
@@ -298,7 +308,7 @@ def proxy_matrix(c: City, names: list) -> np.ndarray:
 
 def arch_matrices(roots: list[Root], cities: dict) -> dict:
     """The operator-count encoding of pilot.predictor, aligned to the city lists."""
-    raw = {r.dataset: pr.load_city(r) for r in roots}
+    raw = {city_key(r): pr.load_city(r) for r in roots}
     cols = sorted(set().union(*[set(d.columns) - pr.META_COLS for d in raw.values()]) - {c for d in raw.values() for c in d.columns if c.startswith("px_")})
     out = {}
     for k, d in raw.items():
@@ -932,11 +942,11 @@ SHARED_COLS = ["enc_n_edges", "dec_n_edges", "flat_n_edges", "graph_n_edges", "h
 def trait_matrices(roots: list[Root], cities: dict) -> tuple[dict, dict]:
     """Per city: the trait counts per cell with the shared columns, and the same next to the operator counts."""
     from pilot.genotype import load_archs
-    raw = {r.dataset: pr.load_city(r).set_index("arch_id") for r in roots}; arch = arch_matrices(roots, cities)
+    raw = {city_key(r): pr.load_city(r).set_index("arch_id") for r in roots}; arch = arch_matrices(roots, cities)
     keys = sorted({f"{cell}_{t}" for cell, tab in (("enc", SEQ_TRAITS), ("dec", SEQ_TRAITS), ("flat", FLAT_TRAITS), ("graph", GRAPH_TRAITS)) for ts in tab.values() for t in ts})
     traits, both = {}, {}
     for r in roots:
-        c = cities[r.dataset]; geno = {a["arch_id"]: a["genotype"] for a in load_archs(r.archs_jsonl)}; rows = []
+        key = city_key(r); c = cities[key]; geno = {a["arch_id"]: a["genotype"] for a in load_archs(r.archs_jsonl)}; rows = []
         for aid in c.ids:
             g = geno[aid]; f = dict.fromkeys(keys, 0)
             for cell, edges, tab in (("enc", g["seq"]["encoder"], SEQ_TRAITS), ("dec", g["seq"]["decoder"], SEQ_TRAITS), ("flat", g["flat"]["cell"], FLAT_TRAITS),
@@ -946,9 +956,9 @@ def trait_matrices(roots: list[Root], cities: dict) -> tuple[dict, dict]:
                         for t in tab[op]:
                             f[f"{cell}_{t}"] += 1
             rows.append([f[k] for k in keys])
-        d = raw[r.dataset]
+        d = raw[key]
         shared = np.column_stack([d.loc[c.ids, col].values.astype(float) if col in d else np.zeros(c.n) for col in SHARED_COLS])
-        traits[r.dataset] = np.c_[np.array(rows, dtype=float), shared]; both[r.dataset] = np.c_[np.array(rows, dtype=float), arch[r.dataset]]
+        traits[key] = np.c_[np.array(rows, dtype=float), shared]; both[key] = np.c_[np.array(rows, dtype=float), arch[key]]
     return traits, both
 
 
@@ -1090,26 +1100,31 @@ def _adj_r2(c: City, axes: list, rows: np.ndarray) -> float:
     return 1 - (ss_res / max(n - p - 1, 1)) / (ss_tot / (n - 1)) if ss_tot > 0 else np.nan
 
 
+def variance_rows(name: str, c: City, seed: int = 0) -> list[dict]:
+    """The share of the label variance of each design axis at one city, over all heads and with the head fixed to MAE."""
+    rows = []; rng = np.random.default_rng(seed)
+    for scope, idx in (("all heads", np.arange(c.n)), ("MAE head only", np.where(c.head == "mae")[0])):
+        axes = [a for a in AXES if not (scope != "all heads" and a == "head")]
+        var = float(np.var(c.y[idx], ddof=1)); full = _adj_r2(c, axes, idx); seed_share = c.sigma ** 2 / var
+        rows.append({"city": name, "scope": scope, "axis": "(all axes, additive)", "n": len(idx), "marginal_r2": full, "unique_r2": np.nan, "ci_lo": np.nan, "ci_hi": np.nan,
+                     "axis_var_over_seed_var": full / seed_share, "best_level": "", "best_level_gain_sigma": np.nan, "level_range_sigma": np.nan})
+        rows.append({"city": name, "scope": scope, "axis": "(seed)", "n": len(idx), "marginal_r2": seed_share, "unique_r2": np.nan, "ci_lo": np.nan, "ci_hi": np.nan,
+                     "axis_var_over_seed_var": 1.0, "best_level": "", "best_level_gain_sigma": np.nan, "level_range_sigma": np.nan})
+        for a in axes:
+            m = _adj_r2(c, [a], idx); u = full - _adj_r2(c, [x for x in axes if x != a], idx)
+            boots = [_adj_r2(c, [a], rng.choice(idx, len(idx))) for _ in range(300)]
+            if a == "log_params":
+                best, gain, rge = "", np.nan, np.nan
+            else:
+                g = pd.Series(c.y[idx]).groupby(c.df[a].values[idx]).agg(["mean", "count"]); g = g[g["count"] >= 5]
+                best = str(g["mean"].idxmin()); gain = float((c.y[idx].mean() - g["mean"].min()) / c.sigma); rge = float((g["mean"].max() - g["mean"].min()) / c.sigma)
+            rows.append({"city": name, "scope": scope, "axis": a, "n": len(idx), "marginal_r2": m, "unique_r2": u, "ci_lo": float(np.nanpercentile(boots, 2.5)), "ci_hi": float(np.nanpercentile(boots, 97.5)),
+                         "axis_var_over_seed_var": m / seed_share, "best_level": best, "best_level_gain_sigma": gain, "level_range_sigma": rge})
+    return rows
+
+
 def run_variance(roots: list[Root], cities: dict, out: Path) -> None:
-    rows = []; rng = np.random.default_rng(0)
-    for name, c in cities.items():
-        for scope, idx in (("all heads", np.arange(c.n)), ("MAE head only", np.where(c.head == "mae")[0])):
-            axes = [a for a in AXES if not (scope != "all heads" and a == "head")]
-            var = float(np.var(c.y[idx], ddof=1)); full = _adj_r2(c, axes, idx); seed_share = c.sigma ** 2 / var
-            rows.append({"city": name, "scope": scope, "axis": "(all axes, additive)", "n": len(idx), "marginal_r2": full, "unique_r2": np.nan, "ci_lo": np.nan, "ci_hi": np.nan,
-                         "axis_var_over_seed_var": full / seed_share, "best_level": "", "best_level_gain_sigma": np.nan, "level_range_sigma": np.nan})
-            rows.append({"city": name, "scope": scope, "axis": "(seed)", "n": len(idx), "marginal_r2": seed_share, "unique_r2": np.nan, "ci_lo": np.nan, "ci_hi": np.nan,
-                         "axis_var_over_seed_var": 1.0, "best_level": "", "best_level_gain_sigma": np.nan, "level_range_sigma": np.nan})
-            for a in axes:
-                m = _adj_r2(c, [a], idx); u = full - _adj_r2(c, [x for x in axes if x != a], idx)
-                boots = [_adj_r2(c, [a], rng.choice(idx, len(idx))) for _ in range(300)]
-                if a == "log_params":
-                    best, gain, rge = "", np.nan, np.nan
-                else:
-                    g = pd.Series(c.y[idx]).groupby(c.df[a].values[idx]).agg(["mean", "count"]); g = g[g["count"] >= 5]
-                    best = str(g["mean"].idxmin()); gain = float((c.y[idx].mean() - g["mean"].min()) / c.sigma); rge = float((g["mean"].max() - g["mean"].min()) / c.sigma)
-                rows.append({"city": name, "scope": scope, "axis": a, "n": len(idx), "marginal_r2": m, "unique_r2": u, "ci_lo": float(np.nanpercentile(boots, 2.5)), "ci_hi": float(np.nanpercentile(boots, 97.5)),
-                             "axis_var_over_seed_var": m / seed_share, "best_level": best, "best_level_gain_sigma": gain, "level_range_sigma": rge})
+    rows = [r for name, c in cities.items() for r in variance_rows(name, c)]
     t = pd.DataFrame(rows); t.to_csv(out / "variance_axes.csv", index=False)
     doc = ["# evalscreen variance: which design axis moves the label", "",
            "Label = test MAE, seed 0. marginal_r2 = adjusted R2 of a one-axis model (the share of the label variance that the axis explains alone), with a bootstrap CI; unique_r2 = the "
@@ -1126,14 +1141,128 @@ def run_variance(roots: list[Root], cities: dict, out: Path) -> None:
     print(t[t.best_level != ""].pivot(index=["scope", "axis"], columns="city", values="best_level").to_string())
 
 
+# ---------------------------------------------------------------- fresh_list: a second list at a city of the benchmark
+FROZEN_SINGLE_RULE = ["decoder=linear", "seq_family=gru", "seq_family=tcn"]      # candidate E, the same in every rotation at commit 2403fc6
+FRESH_ROOT = "results/freshlist/pemsbay_h12"
+
+
+def fit_on(train: list, cities: dict, feats: dict, kind: str, Xte: np.ndarray) -> np.ndarray:
+    Xtr = np.vstack([feats[k] for k in train]); ytr = np.concatenate([rank_target(cities[k]) for k in train])
+    return pr.fit_predict("ridge", Xtr, ytr, Xte) if kind == "ridge" else np.mean([pr.fit_predict("gbr", Xtr, ytr, Xte, s) for s in FIT_SEEDS], axis=0)
+
+
+def run_fresh_list(roots: list[Root], cities: dict, out: Path, fresh_root: Root) -> None:
+    """The four questions of the fresh list.  Nothing is fit on the fresh labels.  F1: a predictor fit on the sources ranks the
+    fresh list (fit 'other cities' = no source of the same city; fit 'all sources' = with the shared list of the same city).
+    F2: the frozen search-space rules.  F3: the variance by design axis against the shared list of the same city.
+    F4: the best of the fresh list against the best of the shared list."""
+    fk = city_key(fresh_root); assert fk not in cities, f"{fk} is among the source roots"
+    f = load_cities([fresh_root])[fk]; allc = {**cities, fk: f}; all_roots = roots + [fresh_root]
+    same = [k for k, c in cities.items() if c.meta["dataset"] == f.meta["dataset"]]; other = [k for k in cities if k not in same]
+    if same:                                                              # sigma_seed is a property of the city and the pipeline, not of the list
+        f.meta["sigma_seed_own"] = f.sigma; f.sigma = cities[same[0]].sigma; f.meta["sigma_seed"] = f.sigma
+    overlap = len(set(f.ids) & set().union(*[set(c.ids) for c in cities.values()]))
+    arch = arch_matrices(all_roots, allc); px = {k: np.c_[proxy_matrix(c, PROXY_NAMES), head_onehot(c)] for k, c in allc.items()}
+    sink = Sink(); f1 = []
+    fits = [("other cities", other)] + ([("all sources", other + same)] if same else [])
+    for fit_name, train in fits:
+        for label, feats, kind in (("gbr_operator_counts", arch, "gbr"), ("ridge_operator_counts", arch, "ridge"), ("gbr_proxies_head", px, "gbr")):
+            p = fit_on(train, allc, feats, kind, feats[fk]); name = f"{label}, fit on {fit_name}"
+            sink.add(f, name, "predictor on the sources", score_eval(p), p)
+            hb = head_block(f, p); o = order_of(p)
+            f1.append({"model": label, "fit": fit_name, "n_train": int(sum(allc[k].n for k in train)), "rho_all": hb["rho_all"], "rho_within_head": hb["rho_within_head"],
+                       "ci_lo": hb["within_ci_lo"], "ci_hi": hb["within_ci_hi"], "regret_top1_sigma": float((f.y[o[0]] - f.y.min()) / f.sigma),
+                       "regret_best_of_5_sigma": float((f.y[o[:5]].min() - f.y.min()) / f.sigma)})
+    f1 = pd.DataFrame(f1)
+    full = np.arange(f.n)                                                 # same-city evaluators on the fresh list, for reference
+    for p in ("zico", "zico_t", "glass", "zico_sizectrl", "params"):
+        if p in f.df:
+            sc = f.df[p].values.astype(float); sink.add(f, p, "floor" if p == "params" else "zero-cost proxy", score_eval(sc), sc)
+    for k in (1, 2, 3, 5):
+        sc = -f.val_at(k); sink.add(f, f"early_val_k{k}", "brief training", score_eval(sc, k), sc)
+    sink.add(f, "sh_r1_eta3", "successive halving", halving_eval(1, 3))
+    if "zico_sizectrl" in f.df:
+        sink.add(f, "zico_sizectrl_half_then_k5", "proxy filter", filter_eval(f.df["zico_sizectrl"].values.astype(float), 5))
+    sink.add(f, "random", "floor", random_eval(), expected_random=True)
+    ct, _, ht = sink.frames()
+    # F2: the search-space rules
+    rng = np.random.default_rng(0); best = f.y.min(); top15 = np.argsort(f.y)[:15]; f2 = []
+    r10 = float(np.mean([f.y[rng.choice(f.n, 10, replace=False)].min() for _ in range(5000)]) - best) / f.sigma
+    rules = {"single rule, frozen": (FROZEN_SINGLE_RULE, False)}
+    if other:
+        tr = {k: cities[k] for k in other}
+        rules["single rule, learned on the other cities, keep half"] = (learn_cut(tr, 0.5, False), False)
+        rules["pair rule, learned on the other cities, keep half"] = (learn_cut(tr, 0.5, True), True)
+    for rn, (rem, pairs) in rules.items():
+        masks = choice_masks(f, pairs); kept = np.ones(f.n, bool)
+        for key in rem:
+            kept &= ~masks.get(key, np.zeros(f.n, bool))
+        idx = np.where(kept)[0]
+        r5 = float(np.mean([f.y[rng.choice(idx, min(5, len(idx)), replace=False)].min() for _ in range(5000)]) - best) / f.sigma if len(idx) else np.nan
+        f2.append({"rule": rn, "kept_share": float(kept.mean()), "top15_kept": int(kept[top15].sum()), "best_kept": bool(kept[top15[0]]), "random5_inside_sigma": r5,
+                   "random10_full_sigma": r10, "choices_removed": "; ".join(rem)})
+    f2 = pd.DataFrame(f2)
+    # F3: the design axes on both lists
+    f3 = pd.DataFrame(variance_rows(fk, f) + ([r for k in same for r in variance_rows(k, cities[k])]))
+    ax = f3[(f3.scope == "all heads") & f3.unique_r2.notna()]
+    def first_two(k):
+        return list(ax[ax.city == k].sort_values("unique_r2", ascending=False).axis[:2])
+    lev = f3[(f3.scope == "all heads") & (f3.best_level != "")].pivot(index="axis", columns="city", values="best_level")
+    # F4: the top of the two lists
+    f4 = []
+    if same:
+        sh = cities[same[0]]; ys, yf = np.sort(sh.y), np.sort(f.y)
+        for label, a, b in (("best", ys[0], yf[0]), ("mean of the best 5", ys[:5].mean(), yf[:5].mean()), ("mean of the best 15", ys[:15].mean(), yf[:15].mean()), ("median", np.median(ys), np.median(yf))):
+            f4.append({"quantity": label, "shared_list": float(a), "fresh_list": float(b), "fresh_minus_shared_sigma": float((b - a) / f.sigma)})
+        f4.append({"quantity": "list spread, std over sigma_seed", "shared_list": float(np.std(sh.y, ddof=1) / f.sigma), "fresh_list": float(np.std(f.y, ddof=1) / f.sigma), "fresh_minus_shared_sigma": np.nan})
+    f4 = pd.DataFrame(f4)
+    # verdict
+    v = []
+    a = f1[(f1.model == "gbr_operator_counts") & (f1.fit == "other cities")]
+    if len(a):
+        a = a.iloc[0]; v.append({"question": "F1 predictor on new architectures", "value": f"rho inside the heads {a.rho_within_head:.2f}; best of 5 picks {a.regret_best_of_5_sigma:.2f} sigma",
+                                 "verdict": "pass" if (a.rho_within_head >= 0.5 and a.regret_best_of_5_sigma <= 1) else ("fail" if a.rho_within_head < 0.3 else "between the lines")})
+    s = f2[f2.rule == "single rule, frozen"].iloc[0]
+    v.append({"question": "F2 search-space rule on new architectures", "value": f"keeps {s.kept_share:.2f} of the list and {s.top15_kept} of the top 15",
+              "verdict": "pass" if (s.kept_share <= 0.5 and s.top15_kept >= 13) else ("fail" if s.top15_kept <= 11 else "between the lines")})
+    if same:
+        t2f, t2s = first_two(fk), first_two(same[0]); agree = int((lev[fk] == lev[same[0]]).sum()); n_ax = int(len(lev))
+        ok = set(t2f) == {"head", "decoder"} and set(t2s) == {"head", "decoder"} and agree >= 4
+        bad = t2f[0] != t2s[0] or (n_ax - agree) >= 2
+        v.append({"question": "F3 the same design axes", "value": f"first two axes fresh {t2f}, shared {t2s}; best level equal on {agree} of {n_ax} axes", "verdict": "pass" if ok else ("fail" if bad else "between the lines")})
+    verdict = pd.DataFrame(v)
+    tag = fk.replace("/", "_")
+    for n_, x in (("predictor", f1), ("rules", f2), ("axes", f3), ("top", f4), ("cost", ct), ("head", ht), ("verdict", verdict)):
+        x.to_csv(out / f"fresh_list_{tag}_{n_}.csv", index=False)
+    doc = [f"# evalscreen fresh_list: {fk}, a second list at a city of the benchmark", "",
+           f"Fresh list: N = {f.n}, {overlap} architectures in common with the source lists. Sources: {list(cities)}; the same city among them: {same or 'none'}. "
+           f"sigma_seed = {f.sigma:.4f}" + (f" (of the shared list of the city; the fresh list's own value from its seed runs is {f.meta['sigma_seed_own']:.4f})" if same else "") + ". "
+           "Nothing is fit on the fresh labels. F1: pass = rho inside the heads >= 0.5 for boosting on operator counts fit on the other cities and its best of five picks within one "
+           "sigma_seed; fail = rho below 0.3. F2: pass = the frozen single rule keeps at most half of the list and 13 or more of the top 15; fail = it removes 4 or more of the top 15. "
+           "F3: pass = head and decoder are the two axes with the highest unique share on both lists and the best level is equal on four axes or more. F4 is a measurement.", ""]
+    doc += [ec.md(verdict, list(verdict.columns), "Verdict"), ec.md(f1, list(f1.columns), "F1: predictors fit on the sources, read on the fresh list"),
+            ec.md(f2, list(f2.columns), "F2: the search-space rules on the fresh list"), ec.md(f4, list(f4.columns), "F4: the top of the two lists") if len(f4) else ""]
+    for k in [fk] + same:
+        doc.append(ec.md(f3[(f3.city == k) & (f3.scope == "all heads")], ["axis", "n", "marginal_r2", "ci_lo", "ci_hi", "unique_r2", "axis_var_over_seed_var", "best_level", "best_level_gain_sigma"], f"F3: design axes, {k}, all heads"))
+    doc += [ec.md(ct.sort_values(["sub_pct_median", "pct_sigma"], na_position="last"), COST_COLS, "Cost to one sigma on the fresh list", MEASURE_NOTE),
+            ec.md(ht.sort_values("rho_within_head", ascending=False), HEAD_COLS, "Head control on the fresh list")]
+    (out / f"evalscreen_fresh_list_{tag}.md").write_text("\n".join(doc))
+    pd.set_option("display.width", 250); pd.set_option("display.max_colwidth", 120)
+    for x in (verdict, f1, f2.drop(columns=["choices_removed"]), f4):
+        print(x.to_string(index=False, float_format=lambda z: f"{z:.3f}")); print()
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("what", choices=["base", "proxy_combination", "curve_rank", "transfer", "halving_prior", "active_labels", "space_cut", "route", "operator_traits", "label_share", "variance"])
+    ap.add_argument("what", choices=["base", "proxy_combination", "curve_rank", "transfer", "halving_prior", "active_labels", "space_cut", "route", "operator_traits", "label_share", "variance", "fresh_list"])
     ap.add_argument("--roots", nargs="+", default=ROOTS)
     ap.add_argument("--out", default=OUT)
+    ap.add_argument("--fresh", default=FRESH_ROOT, help="fresh_list: the root of the second list; --roots are then the source roots")
     a = ap.parse_args()
     roots = [Root(r) for r in a.roots]; out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     cities = load_cities(roots)
+    if a.what == "fresh_list":
+        return run_fresh_list(roots, cities, out, Root(a.fresh))
     {"base": run_base, "proxy_combination": run_proxy_combination, "curve_rank": run_curve_rank, "transfer": run_transfer, "halving_prior": run_halving_prior, "active_labels": run_active_labels,
      "space_cut": run_space_cut, "route": run_route, "operator_traits": run_operator_traits, "label_share": run_label_share, "variance": run_variance}[a.what](roots, cities, out)
 

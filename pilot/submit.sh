@@ -17,7 +17,9 @@
 # Cluster: the resource flags come from $CC_CLUSTER.  Default (Nibi, Fir, Rorqual): one 3g.40gb slice of an H100, 8 CPUs, 32 GB,
 #   account def-rwpazzi_gpu.  trillium: one whole H100 (no slices there; 24 cores and the memory share come with the card),
 #   account def-rwpazzi; Trillium refuses --cpus-per-task, --mem and the slice string.  Submit there from the GPU login node, with
-#   the clone in scratch.  A root trained on another unit than the Nibi slice carries its cost ratio in <root>/COST.json (pilot.evalcost).
+#   the clone in scratch.  narval: one 3g.20gb slice of an A100 40 GB (no H100 there), 8 CPUs, 32 GB, account def-rwpazzi_gpu;
+#   NARVAL_GPU=a100 asks for the whole card.  A root trained on another unit than the Nibi slice carries its cost ratio in
+#   <root>/COST.json (pilot.evalcost).
 # TEST_ONLY=1 passes --test-only to sbatch: the scheduler checks the request and submits nothing.
 # AFTER=<jobid> adds --dependency=afterany:<jobid>; a dependent job waits, so only *running* jobs count toward the cap of 5.
 # CAP (default 5) is the total number of queued or running jobs allowed; ARRAY_MAX (default 3) throttles the train array.
@@ -31,6 +33,7 @@ ROOT="${2:-results/stzero/pems04_h12}"; DATASET="${3:-pems04}"; HORIZON="${4:-12
 tag="${DATASET}h${HORIZON}"
 case "${CC_CLUSTER:-}" in
   trillium) res=(--account=def-rwpazzi --nodes=1 --gpus-per-node=1) ;;
+  narval)   res=(--cpus-per-task=8 --mem=32G --account=def-rwpazzi_gpu --gpus=${NARVAL_GPU:-a100_3g.20gb}:1) ;;
   *)        res=(--cpus-per-task=8 --mem=32G --account=def-rwpazzi_gpu --gres=gpu:nvidia_h100_80gb_hbm3_3g.40gb:1) ;;
 esac
 common=("${res[@]}" --export="ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON")   # --export stays last: the modes replace common[-1]
