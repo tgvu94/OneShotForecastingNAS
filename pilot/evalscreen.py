@@ -10,6 +10,7 @@
     python -m pilot.evalscreen route                # probe trainings choose the recipe (reads the base and halving_prior tables)
     python -m pilot.evalscreen operator_traits      # a predictor on operator traits, city and operator family held out together
     python -m pilot.evalscreen label_share          # a sparse (architecture, city) label matrix shared by the cities
+    python -m pilot.evalscreen variance             # the share of the label variance of each design axis, against the seed variance
     out = results/evalscreen/compare/tables
 
 No training, no forward pass, no GPU.  Reads <root>/tables/joined.csv, <root>/train/<id>/seed*/metrics.json and
@@ -1067,16 +1068,74 @@ def run_label_share(roots: list[Root], cities: dict, out: Path) -> None:
     print(t[(t.b == 5) & (t.design == "independent") & t.model.isin(["own", "pooled_own", "observed_mean", "random"])].pivot_table(index=["n", "model"], columns="city", values="share").to_string(float_format=lambda x: f"{x:.2f}"))
 
 
+# ---------------------------------------------------------------- variance: which design axis moves the label
+AXES = ["head", "decoder", "seq_family", "graph_family", "flat_family", "log_params"]
+
+
+def _design(c: City, axes: list, rows: np.ndarray) -> np.ndarray:
+    cols = [np.ones(len(rows))]
+    for a in axes:
+        if a == "log_params":
+            cols.append(zscore(np.log(c.df["params"].values.astype(float)))[rows])
+        else:
+            v = c.df[a].values[rows]
+            for lev in sorted(set(c.df[a].values))[1:]:
+                cols.append((v == lev).astype(float))
+    return np.column_stack(cols)
+
+
+def _adj_r2(c: City, axes: list, rows: np.ndarray) -> float:
+    y = c.y[rows]; X = _design(c, axes, rows); beta = np.linalg.lstsq(X, y, rcond=None)[0]
+    ss_res = float(np.sum((y - X @ beta) ** 2)); ss_tot = float(np.sum((y - y.mean()) ** 2)); n, p = len(y), np.linalg.matrix_rank(X) - 1
+    return 1 - (ss_res / max(n - p - 1, 1)) / (ss_tot / (n - 1)) if ss_tot > 0 else np.nan
+
+
+def run_variance(roots: list[Root], cities: dict, out: Path) -> None:
+    rows = []; rng = np.random.default_rng(0)
+    for name, c in cities.items():
+        for scope, idx in (("all heads", np.arange(c.n)), ("MAE head only", np.where(c.head == "mae")[0])):
+            axes = [a for a in AXES if not (scope != "all heads" and a == "head")]
+            var = float(np.var(c.y[idx], ddof=1)); full = _adj_r2(c, axes, idx); seed_share = c.sigma ** 2 / var
+            rows.append({"city": name, "scope": scope, "axis": "(all axes, additive)", "n": len(idx), "marginal_r2": full, "unique_r2": np.nan, "ci_lo": np.nan, "ci_hi": np.nan,
+                         "axis_var_over_seed_var": full / seed_share, "best_level": "", "best_level_gain_sigma": np.nan, "level_range_sigma": np.nan})
+            rows.append({"city": name, "scope": scope, "axis": "(seed)", "n": len(idx), "marginal_r2": seed_share, "unique_r2": np.nan, "ci_lo": np.nan, "ci_hi": np.nan,
+                         "axis_var_over_seed_var": 1.0, "best_level": "", "best_level_gain_sigma": np.nan, "level_range_sigma": np.nan})
+            for a in axes:
+                m = _adj_r2(c, [a], idx); u = full - _adj_r2(c, [x for x in axes if x != a], idx)
+                boots = [_adj_r2(c, [a], rng.choice(idx, len(idx))) for _ in range(300)]
+                if a == "log_params":
+                    best, gain, rge = "", np.nan, np.nan
+                else:
+                    g = pd.Series(c.y[idx]).groupby(c.df[a].values[idx]).agg(["mean", "count"]); g = g[g["count"] >= 5]
+                    best = str(g["mean"].idxmin()); gain = float((c.y[idx].mean() - g["mean"].min()) / c.sigma); rge = float((g["mean"].max() - g["mean"].min()) / c.sigma)
+                rows.append({"city": name, "scope": scope, "axis": a, "n": len(idx), "marginal_r2": m, "unique_r2": u, "ci_lo": float(np.nanpercentile(boots, 2.5)), "ci_hi": float(np.nanpercentile(boots, 97.5)),
+                             "axis_var_over_seed_var": m / seed_share, "best_level": best, "best_level_gain_sigma": gain, "level_range_sigma": rge})
+    t = pd.DataFrame(rows); t.to_csv(out / "variance_axes.csv", index=False)
+    doc = ["# evalscreen variance: which design axis moves the label", "",
+           "Label = test MAE, seed 0. marginal_r2 = adjusted R2 of a one-axis model (the share of the label variance that the axis explains alone), with a bootstrap CI; unique_r2 = the "
+           "adjusted R2 of the additive model of all axes minus that of the model without the axis. (seed) = sigma_seed squared over the label variance. axis_var_over_seed_var = "
+           "marginal_r2 over the seed share; the rule of the map gives an axis a search budget only above 1. best_level_gain_sigma = the mean of the list minus the mean of the best level of "
+           "the axis, in sigma_seed; level_range_sigma = worst level mean minus best level mean (levels with 5 architectures or more). 'MAE head only' repeats the analysis with the head fixed.", ""]
+    for name in cities:
+        for scope in ("all heads", "MAE head only"):
+            doc.append(ec.md(t[(t.city == name) & (t.scope == scope)], ["axis", "n", "marginal_r2", "ci_lo", "ci_hi", "unique_r2", "axis_var_over_seed_var", "best_level", "best_level_gain_sigma", "level_range_sigma"], f"{name}, {scope}"))
+    (out / "evalscreen_variance.md").write_text("\n".join(doc))
+    pd.set_option("display.width", 250); pd.set_option("display.max_rows", 300)
+    for col in ("marginal_r2", "unique_r2", "axis_var_over_seed_var", "best_level_gain_sigma"):
+        print("==", col); print(t.pivot_table(index=["scope", "axis"], columns="city", values=col, sort=False).to_string(float_format=lambda x: f"{x:.2f}"))
+    print(t[t.best_level != ""].pivot(index=["scope", "axis"], columns="city", values="best_level").to_string())
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("what", choices=["base", "proxy_combination", "curve_rank", "transfer", "halving_prior", "active_labels", "space_cut", "route", "operator_traits", "label_share"])
+    ap.add_argument("what", choices=["base", "proxy_combination", "curve_rank", "transfer", "halving_prior", "active_labels", "space_cut", "route", "operator_traits", "label_share", "variance"])
     ap.add_argument("--roots", nargs="+", default=ROOTS)
     ap.add_argument("--out", default=OUT)
     a = ap.parse_args()
     roots = [Root(r) for r in a.roots]; out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     cities = load_cities(roots)
     {"base": run_base, "proxy_combination": run_proxy_combination, "curve_rank": run_curve_rank, "transfer": run_transfer, "halving_prior": run_halving_prior, "active_labels": run_active_labels,
-     "space_cut": run_space_cut, "route": run_route, "operator_traits": run_operator_traits, "label_share": run_label_share}[a.what](roots, cities, out)
+     "space_cut": run_space_cut, "route": run_route, "operator_traits": run_operator_traits, "label_share": run_label_share, "variance": run_variance}[a.what](roots, cities, out)
 
 
 if __name__ == "__main__":
