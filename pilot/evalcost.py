@@ -17,6 +17,11 @@ Quality = regret of the evaluator's pick: test MAE of its top-1 minus the best t
 (the search trains the five it ranks first and keeps the best).  Regret is in MAE units and, where a seed subset exists, in
 units of sigma_seed (std of the test MAE over seeds 0 to 2 of the same architecture, mean over the subset; provisional
 until the 50-architecture subset is trained).  Cost = GPU-hours on the hardware of the logs, from the logged seconds.
+Cost ratio: a root trained on another cluster or GPU unit than the reference (Nibi, one H100 3g.40gb slice) holds
+<root>/COST.json with ``cost_ratio`` = seconds per epoch there / seconds per epoch on the reference, measured by a
+calibration run of the same architectures.  Every table keeps gpu_hours (the logged seconds) and adds gpu_hours_ref =
+gpu_hours / cost_ratio, the cost on the reference unit; without the file the ratio is 1 and the two columns are equal.
+Compare cities on gpu_hours_ref.
 Secondary: Spearman rho with -target, partial rho after log params, rho inside each head (n-weighted mean).
 
 Sign convention as in pilot.analyze: a score is correlated with -MAE; a good evaluator has positive rho and its pick is argmax.
@@ -43,6 +48,25 @@ PROXY_COST_H = 0.0   # a zero-cost proxy costs seconds per architecture; recorde
 
 
 # ---------------------------------------------------------------- loading
+def load_cost(root: Root) -> dict:
+    """<root>/COST.json, or the reference unit with ratio 1 when the root has none."""
+    p = root.dir / "COST.json"
+    if not p.exists():
+        return {"cluster": "nibi", "gpu_unit": "H100 3g.40gb slice", "cost_ratio": 1.0, "cost_file": False}
+    c = json.load(open(p))
+    ratio = float(c["cost_ratio"])
+    if not (math.isfinite(ratio) and ratio > 0):
+        raise ValueError(f"{p}: cost_ratio must be a positive number, got {c['cost_ratio']!r}")
+    return {"cluster": str(c.get("cluster", "")), "gpu_unit": str(c.get("gpu_unit", "")), "cost_ratio": ratio, "cost_file": True}
+
+
+def add_ref_cost(t: pd.DataFrame, ratio: float) -> pd.DataFrame:
+    """gpu_hours_ref next to gpu_hours: the logged cost on the reference unit."""
+    if "gpu_hours" in t:
+        t.insert(list(t.columns).index("gpu_hours") + 1, "gpu_hours_ref", t["gpu_hours"] / ratio)
+    return t
+
+
 def load_root(root: Root, target: str) -> tuple[pd.DataFrame, dict]:
     """joined.csv plus the per-epoch curves.  Returns (df, curves) with curves[arch_id] = DataFrame(epoch rows)."""
     df = pd.read_csv(root.tables / "joined.csv")
@@ -225,7 +249,10 @@ def run_city(root: Root, target: str, ks: list[int], sh_r0: list[int], etas: lis
                 res = proxy_filter(df, curves, target, p, k)
                 if res:
                     filt_rows.append({"city": root.dataset, "evaluator": f"{p}_half_then_k{k}", "kind": "proxy filter", "proxy": p, "k": k, **res})
-    return pd.DataFrame(rows), pd.DataFrame(sh_rows), pd.DataFrame(filt_rows), {"df": df, "meta": meta}
+    cost = load_cost(root)
+    meta.update(cluster=cost["cluster"], gpu_unit=cost["gpu_unit"], cost_ratio=cost["cost_ratio"], cost_file=cost["cost_file"])
+    tabs = [add_ref_cost(pd.DataFrame(x), cost["cost_ratio"]) for x in (rows, sh_rows, filt_rows)]
+    return tabs[0], tabs[1], tabs[2], {"df": df, "meta": meta}
 
 
 def to_sigma(t: pd.DataFrame, sigma: float) -> pd.DataFrame:
@@ -277,18 +304,21 @@ def main():
     doc = [f"# evalcost: cost against quality of every cheap evaluator, target = {a.target} (seed 0)", "",
            "Regret = the evaluator's pick minus the best architecture of the set, in MAE units of the normalised target and in "
            "units of sigma_seed. sigma_seed is provisional: the std over seeds 0 to 2 of the few architectures that have three seeds "
-           "(count per city below). GPU-hours are the logged seconds on one H100 3g.40gb slice. A zero-cost proxy is recorded at 0 h "
+           "(count per city below). gpu_hours are the logged seconds on the cluster and GPU unit of the root (listed per city below); "
+           "gpu_hours_ref = gpu_hours / cost_ratio is the same cost on the reference unit, one H100 3g.40gb slice of Nibi. "
+           "A zero-cost proxy is recorded at 0 h "
            "(seconds per architecture). rho is Spearman with -MAE; partial = after rank regression on log params; within head = "
            "n-weighted mean of rho inside each loss head.", ""]
     for c, m in metas.items():
-        doc.append(f"- {c}: N = {m['n']}, max epochs {m['max_epochs']}, sigma_seed = {m['sigma_seed']:.4f} over {m['sigma_seed_n_arch']} architectures")
+        doc.append(f"- {c}: N = {m['n']}, max epochs {m['max_epochs']}, sigma_seed = {m['sigma_seed']:.4f} over {m['sigma_seed_n_arch']} architectures; "
+                   f"trained on {m['cluster']} ({m['gpu_unit']}), cost_ratio {m['cost_ratio']:.2f}" + ("" if m["cost_file"] else " (no COST.json: reference unit assumed)"))
     doc.append("")
-    cols = ["evaluator", "kind", "gpu_hours", "regret_top1", "regret_top1_sigma", "regret_best_of_5", "regret_best_of_5_sigma", "pick_rank_pct", "rho", "rho_partial", "rho_within_head"]
+    cols = ["evaluator", "kind", "gpu_hours", "gpu_hours_ref", "regret_top1", "regret_top1_sigma", "regret_best_of_5", "regret_best_of_5_sigma", "pick_rank_pct", "rho", "rho_partial", "rho_within_head"]
     for c in metas:
         doc.append(md(main_t[main_t.city == c], cols, f"{c}: floors, proxies, brief training, ceiling"))
-        doc.append(md(sh_t[sh_t.city == c], ["evaluator", "gpu_hours", "rounds", "dropped_top10_round1", "regret_top1", "regret_top1_sigma", "regret_best_of_5", "pick_rank_pct"],
+        doc.append(md(sh_t[sh_t.city == c], ["evaluator", "gpu_hours", "gpu_hours_ref", "rounds", "dropped_top10_round1", "regret_top1", "regret_top1_sigma", "regret_best_of_5", "pick_rank_pct"],
                       f"{c}: successive halving on the logged curves"))
-        doc.append(md(filt_t[filt_t.city == c], ["evaluator", "gpu_hours", "top10_in_bottom_half", "top10_total", "regret_top1", "regret_top1_sigma", "regret_best_of_5"],
+        doc.append(md(filt_t[filt_t.city == c], ["evaluator", "gpu_hours", "gpu_hours_ref", "top10_in_bottom_half", "top10_total", "regret_top1", "regret_top1_sigma", "regret_best_of_5"],
                       f"{c}: proxy as a filter, then brief training on the top half"))
     doc.append(md(tr, ["source", "target_city", "n_shared", "regret_top1", "regret_best_of_5", "top1_rank_pct", "top5_mean_rank_pct", "rho_cities"],
                   "Transfer: the top-5 of a source city, scored at the target city", "rho_cities = Spearman of the labels of the shared architectures between the two cities."))

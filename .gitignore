@@ -147,6 +147,7 @@ results/*/*/*
 !results/*/*/archs*.jsonl
 !results/*/*/*.md
 !results/*/*/autocts_precheck.json
+!results/*/*/COST.json
 !results/*/*/tables*/
 results/*/*/tables*/*
 !results/*/*/tables*/*.md

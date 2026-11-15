@@ -1,0 +1,18 @@
+{
+ "cluster": "fir",
+ "gpu_unit": "H100 3g.40gb slice",
+ "cost_ratio": 0.94,
+ "reference_cluster": "nibi",
+ "reference_gpu_unit": "H100 3g.40gb slice",
+ "definition": "cost_ratio = seconds per epoch on this cluster / seconds per epoch on the reference, same architecture, seed and schedule; gpu_hours_ref = gpu_hours / cost_ratio",
+ "calibration": [
+  {
+   "arch_id": "c84e311c72",
+   "dataset": "shenzhen",
+   "mask_zeros": true,
+   "seconds_per_epoch": 18.3,
+   "seconds_per_epoch_reference": 19.5,
+   "job": "fir 3903067"
+  }
+ ]
+}
