@@ -6,7 +6,8 @@
 #                                                          (LIMIT=2 trains two archs), no proxies and no seed subset unless set
 #   Env for train/trainone: JOB_NAME, MAX_EPOCHS, PATIENCE, MIN_EPOCHS, TRAIN_EXTRA (e.g. --mask-zeros), SCORE_PROXIES, SEED_SUBSET, LIMIT
 #   pilot/submit.sh spatial [ROOT] [DATASET] [HORIZON]   -> spatial-sensitivity proxies: one job (default 2 h, TIME overrides; no training);
-#                                                          MASK_ZEROS=1 masks the raw zeros (benchst), SPATIAL_BASE lists the base proxies
+#                                                          MASK_ZEROS=1 masks the raw zeros (benchst), SPATIAL_BASE lists the base proxies,
+#                                                          JOB_NAME names the job (default spatial; needed for two roots at once, same for proxies)
 #   pilot/submit.sh proxies [ROOT] [DATASET] [HORIZON]   -> score the proxies named in $PROXIES (default all: only the names missing
 #                                                          from the stored files are computed) on ROOT and on $EXTRA_ROOTS: one 2 h job
 #   pilot/submit.sh basicts [ROOT] [DATASET] [HORIZON]   -> one timed BasicTS baseline run (MODEL=STID by default, CONFIG overrides the
@@ -30,9 +31,9 @@ case "$mode" in
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,MAX_EPOCHS=${MAX_EPOCHS:-20},PATIENCE=${PATIENCE:-5},MIN_EPOCHS=${MIN_EPOCHS:-8},TRAIN_EXTRA=${TRAIN_EXTRA:-},SCORE_PROXIES=${SCORE_PROXIES:-1},SEED_SUBSET=${SEED_SUBSET:-5},LIMIT=${LIMIT:-}" ;;
   trainone) name=${JOB_NAME:-trainone}; extra=(--time=${TIME:-03:00:00} --output="$NAS_ROOT/logs/${JOB_NAME:-trainone}_${tag}_%j.log"); script=pilot/run_train_all.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,MAX_EPOCHS=${MAX_EPOCHS:-20},PATIENCE=${PATIENCE:-5},MIN_EPOCHS=${MIN_EPOCHS:-8},TRAIN_EXTRA=${TRAIN_EXTRA:-},SCORE_PROXIES=${SCORE_PROXIES:-0},SEED_SUBSET=${SEED_SUBSET:-0},LIMIT=${LIMIT:-}" ;;
-  spatial) name=spatial; extra=(--time=${TIME:-02:00:00} --output="$NAS_ROOT/logs/spatial_${tag}_%j.log");            script=pilot/score_spatial.sbatch
+  spatial) name=${JOB_NAME:-spatial}; extra=(--time=${TIME:-02:00:00} --output="$NAS_ROOT/logs/spatial_${tag}_%j.log");            script=pilot/score_spatial.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,MASK_ZEROS=${MASK_ZEROS:-0}" ;;   # SPATIAL_BASE is a comma list: ALL carries it; a listed value would be split
-  proxies) name=proxies; extra=(--time=02:00:00 --output="$NAS_ROOT/logs/proxies_${tag}_%j.log");                    script=pilot/score_proxies.sbatch
+  proxies) name=${JOB_NAME:-proxies}; extra=(--time=02:00:00 --output="$NAS_ROOT/logs/proxies_${tag}_%j.log");                    script=pilot/score_proxies.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,EXTRA_ROOTS=${EXTRA_ROOTS:-},MASK_ZEROS=${MASK_ZEROS:-0}" ;;   # PROXIES is a comma list: ALL carries it
   basicts) name=basicts; extra=(--time=02:00:00 --output="$NAS_ROOT/logs/basicts_${MODEL:-STID}_${tag}_%j.log");     script=pilot/basicts_stid.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,MODEL=${MODEL:-STID},CONFIG=${CONFIG:-}" ;;
