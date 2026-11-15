@@ -1,0 +1,29 @@
+{
+ "cluster": "narval",
+ "gpu_unit": "A100 3g.20gb slice",
+ "cost_ratio": 1.25,
+ "reference_cluster": "nibi",
+ "reference_gpu_unit": "H100 3g.40gb slice",
+ "definition": "cost_ratio = summed training seconds of the calibration runs on this cluster / the same sum on the reference, same architectures, seed and schedule; gpu_hours_ref = gpu_hours / cost_ratio",
+ "calibration": [
+  {
+   "arch_id": "c84e311c72",
+   "dataset": "pems04",
+   "mask_zeros": true,
+   "epochs": 20,
+   "train_seconds": 537.1,
+   "train_seconds_reference": 452.8,
+   "job": "narval 9429890"
+  },
+  {
+   "arch_id": "b03341cf63",
+   "dataset": "pems04",
+   "mask_zeros": true,
+   "epochs": 20,
+   "train_seconds": 766.4,
+   "train_seconds_reference": 592.2,
+   "job": "narval 9429890"
+  }
+ ],
+ "note": "Measured at pems04, not at pemsbay; one run per architecture on each cluster. Per architecture the ratio is 1.19 and 1.29."
+}
