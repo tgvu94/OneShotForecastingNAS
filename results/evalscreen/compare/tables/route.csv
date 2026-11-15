@@ -1,0 +1,9 @@
+setting,held_out,oracle_recipe,oracle_eff,nearest_city,rule_recipe,rule_eff_with_probes,fixed_recipe,fixed_eff,rule_within_1.25_oracle
+cold,metrla,sh_cold_zico_sizectrl_filter,6.112814018093253,shenzhen,zico_sizectrl_half_then_k3,12.35858214833053,zico_sizectrl_half_then_k5,18.33702724832815,False
+cold,pems04,zico_sizectrl,6.463496064878342,metrla,sh_cold_zico_sizectrl_filter,100.50067237857192,zico_sizectrl_half_then_k3,100.0,False
+cold,chengdu,zico_sizectrl_half_then_k3,11.815430965160555,shenzhen,zico_sizectrl_half_then_k3,12.400248434982641,zico_sizectrl_half_then_k5,17.313409699158136,True
+cold,shenzhen,zico_sizectrl_half_then_k3,13.355752447362969,metrla,sh_cold_zico_sizectrl_filter,100.5292702337718,zico_sizectrl_half_then_k5,16.308354144302783,False
+warm,metrla,transfer_pooled,0.8400733193627122,shenzhen,transfer_pooled,1.4096896672420134,transfer_pooled,0.8400733193627122,False
+warm,pems04,transfer_pooled,4.346395487974856,chengdu,transfer_pooled,4.847067866546777,transfer_pooled,4.346395487974856,True
+warm,chengdu,transfer_pooled,1.8281177936297184,shenzhen,transfer_pooled,2.412935263451805,transfer_pooled,1.8281177936297184,False
+warm,shenzhen,transfer_pooled,0.9263041733493742,metrla,transfer_pooled,1.455574407121178,transfer_pooled,0.9263041733493742,False

@@ -4,6 +4,10 @@
     python -m pilot.evalscreen proxy_combination    # a model on the proxy scores, fit on the other cities
     python -m pilot.evalscreen curve_rank           # a model on the first k epochs, fit on the other cities
     python -m pilot.evalscreen transfer             # cheap sources, the choice of the source, the headroom of transfer
+    python -m pilot.evalscreen halving_prior        # successive halving with a prior
+    python -m pilot.evalscreen active_labels        # an active choice of the labels at the target city
+    python -m pilot.evalscreen space_cut            # a reduced search space learned from the other cities
+    python -m pilot.evalscreen route                # probe trainings choose the recipe (reads the base and halving_prior tables)
     out = results/evalscreen/compare/tables
 
 No training, no forward pass, no GPU.  Reads <root>/tables/joined.csv, <root>/train/<id>/seed*/metrics.json and
@@ -652,15 +656,275 @@ def run_transfer(roots: list[Root], cities: dict, out: Path) -> None:
         print(t.to_string(index=False, float_format=lambda x: f"{x:.2f}")); print()
 
 
+# ---------------------------------------------------------------- shared by the four tests below
+def eff_cost(t: pd.DataFrame) -> pd.Series:
+    """The robust cost share of a row, or 100 (train the whole list) when fewer than 90 % of the subsets meet the line."""
+    return t.sub_pct_median.where((t.sub_share >= 0.9) & t.sub_pct_median.notna(), 100.0)
+
+
+def warm_priors(roots: list[Root], cities: dict) -> dict:
+    arch = arch_matrices(roots, cities)
+    a = fit_loco(cities, {k: np.c_[proxy_matrix(c, PROXY_NAMES), head_onehot(c)] for k, c in cities.items()}, "gbr")
+    o = fit_loco(cities, arch, "gbr")
+    return {"pooled": {k: source_rank(cities, k, None) for k in cities}, "opcount": o, "proxymix": a}, arch
+
+
+# ---------------------------------------------------------------- halving_prior: successive halving with a prior
+def prior_filter_halving(prior: np.ndarray, r0: int, eta: int, info: dict | None = None):
+    """The prior keeps the top 1/eta with no training; plain halving runs on that part; the rest follows in prior order."""
+    def run(c: City, sub: np.ndarray):
+        o = sub[order_of(prior[sub])]; keep = max(1, len(o) // eta); top, rest = o[:keep], o[keep:]
+        order, done = halving_eval(r0, eta)(c, top)
+        if info is not None:
+            info.update(first_cut=list(rest))
+        return np.concatenate([order, rest]), done
+    return run
+
+
+def run_halving_prior(roots: list[Root], cities: dict, out: Path) -> None:
+    warm, _ = warm_priors(roots, cities); r0, eta = 1, 3; sink = Sink()
+    for name, c in cities.items():
+        top15 = set(np.argsort(c.y)[:max(1, c.n // 10)]); full = np.arange(c.n)
+        priors = {**{f"warm_{k}": v[name] for k, v in warm.items()}, "cold_zico_sizectrl": c.df["zico_sizectrl"].values.astype(float)}
+        for pn, p in priors.items():
+            for sched, mk in (("filter", lambda i: prior_filter_halving(p, r0, eta, i)), ("blend", lambda i: halving_eval(r0, eta, p, [0.5, 0.25, 0.125, 0.0625], i))):
+                info = {}; mk(info)(c, full)
+                sink.add(c, f"sh_{pn}_{sched}", "halving with a prior", mk(None), extra={"setting": pn.split("_")[0], "top10pct_dropped_first_rung": int(len(top15 & set(info["first_cut"])))})
+        info = {}; halving_eval(r0, eta, info=info)(c, full)
+        sink.add(c, "sh_plain", "reference", halving_eval(r0, eta), extra={"setting": "cold", "top10pct_dropped_first_rung": int(len(top15 & set(info["first_cut"])))})
+        zs = c.df["zico_sizectrl"].values.astype(float)
+        sink.add(c, "zico_sizectrl_half_then_k5", "reference", filter_eval(zs, 5), extra={"setting": "cold"})
+        sink.add(c, "early_val_k5", "reference", score_eval(-c.val_at(5), 5), extra={"setting": "cold"})
+        sink.add(c, "transfer_pooled", "reference", score_eval(warm["pooled"][name]), extra={"setting": "warm"})
+    ct, _, _ = sink.frames(); ct["eff"] = eff_cost(ct)
+    refs = ["sh_plain", "zico_sizectrl_half_then_k5", "early_val_k5"]; rows = []
+    for setting in ("warm", "cold"):
+        cand = sorted(set(ct[(ct.kind == "halving with a prior") & (ct.setting == setting)].evaluator))
+        for held in cities:
+            tr = ct[(ct.city != held) & ct.evaluator.isin(cand)].groupby("evaluator").eff.mean(); pick = tr.idxmin()
+            h = ct[ct.city == held].set_index("evaluator")
+            rows.append({"setting": setting, "held_out": held, "chosen_on_other_cities": pick, "eff_cost": h.eff[pick], "sub_share": h.sub_share[pick],
+                         "dropped_first_rung": h.top10pct_dropped_first_rung[pick], "plain_dropped_first_rung": h.top10pct_dropped_first_rung["sh_plain"],
+                         **{f"ref_{r}": h.eff[r] for r in refs}, "ref_transfer_pooled": h.eff["transfer_pooled"],
+                         "le_10pct": bool(h.eff[pick] <= 10), "below_all_refs": bool(h.eff[pick] < min(h.eff[r] for r in refs))})
+    ch = pd.DataFrame(rows)
+    verdict = ch.groupby("setting").agg(cities_le_10pct=("le_10pct", "sum"), cities_below_all_refs=("below_all_refs", "sum"),
+                                        cities_fewer_drops=("dropped_first_rung", lambda x: int((x.values < ch.loc[x.index, "plain_dropped_first_rung"].values).sum()))).reset_index()
+    verdict["pass"] = (verdict.cities_le_10pct >= 3) & (verdict.cities_below_all_refs >= 3) & (verdict.cities_fewer_drops >= len(cities))
+    for n_, t in (("cost", ct), ("choice", ch), ("verdict", verdict)):
+        t.to_csv(out / f"halving_prior_{n_}.csv", index=False)
+    piv = ct.pivot(index="evaluator", columns="city", values="eff").reset_index(); drop = ct.pivot(index="evaluator", columns="city", values="top10pct_dropped_first_rung").reset_index()
+    doc = ["# evalscreen halving_prior: successive halving with a prior (r0 = 1, eta = 3)", "",
+           "filter = the prior keeps the top third with no training, then plain halving; blend = rung score 0.5 z(prior) + 0.5 z(-val MAE) at the first rung, the prior weight halved at each "
+           "later rung. Warm priors are fit on the other cities: pooled = mean label rank, opcount = boosting on operator counts, proxymix = boosting on the proxies and the head. The cold "
+           "prior is the size-controlled ZiCo of the city. eff = the median cost share over the subsets, or 100 when fewer than 90 % of the subsets meet the line. The setting of each "
+           "held-out city is the one with the lowest mean eff on the other three cities.", ""]
+    doc += [ec.md(verdict, list(verdict.columns), "Verdict"), ec.md(ch, list(ch.columns), "The setting chosen on the other cities, read at the held-out city"),
+            ec.md(piv, list(piv.columns), "eff, every setting"), ec.md(drop, list(drop.columns), "Top-15 architectures dropped at the first rung")]
+    (out / "evalscreen_halving_prior.md").write_text("\n".join(doc))
+    pd.set_option("display.width", 250)
+    for t in (verdict, ch, piv, drop):
+        print(t.to_string(index=False, float_format=lambda x: f"{x:.1f}")); print()
+
+
+# ---------------------------------------------------------------- active_labels: which few architectures to train at the target
+LABEL_NS, LABEL_ROUND = [5, 10, 15], 5
+
+
+def label_sequence(c: City, sub: np.ndarray, prior: np.ndarray, arch: np.ndarray, rule: str, seed: int) -> np.ndarray:
+    rng = np.random.default_rng([seed, int(sub.sum())]); n_max = LABEL_NS[-1]
+    lab = list(rng.choice(sub, LABEL_ROUND, replace=False)) if rule == "random" else list(sub[order_of(prior[sub])][:LABEL_ROUND])
+    while len(lab) < n_max:
+        rest = np.setdiff1d(sub, lab)
+        if rule == "random":
+            nxt = rng.choice(rest, LABEL_ROUND, replace=False)
+        elif rule == "prior":
+            nxt = rest[order_of(prior[rest])][:LABEL_ROUND]
+        else:                                                            # refit on the labels so far; four picks and one exploration pick
+            L = np.array(lab); pred = pr.fit_predict("ridge", np.c_[arch[L], prior[L]], zscore(-c.y[L]), np.c_[arch[rest], prior[rest]])
+            top = rest[order_of(pred)][:LABEL_ROUND - 1]; nxt = np.r_[top, rng.choice(np.setdiff1d(rest, top), 1)]
+        lab += list(nxt)
+    return np.array(lab)
+
+
+def label_outcome(c: City, sub: np.ndarray, seq: np.ndarray) -> dict:
+    best = c.y[sub].min(); tot = float(c.full_h[sub].sum()); out = {"n_sigma": np.inf, "pct": np.inf}
+    for n in LABEL_NS:
+        r = float(c.y[seq[:n]].min() - best); out[f"regret_n{n}_sigma"] = r / c.sigma
+        if r <= c.sigma + 1e-12 and not np.isfinite(out["n_sigma"]):
+            out["n_sigma"] = n; out["pct"] = float(c.full_h[seq[:n]].sum()) / tot * 100
+    return out
+
+
+def run_active_labels(roots: list[Root], cities: dict, out: Path) -> None:
+    warm, arch = warm_priors(roots, cities); rows = []
+    for name, c in cities.items():
+        full = np.arange(c.n)
+        for setting, prior in (("warm", warm["pooled"][name]), ("cold", c.df["zico_sizectrl"].values.astype(float))):
+            for rule in ("random", "prior", "refit"):
+                fl = [label_outcome(c, full, label_sequence(c, full, prior, arch[name], rule, s)) for s in range(20 if rule != "prior" else 1)]
+                sb = [label_outcome(c, sub, label_sequence(c, sub, prior, arch[name], rule, 0)) for sub in c.subs]
+                pct = np.array([o["pct"] for o in sb]); ns = np.array([o["n_sigma"] for o in sb])
+                rows.append({"city": name, "setting": setting, "rule": rule, **{f"regret_n{n}_sigma": float(np.mean([o[f"regret_n{n}_sigma"] for o in fl])) for n in LABEL_NS},
+                             "sub_share": float(np.mean(np.isfinite(pct))), "sub_pct_median": float(np.median(pct)) if np.isfinite(np.median(pct)) else np.nan,
+                             "sub_n_median": float(np.median(ns)) if np.isfinite(np.median(ns)) else np.nan,
+                             **{f"sub_regret_n{n}_sigma": float(np.mean([o[f"regret_n{n}_sigma"] for o in sb])) for n in LABEL_NS}})
+    t = pd.DataFrame(rows); t["eff"] = eff_cost(t); v = []
+    for setting, g in t.groupby("setting"):
+        p = g.pivot(index="city", columns="rule", values="eff")
+        v.append({"setting": setting, "cities_refit_meets_line": int((p.refit < 100).sum()), "cities_refit_below_random_and_prior": int(((p.refit < p.random) & (p.refit < p.prior)).sum())})
+    verdict = pd.DataFrame(v); verdict["pass"] = (verdict.cities_refit_meets_line >= 3) & (verdict.cities_refit_below_random_and_prior >= 3)
+    t.to_csv(out / "active_labels.csv", index=False); verdict.to_csv(out / "active_labels_verdict.csv", index=False)
+    doc = ["# evalscreen active_labels: an active choice of the labels at the target city", "",
+           f"Rounds of {LABEL_ROUND} labels up to 15. random = random labels; prior = the next five of the prior, no refit; refit = a ridge on the operator counts and the prior, fit on the "
+           "labels so far, picks four and one random architecture. Warm prior = the pooled transfer rank; cold prior = the size-controlled ZiCo of the city. The pick is the best labelled "
+           "architecture. regret_n = regret after n labels on the full list (mean of 20 draws where the rule draws); sub_* = the 200 subsets; eff as in halving_prior.", ""]
+    doc += [ec.md(verdict, list(verdict.columns), "Verdict"), ec.md(t, list(t.columns), "Every rule")]
+    (out / "evalscreen_active_labels.md").write_text("\n".join(doc))
+    pd.set_option("display.width", 250); print(verdict.to_string(index=False)); print(t.drop(columns=[c_ for c_ in t.columns if c_.startswith("sub_regret")]).to_string(index=False, float_format=lambda x: f"{x:.2f}"))
+
+
+# ---------------------------------------------------------------- space_cut: a reduced search space learned from the other cities
+CUT_COLS = ["seq_family", "graph_family", "flat_family", "decoder"]
+
+
+def choice_masks(c: City, pairs: bool) -> dict:
+    m = {f"{col}={v}": (c.df[col] == v).values for col in CUT_COLS for v in sorted(set(c.df[col]))}
+    if pairs:
+        for i, a in enumerate(CUT_COLS):
+            for b in CUT_COLS[i + 1:]:
+                for va in sorted(set(c.df[a])):
+                    for vb in sorted(set(c.df[b])):
+                        m[f"{a}={va}&{b}={vb}"] = ((c.df[a] == va) & (c.df[b] == vb)).values
+    return m
+
+
+def head_rank(c: City) -> np.ndarray:
+    r = np.zeros(c.n)
+    for h in HEADS:
+        m = c.head == h; r[m] = unit_rank(-c.y[m])
+    return r
+
+
+def learn_cut(train: dict, keep_frac: float, pairs: bool) -> list:
+    """Greedy: remove the choice whose architectures rank lowest inside their heads, when it is below the mean of the remaining
+    list at every training city that holds 3 or more of them (2 cities or more); stop at the keep fraction."""
+    masks = {k: choice_masks(c, pairs) for k, c in train.items()}; tgt = {k: head_rank(c) for k, c in train.items()}
+    alive = {k: np.ones(c.n, bool) for k, c in train.items()}; total = sum(c.n for c in train.values()); removed = []
+    keys = sorted(set().union(*[set(m) for m in masks.values()]))
+    while sum(a.sum() for a in alive.values()) / total > keep_frac:
+        best = (None, 0.0)
+        for key in keys:
+            if key in removed:
+                continue
+            diffs, n_mem = [], 0
+            for k in train:
+                mem = masks[k].get(key, np.zeros(train[k].n, bool)) & alive[k]
+                if mem.sum() >= 3:
+                    diffs.append(tgt[k][mem].mean() - tgt[k][alive[k]].mean()); n_mem += mem.sum()
+            if len(diffs) >= 2 and max(diffs) < 0 and n_mem >= 0.03 * total and np.mean(diffs) < best[1]:
+                best = (key, float(np.mean(diffs)))
+        if best[0] is None:
+            break
+        removed.append(best[0])
+        for k in train:
+            alive[k] &= ~masks[k].get(best[0], np.zeros(train[k].n, bool))
+    return removed
+
+
+def restricted_random(kept: np.ndarray, seed: int = 0):
+    def run(c: City, sub: np.ndarray):
+        rng = np.random.default_rng([seed, int(sub.sum())]); inside = sub[kept[sub]]; rest = sub[~kept[sub]]
+        return np.concatenate([rng.permutation(inside), rng.permutation(rest)]), np.zeros(c.n, dtype=int)
+    return run
+
+
+def run_space_cut(roots: list[Root], cities: dict, out: Path) -> None:
+    sink = Sink(); rows = []; rng = np.random.default_rng(0)
+    for held, c in cities.items():
+        train = {k: v for k, v in cities.items() if k != held}; top15 = np.argsort(c.y)[:15]; best = c.y.min()
+        mae = np.where(c.head == "mae")[0]; mae_top = mae[np.argsort(c.y[mae])[:4]]
+        r10 = float(np.mean([c.y[rng.choice(c.n, 10, replace=False)].min() for _ in range(5000)]) - best) / c.sigma
+        cuts = {}
+        for pairs in (False, True):
+            for frac in (0.5, 0.25):
+                rem = learn_cut(train, frac, pairs); masks = choice_masks(c, pairs); kept = np.ones(c.n, bool)
+                for key in rem:
+                    kept &= ~masks.get(key, np.zeros(c.n, bool))
+                cuts[f"learned_{'pairs' if pairs else 'single'}_keep{int(frac * 100)}"] = (kept, rem)
+        for ref, s in (("ref_zico_sizectrl_top_half", c.df["zico_sizectrl"].values.astype(float)), ("ref_pooled_transfer_top_half", source_rank(cities, held, None))):
+            kept = np.zeros(c.n, bool); kept[order_of(s)[:c.n // 2]] = True; cuts[ref] = (kept, [])
+        for cn, (kept, rem) in cuts.items():
+            idx = np.where(kept)[0]
+            r5 = float(np.mean([c.y[rng.choice(idx, min(5, len(idx)), replace=False)].min() for _ in range(5000)]) - best) / c.sigma if len(idx) else np.nan
+            rows.append({"city": held, "cut": cn, "kept_share": float(kept.mean()), "top15_kept": int(kept[top15].sum()), "best_kept": bool(kept[top15[0]]),
+                         "mae_head_top4_kept": int(kept[mae_top].sum()), "random5_inside_sigma": r5, "random10_full_sigma": r10, "rules_removed": "; ".join(rem)})
+            sink.add(c, f"random_inside_{cn}", "random in a reduced list", restricted_random(kept))
+        sink.add(c, "random_full_list", "floor", random_eval())
+    t = pd.DataFrame(rows); ct, _, _ = sink.frames()
+    t["ok"] = (t.kept_share <= 0.5) & (t.top15_kept >= 13) & (t.random5_inside_sigma < t.random10_full_sigma)
+    verdict = t.groupby("cut").agg(cities_ok=("ok", "sum"), kept_share_mean=("kept_share", "mean"), top15_kept_min=("top15_kept", "min")).reset_index(); verdict["pass"] = verdict.cities_ok >= 3
+    for n_, x in (("cuts", t), ("cost", ct), ("verdict", verdict)):
+        x.to_csv(out / f"space_cut_{n_}.csv", index=False)
+    doc = ["# evalscreen space_cut: a reduced search space learned from the labels of the other cities", "",
+           f"Choices: {CUT_COLS} (single) and their pairs. Greedy rule on three cities: remove the choice whose architectures rank lowest inside their heads, when it is below the mean of "
+           "the remaining list at every training city that holds three or more of them; stop at the keep fraction. The rule never sees the head, and the rank is taken inside the head. "
+           "Line: the reduced list of the held-out city holds at most half of the list and 13 or more of the top 15, and five random picks inside it have a lower expected regret than "
+           "ten random picks in the full list, at three of four cities. ref_* = a list filter, not a rule on the space.", ""]
+    doc += [ec.md(verdict, list(verdict.columns), "Verdict"), ec.md(t, list(t.columns), "Every cut at every held-out city")]
+    for k in cities:
+        doc.append(ec.md(ct[ct.city == k].sort_values(["sub_pct_median", "pct_sigma"], na_position="last"), COST_COLS, f"{k}: cost to one sigma of random picks inside each reduced list"))
+    (out / "evalscreen_space_cut.md").write_text("\n".join(doc))
+    pd.set_option("display.width", 280); pd.set_option("display.max_colwidth", 150); print(verdict.to_string(index=False, float_format=lambda x: f"{x:.2f}")); print(t.to_string(index=False, float_format=lambda x: f"{x:.2f}"))
+    print(ct[["city", "evaluator", "sub_share", "sub_pct_median"]].pivot(index="evaluator", columns="city", values="sub_share").to_string(float_format=lambda x: f"{x:.2f}"))
+
+
+# ---------------------------------------------------------------- route: a few probe trainings choose the recipe
+def run_route(roots: list[Root], cities: dict, out: Path) -> None:
+    base = pd.read_csv(out / "base_cost_to_sigma.csv"); hp = pd.read_csv(out / "halving_prior_cost.csv")
+    base["eff"] = eff_cost(base); allc = pd.concat([base[["city", "evaluator", "eff"]], hp[hp.kind == "halving with a prior"][["city", "evaluator", "eff"]]])
+    cold = ["zico_sizectrl", "zico", "sh_r1_eta3", "early_val_k2", "early_val_k3", "early_val_k5", "zico_sizectrl_half_then_k1", "zico_sizectrl_half_then_k3", "zico_sizectrl_half_then_k5",
+            "sh_cold_zico_sizectrl_filter", "sh_cold_zico_sizectrl_blend"]
+    warm = cold + ["transfer_pooled", "loco_gbr_arch", "sh_warm_pooled_filter", "sh_warm_pooled_blend"]
+    pooled = {k: source_rank(cities, k, None) for k in cities}; probes = np.arange(N_PROBE); feats = {}
+    for k, c in cities.items():
+        v1, v3 = c.val_at(1)[probes], c.val_at(PROBE_K)[probes]
+        feats[k] = {"improve_1_to_3": float(np.median(v3 / v1)), "probe_cv_k3": float(np.std(v3) / np.mean(v3)),
+                    "agree_cold_prior": rho(c.df["zico_sizectrl"].values.astype(float)[probes], -v3), "agree_warm_prior": rho(pooled[k][probes], -v3)}
+    ft = pd.DataFrame(feats).T; probe_pct = {k: float(sum(c.cumh[i][PROBE_K] for i in probes) / c.full_h.sum() * 100) for k, c in cities.items()}
+    rows = []
+    for setting, recipes in (("cold", cold), ("warm", warm)):
+        P = allc[allc.evaluator.isin(recipes)].pivot(index="evaluator", columns="city", values="eff")
+        cols = ["improve_1_to_3", "probe_cv_k3", "agree_cold_prior"] + (["agree_warm_prior"] if setting == "warm" else [])
+        for held in cities:
+            tr = [k for k in cities if k != held]; Z = (ft[cols] - ft.loc[tr, cols].mean()) / ft.loc[tr, cols].std().replace(0, 1)
+            near = min(tr, key=lambda k: float(np.linalg.norm((Z.loc[held] - Z.loc[k]).fillna(0)))); rule = P[near].idxmin(); fixed = P[tr].mean(axis=1).idxmin(); oracle = P[held].idxmin()
+            rows.append({"setting": setting, "held_out": held, "oracle_recipe": oracle, "oracle_eff": P.loc[oracle, held], "nearest_city": near, "rule_recipe": rule,
+                         "rule_eff_with_probes": P.loc[rule, held] + probe_pct[held], "fixed_recipe": fixed, "fixed_eff": P.loc[fixed, held],
+                         "rule_within_1.25_oracle": bool(P.loc[rule, held] + probe_pct[held] <= 1.25 * P.loc[oracle, held])})
+    t = pd.DataFrame(rows)
+    verdict = t.groupby("setting").agg(cities_within_1_25=("rule_within_1.25_oracle", "sum"), rule_mean=("rule_eff_with_probes", "mean"), fixed_mean=("fixed_eff", "mean"), oracle_mean=("oracle_eff", "mean")).reset_index()
+    verdict["pass"] = (verdict.cities_within_1_25 >= len(cities)) & (verdict.rule_mean < verdict.fixed_mean)
+    t.to_csv(out / "route.csv", index=False); ft.to_csv(out / "route_probe_features.csv"); verdict.to_csv(out / "route_verdict.csv", index=False)
+    doc = ["# evalscreen route: a few probe trainings choose the recipe", "",
+           f"Probes: the first {N_PROBE} architectures of the list, trained {PROBE_K} epochs. Features: the median ratio of the val MAE at epoch 3 to epoch 1, the spread of the probes at "
+           "epoch 3, and the agreement of the prior with the probes. Rule: take the cheapest recipe of the training city whose probe features are nearest. fixed = the recipe with the "
+           "lowest mean eff on the three training cities. oracle = the cheapest recipe of the held-out city. eff as in halving_prior; the rule pays the probes.", ""]
+    doc += [ec.md(verdict, list(verdict.columns), "Verdict"), ec.md(t, list(t.columns), "Held-out decisions"), ec.md(ft.reset_index().rename(columns={"index": "city"}), ["city"] + list(ft.columns), "Probe features")]
+    (out / "evalscreen_route.md").write_text("\n".join(doc))
+    pd.set_option("display.width", 280); print(verdict.to_string(index=False, float_format=lambda x: f"{x:.1f}")); print(t.to_string(index=False, float_format=lambda x: f"{x:.1f}")); print(ft.to_string(float_format=lambda x: f"{x:.2f}"))
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("what", choices=["base", "proxy_combination", "curve_rank", "transfer"])
+    ap.add_argument("what", choices=["base", "proxy_combination", "curve_rank", "transfer", "halving_prior", "active_labels", "space_cut", "route"])
     ap.add_argument("--roots", nargs="+", default=ROOTS)
     ap.add_argument("--out", default=OUT)
     a = ap.parse_args()
     roots = [Root(r) for r in a.roots]; out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     cities = load_cities(roots)
-    {"base": run_base, "proxy_combination": run_proxy_combination, "curve_rank": run_curve_rank, "transfer": run_transfer}[a.what](roots, cities, out)
+    {"base": run_base, "proxy_combination": run_proxy_combination, "curve_rank": run_curve_rank, "transfer": run_transfer, "halving_prior": run_halving_prior, "active_labels": run_active_labels,
+     "space_cut": run_space_cut, "route": run_route}[a.what](roots, cities, out)
 
 
 if __name__ == "__main__":

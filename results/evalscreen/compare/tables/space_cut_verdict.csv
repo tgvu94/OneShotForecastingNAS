@@ -1,0 +1,7 @@
+cut,cities_ok,kept_share_mean,top15_kept_min,pass
+learned_pairs_keep25,0,0.26,6,False
+learned_pairs_keep50,3,0.43666666666666665,8,True
+learned_single_keep25,0,0.21166666666666667,7,False
+learned_single_keep50,2,0.3933333333333333,11,False
+ref_pooled_transfer_top_half,4,0.5,15,True
+ref_zico_sizectrl_top_half,1,0.5,13,False
