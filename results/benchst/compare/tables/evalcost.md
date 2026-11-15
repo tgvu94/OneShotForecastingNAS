@@ -73,6 +73,28 @@ Regret = the evaluator's pick minus the best architecture of the set, in MAE uni
 | params_half_then_k3 | 3.485 | 3.485 | 6 | 15 | 0.000 | 0.000 | 0.000 |
 | params_half_then_k5 | 5.752 | 5.752 | 6 | 15 | 0.000 | 0.000 | 0.000 |
 
+### metrla: budget curve, best of the top b after full training of the b picks
+
+b_sigma / b_zero = the smallest budget (of 1, 2, 3, 5, 8, 10, 15, 20) whose best-of-b regret is within one sigma_seed / is 0; hours = evaluator cost + the b full trainings (logged hours of this root); pct_of_full = hours_b_zero as a share of training the whole list. The full curve is in evalcost_budget.csv.
+
+| evaluator | kind | regret_b5 | regret_b10 | b_sigma | hours_b_sigma | b_zero | hours_b_zero | pct_of_full_b_zero |
+|---|---|---|---|---|---|---|---|---|
+| random | floor | 0.005 | 0.003 | 10 | 2.191 | > 20 |  |  |
+| zico | zero-cost proxy | 0.006 | 0.004 | 15 | 4.057 | 20 | 5.327 | 16.209 |
+| zico_t | zero-cost proxy | 0.006 | 0.004 | 15 | 4.112 | 20 | 5.066 | 15.416 |
+| glass | zero-cost proxy | 0.006 | 0.004 | 15 | 3.994 | 20 | 5.414 | 16.475 |
+| zico_sizectrl | zero-cost proxy | 0.006 | 0.004 | 15 | 3.864 | > 20 |  |  |
+| params | zero-cost proxy | 0.006 | 0.004 | 20 | 4.979 | > 20 |  |  |
+| swap | zero-cost proxy | 0.002 | 0.002 | 1 | 0.357 | > 20 |  |  |
+| nwot | zero-cost proxy | 0.002 | 0.002 | 1 | 0.357 | > 20 |  |  |
+| early_val_k1 | brief training | 0.001 | 0.001 | 3 | 3.127 | > 20 |  |  |
+| early_val_k2 | brief training | 0.000 | 0.000 | 1 | 4.498 | 1 | 4.498 | 13.687 |
+| early_val_k3 | brief training | 0.000 | 0.000 | 1 | 6.489 | 1 | 6.489 | 19.745 |
+| early_val_k5 | brief training | 0.000 | 0.000 | 1 | 10.486 | 1 | 10.486 | 31.907 |
+| transfer_from_pems04 | transfer | 0.000 | 0.000 | 2 | 0.729 | 2 | 0.729 | 2.219 |
+| transfer_from_chengdu | transfer | 0.001 | 0.000 | 1 | 0.181 | 10 | 2.320 | 7.059 |
+| transfer_from_shenzhen | transfer | 0.000 | 0.000 | 1 | 0.181 | 2 | 0.498 | 1.515 |
+
 ### pems04: floors, proxies, brief training, ceiling
 
 | evaluator | kind | gpu_hours | gpu_hours_ref | regret_top1 | regret_top1_sigma | regret_best_of_5 | regret_best_of_5_sigma | pick_rank_pct | rho | rho_partial | rho_within_head |
@@ -138,6 +160,28 @@ Regret = the evaluator's pick minus the best architecture of the set, in MAE uni
 | params_half_then_k1 | 0.912 | 0.912 | 4 | 15 | 0.003 | 12.722 | 0.003 |
 | params_half_then_k3 | 2.461 | 2.461 | 4 | 15 | 0.002 | 7.652 | 0.002 |
 | params_half_then_k5 | 4.010 | 4.010 | 4 | 15 | 0.000 | 0.000 | 0.000 |
+
+### pems04: budget curve, best of the top b after full training of the b picks
+
+b_sigma / b_zero = the smallest budget (of 1, 2, 3, 5, 8, 10, 15, 20) whose best-of-b regret is within one sigma_seed / is 0; hours = evaluator cost + the b full trainings (logged hours of this root); pct_of_full = hours_b_zero as a share of training the whole list. The full curve is in evalcost_budget.csv.
+
+| evaluator | kind | regret_b5 | regret_b10 | b_sigma | hours_b_sigma | b_zero | hours_b_zero | pct_of_full_b_zero |
+|---|---|---|---|---|---|---|---|---|
+| random | floor | 0.002 | 0.001 | > 20 |  | > 20 |  |  |
+| zico | zero-cost proxy | 0.000 | 0.000 | 10 | 2.563 | 10 | 2.563 | 8.946 |
+| zico_t | zero-cost proxy | 0.000 | 0.000 | 10 | 2.437 | 10 | 2.437 | 8.505 |
+| glass | zero-cost proxy | 0.000 | 0.000 | 8 | 1.971 | 8 | 1.971 | 6.878 |
+| zico_sizectrl | zero-cost proxy | 0.000 | 0.000 | 8 | 1.825 | 8 | 1.825 | 6.369 |
+| params | zero-cost proxy | 0.000 | 0.000 | > 20 |  | > 20 |  |  |
+| swap | zero-cost proxy | 0.001 | 0.000 | > 20 |  | > 20 |  |  |
+| nwot | zero-cost proxy | 0.001 | 0.001 | > 20 |  | > 20 |  |  |
+| early_val_k1 | brief training | 0.003 | 0.003 | > 20 |  | > 20 |  |  |
+| early_val_k2 | brief training | 0.002 | 0.002 | > 20 |  | > 20 |  |  |
+| early_val_k3 | brief training | 0.001 | 0.001 | > 20 |  | > 20 |  |  |
+| early_val_k5 | brief training | 0.000 | 0.000 | 1 | 7.543 | 1 | 7.543 | 26.327 |
+| transfer_from_metrla | transfer | 0.000 | 0.000 | 15 | 2.710 | 15 | 2.710 | 9.459 |
+| transfer_from_chengdu | transfer | 0.001 | 0.000 | 15 | 2.683 | 15 | 2.683 | 9.365 |
+| transfer_from_shenzhen | transfer | 0.000 | 0.000 | 5 | 0.880 | 5 | 0.880 | 3.071 |
 
 ### chengdu: floors, proxies, brief training, ceiling
 
@@ -205,6 +249,28 @@ Regret = the evaluator's pick minus the best architecture of the set, in MAE uni
 | params_half_then_k3 | 2.114 | 2.094 | 6 | 15 | 0.010 | 5.559 | 0.003 |
 | params_half_then_k5 | 3.507 | 3.472 | 6 | 15 | 0.002 | 1.108 | 0.002 |
 
+### chengdu: budget curve, best of the top b after full training of the b picks
+
+b_sigma / b_zero = the smallest budget (of 1, 2, 3, 5, 8, 10, 15, 20) whose best-of-b regret is within one sigma_seed / is 0; hours = evaluator cost + the b full trainings (logged hours of this root); pct_of_full = hours_b_zero as a share of training the whole list. The full curve is in evalcost_budget.csv.
+
+| evaluator | kind | regret_b5 | regret_b10 | b_sigma | hours_b_sigma | b_zero | hours_b_zero | pct_of_full_b_zero |
+|---|---|---|---|---|---|---|---|---|
+| random | floor | 0.005 | 0.003 | > 20 |  | > 20 |  |  |
+| zico | zero-cost proxy | 0.004 | 0.004 | > 20 |  | > 20 |  |  |
+| zico_t | zero-cost proxy | 0.004 | 0.003 | > 20 |  | > 20 |  |  |
+| glass | zero-cost proxy | 0.004 | 0.004 | > 20 |  | > 20 |  |  |
+| zico_sizectrl | zero-cost proxy | 0.004 | 0.003 | > 20 |  | > 20 |  |  |
+| params | zero-cost proxy | 0.004 | 0.004 | > 20 |  | > 20 |  |  |
+| swap | zero-cost proxy | 0.005 | 0.005 | > 20 |  | > 20 |  |  |
+| nwot | zero-cost proxy | 0.009 | 0.005 | > 20 |  | > 20 |  |  |
+| early_val_k1 | brief training | 0.004 | 0.004 | 15 | 3.132 | 15 | 3.132 | 14.726 |
+| early_val_k2 | brief training | 0.003 | 0.000 | 8 | 3.515 | 8 | 3.515 | 16.526 |
+| early_val_k3 | brief training | 0.000 | 0.000 | 3 | 4.180 | 3 | 4.180 | 19.654 |
+| early_val_k5 | brief training | 0.000 | 0.000 | 1 | 6.516 | 1 | 6.516 | 30.637 |
+| transfer_from_metrla | transfer | 0.000 | 0.000 | 3 | 0.376 | 3 | 0.376 | 1.767 |
+| transfer_from_pems04 | transfer | 0.003 | 0.003 | 15 | 2.624 | 15 | 2.624 | 12.336 |
+| transfer_from_shenzhen | transfer | 0.000 | 0.000 | 1 | 0.101 | 1 | 0.101 | 0.477 |
+
 ### shenzhen: floors, proxies, brief training, ceiling
 
 | evaluator | kind | gpu_hours | gpu_hours_ref | regret_top1 | regret_top1_sigma | regret_best_of_5 | regret_best_of_5_sigma | pick_rank_pct | rho | rho_partial | rho_within_head |
@@ -270,6 +336,28 @@ Regret = the evaluator's pick minus the best architecture of the set, in MAE uni
 | params_half_then_k1 | 0.930 | 0.989 | 5 | 15 | 0.009 | 6.202 | 0.003 |
 | params_half_then_k3 | 2.702 | 2.875 | 5 | 15 | 0.004 | 2.605 | 0.001 |
 | params_half_then_k5 | 4.480 | 4.766 | 5 | 15 | 0.004 | 2.605 | 0.001 |
+
+### shenzhen: budget curve, best of the top b after full training of the b picks
+
+b_sigma / b_zero = the smallest budget (of 1, 2, 3, 5, 8, 10, 15, 20) whose best-of-b regret is within one sigma_seed / is 0; hours = evaluator cost + the b full trainings (logged hours of this root); pct_of_full = hours_b_zero as a share of training the whole list. The full curve is in evalcost_budget.csv.
+
+| evaluator | kind | regret_b5 | regret_b10 | b_sigma | hours_b_sigma | b_zero | hours_b_zero | pct_of_full_b_zero |
+|---|---|---|---|---|---|---|---|---|
+| random | floor | 0.006 | 0.004 | > 20 |  | > 20 |  |  |
+| zico | zero-cost proxy | 0.004 | 0.003 | > 20 |  | > 20 |  |  |
+| zico_t | zero-cost proxy | 0.005 | 0.003 | 20 | 4.770 | > 20 |  |  |
+| glass | zero-cost proxy | 0.004 | 0.003 | 20 | 5.004 | > 20 |  |  |
+| zico_sizectrl | zero-cost proxy | 0.004 | 0.003 | > 20 |  | > 20 |  |  |
+| params | zero-cost proxy | 0.005 | 0.005 | > 20 |  | > 20 |  |  |
+| swap | zero-cost proxy | 0.005 | 0.005 | > 20 |  | > 20 |  |  |
+| nwot | zero-cost proxy | 0.008 | 0.007 | > 20 |  | > 20 |  |  |
+| early_val_k1 | brief training | 0.003 | 0.003 | > 20 |  | > 20 |  |  |
+| early_val_k2 | brief training | 0.003 | 0.003 | 15 | 6.241 | 20 | 6.803 | 22.637 |
+| early_val_k3 | brief training | 0.003 | 0.000 | 8 | 6.384 | 10 | 6.717 | 22.351 |
+| early_val_k5 | brief training | 0.000 | 0.000 | 2 | 8.485 | 2 | 8.485 | 28.235 |
+| transfer_from_metrla | transfer | 0.000 | 0.000 | 1 | 0.186 | 3 | 0.444 | 1.476 |
+| transfer_from_pems04 | transfer | 0.001 | 0.001 | 2 | 0.530 | 15 | 3.809 | 12.676 |
+| transfer_from_chengdu | transfer | 0.000 | 0.000 | 1 | 0.118 | 1 | 0.118 | 0.392 |
 
 ### Transfer: the top-5 of a source city, scored at the target city
 

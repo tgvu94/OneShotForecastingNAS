@@ -12,6 +12,9 @@ Evaluators
 * early-val k: rank by the validation MAE after k epochs; cost = the logged seconds of those k epochs over all N
 * successive halving on the logged curves: r0 epochs per round, keep the top 1/eta by val MAE, until one survives
 * proxy filter: top half by proxy, then early-val k on the survivors; and the count of true top-10 % architectures the filter drops
+* budget curve: the evaluator ranks the list, the search trains its top b (BUDGETS) to the end and keeps the best; regret of
+  that best against the budget and the total cost (evaluator hours + the b full trainings); random, proxies, early-val k and
+  the transfer from every other city on one axis; the summary gives the smallest b with regret 0 and within one sigma_seed
 
 Quality = regret of the evaluator's pick: test MAE of its top-1 minus the best test MAE in the set; and the best-of-top-5
 (the search trains the five it ranks first and keeps the best).  Regret is in MAE units and, where a seed subset exists, in
@@ -45,6 +48,9 @@ PROXIES = ["zico", "zico_sizectrl", "swap", "swap_reg", "nwot", "synflow_all", "
            "zico_t", "zico_s", "glass", "glass_t", "glass_s", "nwot_per_layer"]
 FLOORS = ["params", "flops"]
 PROXY_COST_H = 0.0   # a zero-cost proxy costs seconds per architecture; recorded as 0 on the GPU-hour axis, stated in the md
+BUDGETS = [1, 2, 3, 5, 8, 10, 15, 20]            # full trainings the search can afford after the evaluator ranked the list
+BUDGET_PROXIES = ["zico", "zico_t", "glass", "zico_sizectrl", "params", "swap", "nwot"]
+BUDGET_KS = [1, 2, 3, 5]
 
 
 # ---------------------------------------------------------------- loading
@@ -192,6 +198,61 @@ def proxy_filter(df: pd.DataFrame, curves: dict, target: str, proxy: str, k: int
             "gpu_hours": hrs}
 
 
+def budget_curve(df: pd.DataFrame, curves: dict, target: str, sources: dict, n_draw: int = 5000, seed: int = 0) -> pd.DataFrame:
+    """Best-of-b: the evaluator ranks the list, the search trains its top b to the end and keeps the best.  Cost = the
+    evaluator's own hours plus the full training of the b picks; a brief-training evaluator resumes its k epochs, so those
+    seconds are not paid twice.  random = the expectation over n_draw draws of b architectures.  transfer_from_<city> ranks by
+    the labels of another city on the shared architectures; its cost sits at that city and is 0 here."""
+    y = df[target].values.astype(float); best = float(np.nanmin(y)); ids = list(df.arch_id); n = len(ids)
+    full_h = np.array([float(curves[a].seconds.sum()) / 3600 for a in ids])
+    rank_pct = (rankdata(y) - 1) / max(n - 1, 1) * 100
+    rows = []
+
+    def add(name, kind, score, eval_hours, k_done=0):
+        ok = np.isfinite(score)
+        order = np.argsort(-np.where(ok, score, -np.inf))
+        done_h = np.array([float(curves[a].seconds.iloc[:k_done].sum()) / 3600 for a in ids]) if k_done else np.zeros(n)
+        for b in BUDGETS:
+            pick = order[:min(b, n)]
+            rows.append({"evaluator": name, "kind": kind, "budget": b, "gpu_hours": eval_hours + float((full_h[pick] - done_h[pick]).sum()),
+                         "regret_best_of_b": float(np.nanmin(y[pick]) - best), "best_rank_pct": float(rank_pct[pick].min())})
+
+    rng = np.random.default_rng(seed)
+    for b in BUDGETS:
+        draws = np.array([np.nanmin(y[rng.choice(n, min(b, n), replace=False)]) for _ in range(n_draw)]) - best
+        rows.append({"evaluator": "random", "kind": "floor", "budget": b, "gpu_hours": b * float(full_h.mean()),
+                     "regret_best_of_b": float(draws.mean()), "best_rank_pct": np.nan})
+    for p in BUDGET_PROXIES:
+        if p in df and df[p].notna().sum() >= 8:
+            add(p, "zero-cost proxy", df[p].values.astype(float), PROXY_COST_H)
+    for k in BUDGET_KS:
+        sc, hrs = early_val(curves, ids, k)
+        add(f"early_val_k{k}", "brief training", sc, hrs, k_done=k)
+    for src, ds in sources.items():
+        lab = ds.set_index("arch_id")[target]
+        sc = np.array([-float(lab[a]) if a in lab.index else np.nan for a in ids])
+        if np.isfinite(sc).sum() >= 10:
+            add(f"transfer_from_{src}", "transfer", sc, 0.0)
+    return pd.DataFrame(rows)
+
+
+def budget_summary(bt: pd.DataFrame, sigma: float, full_hours: float) -> pd.DataFrame:
+    """Per evaluator: regret at b = 5 and 10, the smallest budget within one sigma_seed and the smallest with regret 0, with
+    their total cost and that cost as a share of training the whole list."""
+    tol = sigma if sigma and np.isfinite(sigma) else 0.0
+    out = []
+    for name, g in bt.groupby("evaluator", sort=False):
+        g = g.sort_values("budget")
+        s = g[g.regret_best_of_b <= tol]; z = g[g.regret_best_of_b <= 0]
+        r = {"evaluator": name, "kind": g.kind.iloc[0],
+             "regret_b5": float(g[g.budget == 5].regret_best_of_b.iloc[0]), "regret_b10": float(g[g.budget == 10].regret_best_of_b.iloc[0]),
+             "b_sigma": str(int(s.budget.iloc[0])) if len(s) else "> 20", "hours_b_sigma": float(s.gpu_hours.iloc[0]) if len(s) else np.nan,
+             "b_zero": str(int(z.budget.iloc[0])) if len(z) else "> 20", "hours_b_zero": float(z.gpu_hours.iloc[0]) if len(z) else np.nan}
+        r["pct_of_full_b_zero"] = r["hours_b_zero"] / full_hours * 100 if np.isfinite(r["hours_b_zero"]) else np.nan
+        out.append(r)
+    return pd.DataFrame(out)
+
+
 def transfer(dfs: dict, target: str, k: int = 5) -> pd.DataFrame:
     """Top-k of a source city by target, scored at every other city on the shared architectures."""
     rows = []
@@ -252,7 +313,7 @@ def run_city(root: Root, target: str, ks: list[int], sh_r0: list[int], etas: lis
     cost = load_cost(root)
     meta.update(cluster=cost["cluster"], gpu_unit=cost["gpu_unit"], cost_ratio=cost["cost_ratio"], cost_file=cost["cost_file"])
     tabs = [add_ref_cost(pd.DataFrame(x), cost["cost_ratio"]) for x in (rows, sh_rows, filt_rows)]
-    return tabs[0], tabs[1], tabs[2], {"df": df, "meta": meta}
+    return tabs[0], tabs[1], tabs[2], {"df": df, "meta": meta, "curves": curves}
 
 
 def to_sigma(t: pd.DataFrame, sigma: float) -> pd.DataFrame:
@@ -288,15 +349,25 @@ def main():
     ks = [int(x) for x in a.ks.split(",")]; r0s = [int(x) for x in a.sh_r0.split(",")]; etas = [int(x) for x in a.etas.split(",")]
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
 
-    main_t, sh_t, filt_t, dfs, metas = [], [], [], {}, {}
+    main_t, sh_t, filt_t, dfs, metas, auxs = [], [], [], {}, {}, {}
     for r in a.roots:
         root = Root.from_tables_dir(r)
         m, s, f, aux = run_city(root, a.target, ks, r0s, etas)
         sig = aux["meta"]["sigma_seed"]
         main_t.append(to_sigma(m, sig)); sh_t.append(to_sigma(s, sig)); filt_t.append(to_sigma(f, sig))
-        dfs[root.dataset] = aux["df"]; metas[root.dataset] = aux["meta"]
+        dfs[root.dataset] = aux["df"]; metas[root.dataset] = aux["meta"]; auxs[root.dataset] = aux
     main_t, sh_t, filt_t = pd.concat(main_t), pd.concat(sh_t), pd.concat(filt_t)
     tr = transfer(dfs, a.target)
+    bud_t, bsum_t = [], []
+    for c, aux in auxs.items():
+        bt = budget_curve(aux["df"], aux["curves"], a.target, {s: dfs[s] for s in dfs if s != c})
+        bt.insert(0, "city", c); bt = add_ref_cost(bt, metas[c]["cost_ratio"])
+        bt["regret_best_of_b_sigma"] = bt.regret_best_of_b / metas[c]["sigma_seed"] if metas[c]["sigma_seed"] else np.nan
+        full_h = float(main_t[(main_t.city == c) & (main_t.evaluator == "full_training")].gpu_hours.iloc[0])
+        bs = budget_summary(bt, metas[c]["sigma_seed"], full_h); bs.insert(0, "city", c)
+        bud_t.append(bt); bsum_t.append(bs)
+    bud_t, bsum_t = pd.concat(bud_t), pd.concat(bsum_t)
+    bud_t.to_csv(out / "evalcost_budget.csv", index=False); bsum_t.to_csv(out / "evalcost_budget_summary.csv", index=False)
     main_t.to_csv(out / "evalcost_points.csv", index=False); sh_t.to_csv(out / "evalcost_halving.csv", index=False)
     filt_t.to_csv(out / "evalcost_filter.csv", index=False); tr.to_csv(out / "evalcost_transfer.csv", index=False)
     json.dump(metas, open(out / "evalcost_meta.json", "w"), indent=1)
@@ -320,6 +391,9 @@ def main():
                       f"{c}: successive halving on the logged curves"))
         doc.append(md(filt_t[filt_t.city == c], ["evaluator", "gpu_hours", "gpu_hours_ref", "top10_in_bottom_half", "top10_total", "regret_top1", "regret_top1_sigma", "regret_best_of_5"],
                       f"{c}: proxy as a filter, then brief training on the top half"))
+        doc.append(md(bsum_t[bsum_t.city == c], ["evaluator", "kind", "regret_b5", "regret_b10", "b_sigma", "hours_b_sigma", "b_zero", "hours_b_zero", "pct_of_full_b_zero"],
+                      f"{c}: budget curve, best of the top b after full training of the b picks",
+                      "b_sigma / b_zero = the smallest budget (of 1, 2, 3, 5, 8, 10, 15, 20) whose best-of-b regret is within one sigma_seed / is 0; hours = evaluator cost + the b full trainings (logged hours of this root); pct_of_full = hours_b_zero as a share of training the whole list. The full curve is in evalcost_budget.csv."))
     doc.append(md(tr, ["source", "target_city", "n_shared", "regret_top1", "regret_best_of_5", "top1_rank_pct", "top5_mean_rank_pct", "rho_cities"],
                   "Transfer: the top-5 of a source city, scored at the target city", "rho_cities = Spearman of the labels of the shared architectures between the two cities."))
     (out / "evalcost.md").write_text("\n".join(doc))
