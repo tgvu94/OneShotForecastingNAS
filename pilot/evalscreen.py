@@ -3,6 +3,7 @@
     python -m pilot.evalscreen base                 # the stored evaluators on the common measure
     python -m pilot.evalscreen proxy_combination    # a model on the proxy scores, fit on the other cities
     python -m pilot.evalscreen curve_rank           # a model on the first k epochs, fit on the other cities
+    python -m pilot.evalscreen transfer             # cheap sources, the choice of the source, the headroom of transfer
     out = results/evalscreen/compare/tables
 
 No training, no forward pass, no GPU.  Reads <root>/tables/joined.csv, <root>/train/<id>/seed*/metrics.json and
@@ -560,15 +561,106 @@ def run_curve_rank(roots: list[Root], cities: dict, out: Path) -> None:
     print(verdict.to_string(index=False)); print(piv.to_string(index=False, float_format=lambda x: f"{x:.2f}")); print(ev.to_string(index=False, float_format=lambda x: f"{x:.2f}"))
 
 
+# ---------------------------------------------------------------- transfer: cheap sources, source choice, headroom
+SOURCE_KS = [1, 3, 5, 10]
+TASK_STATS = "results/benchst/compare/tables/candidates_task_stats.csv"
+TASK_COLS = ["r1_permille_w12", "r2_permille_w12", "acf_lag1"]
+N_PROBE, PROBE_K = 5, 3
+
+
+def source_rank(cities: dict, held: str, k: int | None, sources: list | None = None) -> np.ndarray:
+    """Pooled rank at the held-out city from the other cities: their final labels (k None) or their val MAE after k epochs."""
+    c = cities[held]; ranks = []
+    for name, s in cities.items():
+        if name != held and (sources is None or name in sources):
+            v = -s.y if k is None else -s.val_at(k)
+            ranks.append(unit_rank(c.align(pd.Series(v, index=s.ids))))
+    return np.mean(ranks, axis=0)
+
+
+def run_transfer(roots: list[Root], cities: dict, out: Path) -> None:
+    sink = Sink(); krows, hrows, prows = [], [], []
+    names = list(cities)
+    for held, c in cities.items():
+        full = source_rank(cities, held, None); sink.add(c, "pooled_final_labels", "transfer", score_eval(full), full)
+        w_full = within_head(c, full)
+        for k in SOURCE_KS:                                             # K: sources trained k epochs only
+            s = source_rank(cities, held, k); sink.add(c, f"pooled_source_k{k}", "transfer, cheap sources", score_eval(s), s, {"k": k})
+            src_cost = np.mean([float(sum(S.cumh[i][min(k, S.length[i])] for i in range(S.n)) / S.full_h.sum()) for n_, S in cities.items() if n_ != held])
+            krows.append({"city": held, "k": k, "rho_within_head": within_head(c, s), "full_label_within": w_full, "loss": w_full - within_head(c, s), "source_cost_share": src_cost})
+        for src in names:                                               # single sources, final labels and five epochs
+            if src != held:
+                s = source_rank(cities, held, None, [src]); sink.add(c, f"from_{src}", "transfer, one source", score_eval(s), s)
+                s5 = source_rank(cities, held, 5, [src]); sink.add(c, f"from_{src}_k5", "transfer, one cheap source", score_eval(s5), s5)
+        # I: headroom of transfer, and the probe statistic
+        y = c.y; best = y.min(); o = order_of(full)
+        rng = np.random.default_rng(0); sets = [np.arange(N_PROBE)] + [rng.choice(c.n, N_PROBE, replace=False) for _ in range(20)]
+        spreads = [float(np.std(y[p], ddof=1) / c.sigma) for p in sets]
+        hrows.append({"city": held, "sigma_seed": c.sigma, "list_std_over_sigma": float(np.std(y, ddof=1) / c.sigma), "list_range_over_sigma": float((y.max() - best) / c.sigma),
+                      "share_of_list_within_1_sigma": float(np.mean(y - best <= c.sigma)), "headroom_pooled_top1_sigma": float((y[o[0]] - best) / c.sigma),
+                      "headroom_pooled_best_of_5_sigma": float((y[o[:5]].min() - best) / c.sigma), "probe_spread_first5": spreads[0],
+                      "probe_spread_mean_random5": float(np.mean(spreads[1:])), "probe_spread_p5": float(np.percentile(spreads[1:], 5)), "probe_spread_p95": float(np.percentile(spreads[1:], 95))})
+    ct, _, ht = sink.frames()
+    # H: a label-free similarity picks the source
+    try:
+        ts = pd.read_csv(TASK_STATS).set_index("dataset"); tcols = [x for x in TASK_COLS if x in ts.columns]
+        Z = (ts[tcols] - ts.loc[[x for x in ts.index if x in names], tcols].mean()) / ts.loc[[x for x in ts.index if x in names], tcols].std()
+    except Exception:
+        Z, tcols = None, []
+    for tgt in names:
+        c = cities[tgt]
+        for src in names:
+            if src == tgt:
+                continue
+            S = cities[src]
+            px = [rho(c.df[p].values.astype(float), c.align(pd.Series(S.df[p].values.astype(float), index=S.ids))) for p in PROXY_NAMES if p in c.df and p in S.df and p not in ("params", "flops")]
+            probes = np.arange(N_PROBE); pr_s = c.align(pd.Series(-S.val_at(PROBE_K), index=S.ids))[probes]
+            row = ct[(ct.city == tgt) & (ct.evaluator == f"from_{src}")].iloc[0]
+            prows.append({"target": tgt, "source": src, "sim_proxy_profile": float(np.nanmean(px)), "sim_probe_agreement": rho(-c.val_at(PROBE_K)[probes], pr_s) if N_PROBE >= 4 else np.nan,
+                          "sim_task_stats": -float(np.linalg.norm(Z.loc[tgt] - Z.loc[src])) if Z is not None and tgt in Z.index and src in Z.index else np.nan,
+                          "label_rho_within_head": within_head(c, source_rank(cities, tgt, None, [src])), "sub_share": row.sub_share, "sub_pct_median": row.sub_pct_median, "pct_sigma": row.pct_sigma})
+    pt = pd.DataFrame(prows); kt = pd.DataFrame(krows); hd = pd.DataFrame(hrows)
+    choice = []
+    for sim in ("sim_proxy_profile", "sim_probe_agreement", "sim_task_stats"):
+        for tgt, g in pt.groupby("target"):
+            if g[sim].notna().sum() < 2:
+                continue
+            g = g.assign(true_rank=g.label_rho_within_head.rank(ascending=False)); pick = g.loc[g[sim].idxmax()]
+            pooled = ct[(ct.city == tgt) & (ct.evaluator == "pooled_final_labels")].iloc[0]
+            choice.append({"similarity": sim, "target": tgt, "chosen_source": pick.source, "true_rank_of_choice": int(pick.true_rank), "chosen_sub_pct_median": pick.sub_pct_median,
+                           "pooled_sub_pct_median": pooled.sub_pct_median, "chosen_below_pooled": bool(pick.sub_pct_median < pooled.sub_pct_median),
+                           "rho_sim_vs_label_rho": rho(g[sim].values, g.label_rho_within_head.values) if len(g) >= 4 else np.nan})
+    ch = pd.DataFrame(choice)
+    kv = kt[kt.k == 5].merge(ct[ct.evaluator == "pooled_source_k5"][["city", "sub_share", "sub_pct_median"]], on="city").merge(
+        ct[ct.evaluator == "pooled_final_labels"][["city", "sub_pct_median"]].rename(columns={"sub_pct_median": "full_sub_pct_median"}), on="city")
+    kv["ok"] = (kv.loss <= 0.1) & (kv.sub_pct_median <= 1.5 * kv.full_sub_pct_median) & (kv.sub_share >= 0.9)
+    for n_, t in (("cost", ct), ("head", ht), ("cheap_sources", kt), ("cheap_sources_k5", kv), ("headroom", hd), ("source_pairs", pt), ("source_choice", ch)):
+        t.to_csv(out / f"transfer_{n_}.csv", index=False)
+    doc = ["# evalscreen transfer: cheap sources, the choice of the source, and the headroom of transfer", "",
+           "pooled_final_labels = mean label rank over the other three cities. pooled_source_k = the same rank from the validation MAE of the sources after k epochs; "
+           "source_cost_share = the share of a source list's full cost that k epochs take. " + MEASURE_NOTE, ""]
+    doc.append(ec.md(kt, list(kt.columns), "Cheap sources: Spearman inside the heads at the target against the epochs trained at the sources"))
+    doc.append(ec.md(kv, list(kv.columns), "Cheap sources at k = 5 against the pass line", "ok = loss <= 0.1 and robust cost at most 1.5 times the full-label pooled rank with a subset share >= 0.9."))
+    doc.append(ec.md(hd, list(hd.columns), "Headroom of transfer in sigma_seed, and the probe statistic", f"probe_spread = std of the test MAE of {N_PROBE} architectures over sigma_seed (the first {N_PROBE} of the list; 20 random sets)."))
+    doc.append(ec.md(pt, list(pt.columns), "Source pairs: label-free similarities against the transfer quality"))
+    doc.append(ec.md(ch, list(ch.columns), "The source that each similarity picks"))
+    for k in cities:
+        doc.append(ec.md(ct[ct.city == k].sort_values(["sub_pct_median", "pct_sigma"], na_position="last"), COST_COLS, f"{k}: cost to one sigma"))
+    (out / "evalscreen_transfer.md").write_text("\n".join(doc))
+    pd.set_option("display.width", 250)
+    for t in (kt, kv, hd, pt, ch):
+        print(t.to_string(index=False, float_format=lambda x: f"{x:.2f}")); print()
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("what", choices=["base", "proxy_combination", "curve_rank"])
+    ap.add_argument("what", choices=["base", "proxy_combination", "curve_rank", "transfer"])
     ap.add_argument("--roots", nargs="+", default=ROOTS)
     ap.add_argument("--out", default=OUT)
     a = ap.parse_args()
     roots = [Root(r) for r in a.roots]; out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     cities = load_cities(roots)
-    {"base": run_base, "proxy_combination": run_proxy_combination, "curve_rank": run_curve_rank}[a.what](roots, cities, out)
+    {"base": run_base, "proxy_combination": run_proxy_combination, "curve_rank": run_curve_rank, "transfer": run_transfer}[a.what](roots, cities, out)
 
 
 if __name__ == "__main__":

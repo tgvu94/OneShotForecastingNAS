@@ -1,0 +1,9 @@
+similarity,target,chosen_source,true_rank_of_choice,chosen_sub_pct_median,pooled_sub_pct_median,chosen_below_pooled,rho_sim_vs_label_rho
+sim_proxy_profile,chengdu,shenzhen,1,0.7281948106021281,1.8281177936297186,True,
+sim_proxy_profile,metrla,shenzhen,1,0.8400733193627122,0.8400733193627122,False,
+sim_proxy_profile,pems04,shenzhen,1,3.217424123767531,4.346395487974856,True,
+sim_proxy_profile,shenzhen,chengdu,1,0.5996977972600623,0.9263041733493742,True,
+sim_probe_agreement,chengdu,pems04,2,10.358569635480988,1.8281177936297186,False,
+sim_probe_agreement,metrla,shenzhen,1,0.8400733193627122,0.8400733193627122,False,
+sim_probe_agreement,pems04,chengdu,3,9.932544714378636,4.346395487974856,False,
+sim_probe_agreement,shenzhen,metrla,3,0.9343875366467853,0.9263041733493742,False,
