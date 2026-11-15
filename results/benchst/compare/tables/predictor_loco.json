@@ -3,13 +3,15 @@
     "results/benchst/metrla_h12",
     "results/benchst/pems04_h12",
     "results/benchst/chengdu_h12",
-    "results/benchst/shenzhen_h12"
+    "results/benchst/shenzhen_h12",
+    "results/benchst/pems08_h12"
   ],
   "n_per_city": {
     "metrla": 150,
     "pems04": 150,
     "chengdu": 150,
-    "shenzhen": 150
+    "shenzhen": 150,
+    "pems08": 150
   },
   "arch_cols": [
     "dec_gru",

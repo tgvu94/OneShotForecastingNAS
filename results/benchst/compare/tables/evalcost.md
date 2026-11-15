@@ -6,6 +6,7 @@ Regret = the evaluator's pick minus the best architecture of the set, in MAE uni
 - pems04: N = 150, max epochs 20, sigma_seed = 0.0003 over 5 architectures; trained on nibi (H100 3g.40gb slice), cost_ratio 1.00 (no COST.json: reference unit assumed)
 - chengdu: N = 150, max epochs 20, sigma_seed = 0.0018 over 5 architectures; trained on rorqual (H100 3g.40gb slice), cost_ratio 1.01
 - shenzhen: N = 150, max epochs 20, sigma_seed = 0.0014 over 5 architectures; trained on fir (H100 3g.40gb slice), cost_ratio 0.94
+- pems08: N = 150, max epochs 20, sigma_seed = 0.0008 over 5 architectures; trained on trillium (whole H100, 24 cores), cost_ratio 0.90
 
 ### metrla: floors, proxies, brief training, ceiling
 
@@ -94,6 +95,7 @@ b_sigma / b_zero = the smallest budget (of 1, 2, 3, 5, 8, 10, 15, 20) whose best
 | transfer_from_pems04 | transfer | 0.000 | 0.000 | 2 | 0.729 | 2 | 0.729 | 2.219 |
 | transfer_from_chengdu | transfer | 0.001 | 0.000 | 1 | 0.181 | 10 | 2.320 | 7.059 |
 | transfer_from_shenzhen | transfer | 0.000 | 0.000 | 1 | 0.181 | 2 | 0.498 | 1.515 |
+| transfer_from_pems08 | transfer | 0.000 | 0.000 | 1 | 0.317 | 1 | 0.317 | 0.965 |
 
 ### pems04: floors, proxies, brief training, ceiling
 
@@ -182,6 +184,7 @@ b_sigma / b_zero = the smallest budget (of 1, 2, 3, 5, 8, 10, 15, 20) whose best
 | transfer_from_metrla | transfer | 0.000 | 0.000 | 15 | 2.710 | 15 | 2.710 | 9.459 |
 | transfer_from_chengdu | transfer | 0.001 | 0.000 | 15 | 2.683 | 15 | 2.683 | 9.365 |
 | transfer_from_shenzhen | transfer | 0.000 | 0.000 | 5 | 0.880 | 5 | 0.880 | 3.071 |
+| transfer_from_pems08 | transfer | 0.000 | 0.000 | 15 | 3.062 | 15 | 3.062 | 10.686 |
 
 ### chengdu: floors, proxies, brief training, ceiling
 
@@ -270,6 +273,7 @@ b_sigma / b_zero = the smallest budget (of 1, 2, 3, 5, 8, 10, 15, 20) whose best
 | transfer_from_metrla | transfer | 0.000 | 0.000 | 3 | 0.376 | 3 | 0.376 | 1.767 |
 | transfer_from_pems04 | transfer | 0.003 | 0.003 | 15 | 2.624 | 15 | 2.624 | 12.336 |
 | transfer_from_shenzhen | transfer | 0.000 | 0.000 | 1 | 0.101 | 1 | 0.101 | 0.477 |
+| transfer_from_pems08 | transfer | 0.002 | 0.002 | 15 | 2.375 | 15 | 2.375 | 11.164 |
 
 ### shenzhen: floors, proxies, brief training, ceiling
 
@@ -358,6 +362,96 @@ b_sigma / b_zero = the smallest budget (of 1, 2, 3, 5, 8, 10, 15, 20) whose best
 | transfer_from_metrla | transfer | 0.000 | 0.000 | 1 | 0.186 | 3 | 0.444 | 1.476 |
 | transfer_from_pems04 | transfer | 0.001 | 0.001 | 2 | 0.530 | 15 | 3.809 | 12.676 |
 | transfer_from_chengdu | transfer | 0.000 | 0.000 | 1 | 0.118 | 1 | 0.118 | 0.392 |
+| transfer_from_pems08 | transfer | 0.001 | 0.001 | 1 | 0.186 | 15 | 3.315 | 11.030 |
+
+### pems08: floors, proxies, brief training, ceiling
+
+| evaluator | kind | gpu_hours | gpu_hours_ref | regret_top1 | regret_top1_sigma | regret_best_of_5 | regret_best_of_5_sigma | pick_rank_pct | rho | rho_partial | rho_within_head |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| random | floor | 0.000 | 0.000 | 0.007 | 9.012 | 0.003 | 4.121 | 50.000 | 0.000 | 0.000 | 0.000 |
+| params | floor | 0.000 | 0.000 | 0.003 | 3.868 | 0.003 | 3.868 | 12.752 | 0.144 | 0.045 | 0.295 |
+| flops | floor | 0.000 | 0.000 | 0.004 | 5.226 | 0.004 | 5.226 | 24.161 | 0.107 | 0.059 | 0.166 |
+| zico | zero-cost proxy | 0.000 | 0.000 | 0.004 | 4.574 | 0.004 | 4.574 | 17.450 | 0.332 | 0.324 | 0.527 |
+| zico_sizectrl | zero-cost proxy | 0.000 | 0.000 | 0.009 | 11.704 | 0.004 | 4.574 | 75.168 | 0.300 | 0.298 | 0.444 |
+| swap | zero-cost proxy | 0.000 | 0.000 | 0.008 | 9.472 | 0.002 | 2.272 | 57.047 | 0.070 | -0.035 | 0.195 |
+| swap_reg | zero-cost proxy | 0.000 | 0.000 | 0.013 | 16.326 | 0.003 | 3.429 | 93.960 | 0.089 | 0.074 | 0.067 |
+| nwot | zero-cost proxy | 0.000 | 0.000 | 0.004 | 5.177 | 0.002 | 2.272 | 22.819 | 0.154 | 0.092 | 0.243 |
+| synflow_all | zero-cost proxy | 0.000 | 0.000 | 0.004 | 5.600 | 0.004 | 5.226 | 26.846 | -0.009 | -0.020 | 0.061 |
+| snip_all | zero-cost proxy | 0.000 | 0.000 | 0.010 | 12.774 | 0.009 | 10.959 | 82.550 | -0.398 | -0.454 | -0.211 |
+| grasp_all | zero-cost proxy | 0.000 | 0.000 | 0.006 | 7.852 | 0.004 | 4.378 | 42.282 | 0.478 | 0.506 | 0.286 |
+| grad_norm_all | zero-cost proxy | 0.000 | 0.000 | 0.010 | 12.774 | 0.009 | 10.959 | 82.550 | -0.432 | -0.493 | -0.189 |
+| fisher | zero-cost proxy | 0.000 | 0.000 | 0.016 | 19.817 | 0.009 | 10.959 | 97.987 | -0.473 | -0.521 | -0.231 |
+| jacov | zero-cost proxy | 0.000 | 0.000 | 0.009 | 11.156 | 0.006 | 7.641 | 71.812 | -0.133 | -0.132 | -0.244 |
+| zen | zero-cost proxy | 0.000 | 0.000 | 0.003 | 3.868 | 0.003 | 3.868 | 12.752 | 0.082 | -0.081 | 0.209 |
+| l2_norm_all | zero-cost proxy | 0.000 | 0.000 | 0.004 | 4.574 | 0.003 | 3.868 | 17.450 | 0.308 | 0.321 | 0.482 |
+| plain_all | zero-cost proxy | 0.000 | 0.000 | 0.016 | 19.817 | 0.010 | 11.966 | 97.987 | -0.432 | -0.472 | -0.079 |
+| zico_t | zero-cost proxy | 0.000 | 0.000 | 0.004 | 5.600 | 0.004 | 4.574 | 26.846 | 0.316 | 0.296 | 0.502 |
+| zico_s | zero-cost proxy | 0.000 | 0.000 | 0.009 | 11.642 | 0.004 | 5.226 | 74.497 | 0.150 | 0.164 | 0.168 |
+| glass | zero-cost proxy | 0.000 | 0.000 | 0.004 | 4.574 | 0.004 | 4.574 | 17.450 | 0.342 | 0.334 | 0.530 |
+| glass_t | zero-cost proxy | 0.000 | 0.000 | 0.004 | 5.600 | 0.004 | 4.574 | 26.846 | 0.322 | 0.304 | 0.506 |
+| glass_s | zero-cost proxy | 0.000 | 0.000 | 0.009 | 11.642 | 0.004 | 5.226 | 74.497 | 0.158 | 0.172 | 0.169 |
+| nwot_per_layer | zero-cost proxy | 0.000 | 0.000 | 0.013 | 16.397 | 0.006 | 7.745 | 95.302 | -0.283 | -0.240 | -0.385 |
+| early_val_k1 | brief training | 1.210 | 1.344 | 0.009 | 10.986 | 0.006 | 7.672 | 71.141 | -0.065 | -0.079 | 0.310 |
+| early_val_k2 | brief training | 2.178 | 2.420 | 0.010 | 11.959 | 0.002 | 2.380 | 77.181 | 0.132 | 0.126 | 0.539 |
+| early_val_k3 | brief training | 3.159 | 3.510 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.385 | 0.374 | 0.625 |
+| early_val_k4 | brief training | 4.152 | 4.613 | 0.002 | 2.913 | 0.002 | 2.410 | 6.040 | 0.528 | 0.524 | 0.704 |
+| early_val_k5 | brief training | 5.153 | 5.725 | 0.002 | 2.380 | 0.000 | 0.000 | 4.027 | 0.695 | 0.691 | 0.762 |
+| early_val_k6 | brief training | 6.166 | 6.851 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.739 | 0.739 | 0.809 |
+| early_val_k8 | brief training | 8.199 | 9.110 | 0.001 | 1.460 | 0.000 | 0.000 | 2.685 | 0.865 | 0.863 | 0.849 |
+| early_val_k10 | brief training | 10.239 | 11.377 | 0.001 | 0.942 | 0.000 | 0.000 | 1.342 | 0.918 | 0.916 | 0.875 |
+| early_val_k15 | brief training | 15.360 | 17.066 | 0.001 | 0.942 | 0.000 | 0.000 | 1.342 | 0.960 | 0.959 | 0.922 |
+| full_training | ceiling | 20.366 | 22.629 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 1.000 | 1.000 | 1.000 |
+
+### pems08: successive halving on the logged curves
+
+| evaluator | gpu_hours | gpu_hours_ref | rounds | dropped_top10_round1 | regret_top1 | regret_top1_sigma | regret_best_of_5 | pick_rank_pct |
+|---|---|---|---|---|---|---|---|---|
+| sh_r1_eta2 | 3.412 | 3.791 | 6 | 5 | 0.000 | 0.000 | 0.000 | 0.000 |
+| sh_r1_eta3 | 2.999 | 3.332 | 4 | 8 | 0.000 | 0.000 | 0.000 | 0.000 |
+| sh_r2_eta2 | 5.757 | 6.397 | 5 | 3 | 0.001 | 0.942 | 0.000 | 1.342 |
+| sh_r2_eta3 | 5.179 | 5.754 | 4 | 5 | 0.000 | 0.000 | 0.000 | 0.000 |
+| sh_r3_eta2 | 7.545 | 8.383 | 4 | 2 | 0.001 | 0.942 | 0.000 | 1.342 |
+| sh_r3_eta3 | 6.705 | 7.450 | 3 | 3 | 0.001 | 0.942 | 0.000 | 1.342 |
+
+### pems08: proxy as a filter, then brief training on the top half
+
+| evaluator | gpu_hours | gpu_hours_ref | top10_in_bottom_half | top10_total | regret_top1 | regret_top1_sigma | regret_best_of_5 |
+|---|---|---|---|---|---|---|---|
+| zico_half_then_k1 | 0.705 | 0.784 | 4 | 15 | 0.008 | 9.426 | 0.006 |
+| zico_half_then_k3 | 1.812 | 2.014 | 4 | 15 | 0.000 | 0.000 | 0.000 |
+| zico_half_then_k5 | 2.955 | 3.284 | 4 | 15 | 0.000 | 0.000 | 0.000 |
+| swap_half_then_k1 | 0.641 | 0.712 | 8 | 15 | 0.008 | 9.426 | 0.006 |
+| swap_half_then_k3 | 1.696 | 1.884 | 8 | 15 | 0.003 | 3.429 | 0.002 |
+| swap_half_then_k5 | 2.771 | 3.079 | 8 | 15 | 0.002 | 2.380 | 0.001 |
+| zico_sizectrl_half_then_k1 | 0.685 | 0.762 | 4 | 15 | 0.008 | 9.426 | 0.008 |
+| zico_sizectrl_half_then_k3 | 1.749 | 1.943 | 4 | 15 | 0.000 | 0.000 | 0.000 |
+| zico_sizectrl_half_then_k5 | 2.839 | 3.154 | 4 | 15 | 0.000 | 0.000 | 0.000 |
+| params_half_then_k1 | 0.668 | 0.742 | 5 | 15 | 0.009 | 10.986 | 0.006 |
+| params_half_then_k3 | 1.740 | 1.933 | 5 | 15 | 0.000 | 0.000 | 0.000 |
+| params_half_then_k5 | 2.848 | 3.164 | 5 | 15 | 0.002 | 2.380 | 0.000 |
+
+### pems08: budget curve, best of the top b after full training of the b picks
+
+b_sigma / b_zero = the smallest budget (of 1, 2, 3, 5, 8, 10, 15, 20) whose best-of-b regret is within one sigma_seed / is 0; hours = evaluator cost + the b full trainings (logged hours of this root); pct_of_full = hours_b_zero as a share of training the whole list. The full curve is in evalcost_budget.csv.
+
+| evaluator | kind | regret_b5 | regret_b10 | b_sigma | hours_b_sigma | b_zero | hours_b_zero | pct_of_full_b_zero |
+|---|---|---|---|---|---|---|---|---|
+| random | floor | 0.003 | 0.002 | > 20 |  | > 20 |  |  |
+| zico | zero-cost proxy | 0.004 | 0.003 | > 20 |  | > 20 |  |  |
+| zico_t | zero-cost proxy | 0.004 | 0.003 | 20 | 3.441 | 20 | 3.441 | 16.897 |
+| glass | zero-cost proxy | 0.004 | 0.003 | 20 | 3.616 | 20 | 3.616 | 17.753 |
+| zico_sizectrl | zero-cost proxy | 0.004 | 0.003 | > 20 |  | > 20 |  |  |
+| params | zero-cost proxy | 0.003 | 0.003 | > 20 |  | > 20 |  |  |
+| swap | zero-cost proxy | 0.002 | 0.002 | > 20 |  | > 20 |  |  |
+| nwot | zero-cost proxy | 0.002 | 0.001 | > 20 |  | > 20 |  |  |
+| early_val_k1 | brief training | 0.006 | 0.006 | > 20 |  | > 20 |  |  |
+| early_val_k2 | brief training | 0.002 | 0.002 | 20 | 4.970 | 20 | 4.970 | 24.402 |
+| early_val_k3 | brief training | 0.000 | 0.000 | 1 | 3.279 | 1 | 3.279 | 16.099 |
+| early_val_k5 | brief training | 0.000 | 0.000 | 2 | 5.347 | 2 | 5.347 | 26.256 |
+| transfer_from_metrla | transfer | 0.000 | 0.000 | 1 | 0.143 | 1 | 0.143 | 0.702 |
+| transfer_from_pems04 | transfer | 0.000 | 0.000 | 2 | 0.384 | 2 | 0.384 | 1.888 |
+| transfer_from_chengdu | transfer | 0.001 | 0.000 | 3 | 0.473 | 10 | 1.635 | 8.030 |
+| transfer_from_shenzhen | transfer | 0.000 | 0.000 | 2 | 0.252 | 2 | 0.252 | 1.237 |
 
 ### Transfer: the top-5 of a source city, scored at the target city
 
@@ -368,12 +462,20 @@ rho_cities = Spearman of the labels of the shared architectures between the two 
 | metrla | pems04 | 150 | 0.000 | 0.000 | 0.671 | 7.383 | 0.576 |
 | metrla | chengdu | 150 | 0.003 | 0.000 | 6.040 | 15.570 | 0.530 |
 | metrla | shenzhen | 150 | 0.001 | 0.000 | 0.671 | 6.309 | 0.716 |
+| metrla | pems08 | 150 | 0.000 | 0.000 | 0.000 | 3.893 | 0.757 |
 | pems04 | metrla | 150 | 0.004 | 0.000 | 8.054 | 12.215 | 0.576 |
 | pems04 | chengdu | 150 | 0.004 | 0.003 | 9.396 | 23.893 | 0.517 |
 | pems04 | shenzhen | 150 | 0.003 | 0.001 | 2.685 | 7.785 | 0.691 |
+| pems04 | pems08 | 150 | 0.003 | 0.000 | 9.396 | 7.383 | 0.770 |
 | chengdu | metrla | 150 | 0.002 | 0.001 | 1.342 | 10.067 | 0.530 |
 | chengdu | pems04 | 150 | 0.001 | 0.001 | 6.711 | 26.443 | 0.517 |
 | chengdu | shenzhen | 150 | 0.000 | 0.000 | 0.000 | 6.443 | 0.779 |
+| chengdu | pems08 | 150 | 0.002 | 0.001 | 8.054 | 12.886 | 0.472 |
 | shenzhen | metrla | 150 | 0.002 | 0.000 | 1.342 | 8.322 | 0.716 |
 | shenzhen | pems04 | 150 | 0.001 | 0.000 | 6.711 | 9.664 | 0.691 |
 | shenzhen | chengdu | 150 | 0.000 | 0.000 | 0.000 | 7.651 | 0.779 |
+| shenzhen | pems08 | 150 | 0.002 | 0.000 | 8.054 | 10.872 | 0.673 |
+| pems08 | metrla | 150 | 0.000 | 0.000 | 0.000 | 2.685 | 0.757 |
+| pems08 | pems04 | 150 | 0.000 | 0.000 | 0.671 | 4.698 | 0.770 |
+| pems08 | chengdu | 150 | 0.003 | 0.002 | 6.040 | 18.255 | 0.472 |
+| pems08 | shenzhen | 150 | 0.001 | 0.001 | 0.671 | 8.993 | 0.673 |

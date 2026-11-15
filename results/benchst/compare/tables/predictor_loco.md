@@ -2,34 +2,40 @@
 
 Target: within-city rank of -val MAE (seed 0) in [0, 1]. Features: operator counts per cell, edge counts, head, decoder, log params, log FLOPs; task statistics ['n_nodes', 'r1_permille_w12', 'r2_permille_w12', 'acf_lag1', 'acf_lag12', 'acf_lag288', 'cv_median_node', 'frac_zero', 'density', 'naive_last_value_val_mae', 'diff_std_over_std'] (z-scored over the training cities); the stored proxies ['fisher', 'flops', 'glass', 'glass_s', 'glass_t', 'grad_norm_all', 'grasp_all', 'jacov', 'l2_norm_all', 'nwot', 'nwot_per_layer', 'params', 'plain_all', 'snip_all', 'swap', 'synflow_all', 'zen', 'zico', 'zico_s', 'zico_sizectrl', 'zico_t'] rank-normalised inside each city. Spearman with -val MAE on the held-out city, 95 % bootstrap CI (2000 samples), partial rho after the rank regression on log params. Boosting predictions are the mean over fit seeds [0, 1, 2].
 
-With 3 training cities every task statistic takes 3 values in the training set, so the task-aware model can learn only a city x operator interaction, and the held-out city's statistics are an extrapolation. This is a property of a benchmark with few cities, not of the predictor.
+With 4 training cities every task statistic takes 4 values in the training set, so the task-aware model can learn only a city x operator interaction, and the held-out city's statistics are an extrapolation. This is a property of a benchmark with few cities, not of the predictor.
 
 | held-out city | N | trained on | predictor | rho (95 % CI) | partial rho (log params) |
 |---|---|---|---|---|---|
-| metrla | 150 | pems04+chengdu+shenzhen (450) | ridge arch-only | +0.68 (+0.59, +0.76) | +0.70 |
-| metrla | 150 | pems04+chengdu+shenzhen (450) | gbr arch-only | +0.57 (+0.45, +0.69) | +0.58 |
-| metrla | 150 | pems04+chengdu+shenzhen (450) | gbr arch + task stats | +0.57 (+0.44, +0.68) | +0.57 |
-| metrla | 150 | pems04+chengdu+shenzhen (450) | gbr proxies only | +0.59 (+0.47, +0.70) | +0.60 |
-| metrla | 150 | pems04+chengdu+shenzhen (450) | gbr arch + proxies | +0.57 (+0.44, +0.68) | +0.58 |
+| metrla | 150 | pems04+chengdu+shenzhen+pems08 (600) | ridge arch-only | +0.76 (+0.69, +0.82) | +0.78 |
+| metrla | 150 | pems04+chengdu+shenzhen+pems08 (600) | gbr arch-only | +0.74 (+0.64, +0.81) | +0.74 |
+| metrla | 150 | pems04+chengdu+shenzhen+pems08 (600) | gbr arch + task stats | +0.73 (+0.64, +0.80) | +0.74 |
+| metrla | 150 | pems04+chengdu+shenzhen+pems08 (600) | gbr proxies only | +0.67 (+0.57, +0.75) | +0.68 |
+| metrla | 150 | pems04+chengdu+shenzhen+pems08 (600) | gbr arch + proxies | +0.74 (+0.64, +0.81) | +0.74 |
 | metrla | 150 | metrla (5-fold CV, reference) (150) | gbr arch-only, within city | +0.90 (+0.86, +0.92) | +0.90 |
-| pems04 | 150 | metrla+chengdu+shenzhen (450) | ridge arch-only | +0.53 (+0.39, +0.65) | +0.50 |
-| pems04 | 150 | metrla+chengdu+shenzhen (450) | gbr arch-only | +0.56 (+0.44, +0.68) | +0.55 |
-| pems04 | 150 | metrla+chengdu+shenzhen (450) | gbr arch + task stats | +0.57 (+0.44, +0.68) | +0.55 |
-| pems04 | 150 | metrla+chengdu+shenzhen (450) | gbr proxies only | +0.57 (+0.45, +0.68) | +0.55 |
-| pems04 | 150 | metrla+chengdu+shenzhen (450) | gbr arch + proxies | +0.57 (+0.45, +0.68) | +0.55 |
+| pems04 | 150 | metrla+chengdu+shenzhen+pems08 (600) | ridge arch-only | +0.55 (+0.42, +0.67) | +0.53 |
+| pems04 | 150 | metrla+chengdu+shenzhen+pems08 (600) | gbr arch-only | +0.59 (+0.46, +0.70) | +0.57 |
+| pems04 | 150 | metrla+chengdu+shenzhen+pems08 (600) | gbr arch + task stats | +0.57 (+0.45, +0.69) | +0.55 |
+| pems04 | 150 | metrla+chengdu+shenzhen+pems08 (600) | gbr proxies only | +0.61 (+0.49, +0.71) | +0.60 |
+| pems04 | 150 | metrla+chengdu+shenzhen+pems08 (600) | gbr arch + proxies | +0.60 (+0.49, +0.71) | +0.59 |
 | pems04 | 150 | pems04 (5-fold CV, reference) (150) | gbr arch-only, within city | +0.75 (+0.66, +0.82) | +0.73 |
-| chengdu | 150 | metrla+pems04+shenzhen (450) | ridge arch-only | +0.66 (+0.56, +0.75) | +0.64 |
-| chengdu | 150 | metrla+pems04+shenzhen (450) | gbr arch-only | +0.72 (+0.62, +0.79) | +0.70 |
-| chengdu | 150 | metrla+pems04+shenzhen (450) | gbr arch + task stats | +0.71 (+0.62, +0.79) | +0.70 |
-| chengdu | 150 | metrla+pems04+shenzhen (450) | gbr proxies only | +0.70 (+0.60, +0.79) | +0.68 |
-| chengdu | 150 | metrla+pems04+shenzhen (450) | gbr arch + proxies | +0.72 (+0.62, +0.80) | +0.69 |
+| chengdu | 150 | metrla+pems04+shenzhen+pems08 (600) | ridge arch-only | +0.64 (+0.54, +0.74) | +0.63 |
+| chengdu | 150 | metrla+pems04+shenzhen+pems08 (600) | gbr arch-only | +0.72 (+0.63, +0.80) | +0.70 |
+| chengdu | 150 | metrla+pems04+shenzhen+pems08 (600) | gbr arch + task stats | +0.71 (+0.62, +0.79) | +0.70 |
+| chengdu | 150 | metrla+pems04+shenzhen+pems08 (600) | gbr proxies only | +0.67 (+0.56, +0.76) | +0.64 |
+| chengdu | 150 | metrla+pems04+shenzhen+pems08 (600) | gbr arch + proxies | +0.71 (+0.61, +0.79) | +0.68 |
 | chengdu | 150 | chengdu (5-fold CV, reference) (150) | gbr arch-only, within city | +0.61 (+0.50, +0.71) | +0.58 |
-| shenzhen | 150 | metrla+pems04+chengdu (450) | ridge arch-only | +0.81 (+0.74, +0.86) | +0.80 |
-| shenzhen | 150 | metrla+pems04+chengdu (450) | gbr arch-only | +0.81 (+0.74, +0.86) | +0.80 |
-| shenzhen | 150 | metrla+pems04+chengdu (450) | gbr arch + task stats | +0.77 (+0.69, +0.83) | +0.76 |
-| shenzhen | 150 | metrla+pems04+chengdu (450) | gbr proxies only | +0.81 (+0.73, +0.86) | +0.79 |
-| shenzhen | 150 | metrla+pems04+chengdu (450) | gbr arch + proxies | +0.82 (+0.75, +0.87) | +0.80 |
+| shenzhen | 150 | metrla+pems04+chengdu+pems08 (600) | ridge arch-only | +0.82 (+0.76, +0.87) | +0.81 |
+| shenzhen | 150 | metrla+pems04+chengdu+pems08 (600) | gbr arch-only | +0.82 (+0.76, +0.87) | +0.81 |
+| shenzhen | 150 | metrla+pems04+chengdu+pems08 (600) | gbr arch + task stats | +0.79 (+0.71, +0.85) | +0.77 |
+| shenzhen | 150 | metrla+pems04+chengdu+pems08 (600) | gbr proxies only | +0.82 (+0.75, +0.87) | +0.81 |
+| shenzhen | 150 | metrla+pems04+chengdu+pems08 (600) | gbr arch + proxies | +0.82 (+0.76, +0.87) | +0.81 |
 | shenzhen | 150 | shenzhen (5-fold CV, reference) (150) | gbr arch-only, within city | +0.73 (+0.65, +0.80) | +0.73 |
+| pems08 | 150 | metrla+pems04+chengdu+shenzhen (600) | ridge arch-only | +0.78 (+0.69, +0.84) | +0.77 |
+| pems08 | 150 | metrla+pems04+chengdu+shenzhen (600) | gbr arch-only | +0.84 (+0.77, +0.89) | +0.84 |
+| pems08 | 150 | metrla+pems04+chengdu+shenzhen (600) | gbr arch + task stats | +0.73 (+0.64, +0.80) | +0.73 |
+| pems08 | 150 | metrla+pems04+chengdu+shenzhen (600) | gbr proxies only | +0.79 (+0.70, +0.86) | +0.79 |
+| pems08 | 150 | metrla+pems04+chengdu+shenzhen (600) | gbr arch + proxies | +0.86 (+0.79, +0.90) | +0.86 |
+| pems08 | 150 | pems08 (5-fold CV, reference) (150) | gbr arch-only, within city | +0.78 (+0.70, +0.83) | +0.78 |
 
 ## Leave one operator family out, within a city (gbr arch-only)
 
@@ -85,6 +91,18 @@ Fit on the other families of the same city, score the held-out family. Pass line
 | shenzhen | graph_family | gcn | 12 | 138 | +0.80 | +0.64 |
 | shenzhen | graph_family | mixed | 57 | 93 | +0.76 | +0.58 |
 | shenzhen | graph_family | none | 48 | 102 | +0.74 | +0.53 |
+| pems08 | seq_family | gru | 13 | 137 | +0.55 | +0.38 |
+| pems08 | seq_family | lstm | 29 | 121 | +0.65 | +0.47 |
+| pems08 | seq_family | mlp_mix | 23 | 127 | +0.86 | +0.68 |
+| pems08 | seq_family | sep_tcn | 24 | 126 | +0.78 | +0.63 |
+| pems08 | seq_family | skip_connection | 16 | 134 | +0.84 | +0.68 |
+| pems08 | seq_family | tcn | 31 | 119 | +0.83 | +0.67 |
+| pems08 | seq_family | transformer | 14 | 136 | +0.79 | +0.63 |
+| pems08 | graph_family | adaptive-only | 17 | 133 | +0.91 | +0.76 |
+| pems08 | graph_family | diffusion | 15 | 135 | +0.87 | +0.70 |
+| pems08 | graph_family | gcn | 12 | 138 | +0.84 | +0.70 |
+| pems08 | graph_family | mixed | 57 | 93 | +0.83 | +0.62 |
+| pems08 | graph_family | none | 48 | 102 | +0.55 | +0.38 |
 
 | city | family kind | families | n-weighted Kendall | families with Kendall >= 0.5 |
 |---|---|---|---|---|
@@ -94,6 +112,8 @@ Fit on the other families of the same city, score the held-out family. Pass line
 | metrla | seq_family | 7 | +0.70 | 7 |
 | pems04 | graph_family | 5 | +0.56 | 5 |
 | pems04 | seq_family | 7 | +0.58 | 6 |
+| pems08 | graph_family | 5 | +0.57 | 4 |
+| pems08 | seq_family | 7 | +0.60 | 5 |
 | shenzhen | graph_family | 5 | +0.58 | 5 |
 | shenzhen | seq_family | 7 | +0.55 | 5 |
 
@@ -151,6 +171,18 @@ Fit on n random labels of the city, score the rest; mean and 5-95 % range of Spe
 | shenzhen | gbr arch + proxies | 100 | 20.03 | +0.74 (+0.67, +0.82) |
 | shenzhen | gbr arch-only | 125 | 25.07 | +0.77 (+0.66, +0.86) |
 | shenzhen | gbr arch + proxies | 125 | 25.07 | +0.74 (+0.59, +0.84) |
+| pems08 | gbr arch-only | 10 | 1.37 | +0.41 (+0.09, +0.66) |
+| pems08 | gbr arch + proxies | 10 | 1.37 | +0.44 (+0.21, +0.64) |
+| pems08 | gbr arch-only | 25 | 3.41 | +0.65 (+0.29, +0.78) |
+| pems08 | gbr arch + proxies | 25 | 3.41 | +0.64 (+0.44, +0.76) |
+| pems08 | gbr arch-only | 50 | 6.73 | +0.75 (+0.70, +0.78) |
+| pems08 | gbr arch + proxies | 50 | 6.73 | +0.74 (+0.70, +0.80) |
+| pems08 | gbr arch-only | 75 | 10.18 | +0.74 (+0.65, +0.82) |
+| pems08 | gbr arch + proxies | 75 | 10.18 | +0.75 (+0.63, +0.83) |
+| pems08 | gbr arch-only | 100 | 13.54 | +0.77 (+0.65, +0.83) |
+| pems08 | gbr arch + proxies | 100 | 13.54 | +0.76 (+0.64, +0.84) |
+| pems08 | gbr arch-only | 125 | 17.04 | +0.76 (+0.65, +0.86) |
+| pems08 | gbr arch + proxies | 125 | 17.04 | +0.78 (+0.67, +0.87) |
 
 | city | predictor | smallest n with mean Spearman >= 0.6 | its GPU-hours |
 |---|---|---|---|
@@ -162,3 +194,5 @@ Fit on n random labels of the city, score the rest; mean and 5-95 % range of Spe
 | chengdu | gbr arch + proxies | 75 | 10.53 |
 | shenzhen | gbr arch-only | 25 | 4.94 |
 | shenzhen | gbr arch + proxies | 50 | 10.01 |
+| pems08 | gbr arch-only | 25 | 3.41 |
+| pems08 | gbr arch + proxies | 25 | 3.41 |

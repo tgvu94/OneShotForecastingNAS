@@ -42,5 +42,16 @@
   "gpu_unit": "H100 3g.40gb slice",
   "cost_ratio": 0.94,
   "cost_file": true
+ },
+ "pems08": {
+  "sigma_seed": 0.0007998432177561633,
+  "sigma_seed_n_arch": 5,
+  "n": 150,
+  "target": "test_mae",
+  "max_epochs": 20,
+  "cluster": "trillium",
+  "gpu_unit": "whole H100, 24 cores",
+  "cost_ratio": 0.9,
+  "cost_file": true
  }
 }
