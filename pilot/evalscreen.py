@@ -8,6 +8,8 @@
     python -m pilot.evalscreen active_labels        # an active choice of the labels at the target city
     python -m pilot.evalscreen space_cut            # a reduced search space learned from the other cities
     python -m pilot.evalscreen route                # probe trainings choose the recipe (reads the base and halving_prior tables)
+    python -m pilot.evalscreen operator_traits      # a predictor on operator traits, city and operator family held out together
+    python -m pilot.evalscreen label_share          # a sparse (architecture, city) label matrix shared by the cities
     out = results/evalscreen/compare/tables
 
 No training, no forward pass, no GPU.  Reads <root>/tables/joined.csv, <root>/train/<id>/seed*/metrics.json and
@@ -915,16 +917,166 @@ def run_route(roots: list[Root], cities: dict, out: Path) -> None:
     pd.set_option("display.width", 280); print(verdict.to_string(index=False, float_format=lambda x: f"{x:.1f}")); print(t.to_string(index=False, float_format=lambda x: f"{x:.1f}")); print(ft.to_string(float_format=lambda x: f"{x:.2f}"))
 
 
+# ---------------------------------------------------------------- operator_traits: a predictor that reads what an operator is
+SEQ_TRAITS = {"gru": ["recurrent", "gated", "global", "weights"], "lstm": ["recurrent", "gated", "memory", "global", "weights"],
+              "tcn": ["conv", "local", "weights"], "sep_tcn": ["conv", "separable", "local", "weights"], "transformer": ["attention", "global", "weights"],
+              "mlp_mix": ["dense", "global", "weights"], "skip_connection": ["identity"]}
+FLAT_TRAITS = {"mlp": ["dense", "weights"], "nbeats_g": ["dense", "basis", "weights"], "nbeats_s": ["basis", "fixed_basis", "periodic", "weights"],
+               "nbeats_t": ["basis", "fixed_basis", "polynomial", "weights"], "skip_connection": ["identity"]}
+GRAPH_TRAITS = {"gcn": ["message", "given_adj", "weights"], "diffusion": ["message", "given_adj", "multi_hop", "weights"],
+                "adaptive": ["message", "learned_adj", "weights"], "graph_identity": ["identity"]}
+SHARED_COLS = ["enc_n_edges", "dec_n_edges", "flat_n_edges", "graph_n_edges", "has_graph", "head_mae", "head_mse", "head_quantile", "dec_linear", "dec_seq", "log_params", "log_flops"]
+
+
+def trait_matrices(roots: list[Root], cities: dict) -> tuple[dict, dict]:
+    """Per city: the trait counts per cell with the shared columns, and the same next to the operator counts."""
+    from pilot.genotype import load_archs
+    raw = {r.dataset: pr.load_city(r).set_index("arch_id") for r in roots}; arch = arch_matrices(roots, cities)
+    keys = sorted({f"{cell}_{t}" for cell, tab in (("enc", SEQ_TRAITS), ("dec", SEQ_TRAITS), ("flat", FLAT_TRAITS), ("graph", GRAPH_TRAITS)) for ts in tab.values() for t in ts})
+    traits, both = {}, {}
+    for r in roots:
+        c = cities[r.dataset]; geno = {a["arch_id"]: a["genotype"] for a in load_archs(r.archs_jsonl)}; rows = []
+        for aid in c.ids:
+            g = geno[aid]; f = dict.fromkeys(keys, 0)
+            for cell, edges, tab in (("enc", g["seq"]["encoder"], SEQ_TRAITS), ("dec", g["seq"]["decoder"], SEQ_TRAITS), ("flat", g["flat"]["cell"], FLAT_TRAITS),
+                                     ("graph", g["graph"]["cell"] if g.get("graph") else [], GRAPH_TRAITS)):
+                for _, _, op in edges:
+                    if op is not None:
+                        for t in tab[op]:
+                            f[f"{cell}_{t}"] += 1
+            rows.append([f[k] for k in keys])
+        d = raw[r.dataset]
+        shared = np.column_stack([d.loc[c.ids, col].values.astype(float) if col in d else np.zeros(c.n) for col in SHARED_COLS])
+        traits[r.dataset] = np.c_[np.array(rows, dtype=float), shared]; both[r.dataset] = np.c_[np.array(rows, dtype=float), arch[r.dataset]]
+    return traits, both
+
+
+def run_operator_traits(roots: list[Root], cities: dict, out: Path) -> None:
+    traits, both = trait_matrices(roots, cities); arch = arch_matrices(roots, cities); rows = []
+    for label, feats in (("traits", traits), ("traits_and_counts", both), ("operator_counts", arch)):
+        for kind in ("ridge", "gbr"):
+            rows += family_rows(cities, feats, kind, f"{kind}_{label}")
+            pred = fit_loco(cities, feats, kind)                          # no family held out: the plain leave-one-city-out value
+            for name, c in cities.items():
+                rows.append({"city": name, "model": f"{kind}_{label}", "family_kind": "none", "held_out_family": "(none)", "n": c.n,
+                             "kendall": float(kendalltau(pred[name], -c.y).correlation), "spearman": within_head(c, pred[name])})
+    fm = pd.DataFrame(rows); fam = fm[fm.family_kind != "none"]
+    agg = fam.groupby(["city", "model"]).apply(lambda g: pd.Series({"families": len(g), "kendall_weighted": np.average(g.kendall, weights=g.n), "families_ge_0.5": int((g.kendall >= 0.5).sum())})).reset_index()
+    piv = agg.pivot(index="model", columns="city", values="kendall_weighted"); v = []
+    for m in piv.index:
+        if "operator_counts" in m:
+            continue
+        ref = piv.loc[m.split("_")[0] + "_operator_counts"]
+        v.append({"model": m, "cities_kendall_ge_05": int((piv.loc[m] >= 0.5).sum()), "cities_above_operator_counts": int((piv.loc[m] > ref).sum()), "mean_gain": float((piv.loc[m] - ref).mean())})
+    verdict = pd.DataFrame(v); verdict["pass"] = (verdict.cities_kendall_ge_05 >= 3) & (verdict.cities_above_operator_counts >= 3)
+    per_fam = fam.pivot_table(index=["held_out_family", "model"], columns="city", values="kendall").reset_index()
+    plain = fm[fm.family_kind == "none"].pivot(index="model", columns="city", values="spearman").reset_index()
+    for n_, t in (("family", fm), ("summary", agg), ("verdict", verdict)):
+        t.to_csv(out / f"operator_traits_{n_}.csv", index=False)
+    doc = ["# evalscreen operator_traits: a predictor that reads what an operator is", "",
+           "Each operator has a fixed list of traits (SEQ_TRAITS, FLAT_TRAITS, GRAPH_TRAITS in pilot/evalscreen.py). An architecture is encoded by the count of each trait in each cell. "
+           "Test: one city and one operator family are held out together; Kendall with -test MAE on the held-out family at the held-out city, n-weighted over the families with 8 "
+           "architectures or more. Pass: 0.5 or more at three of four cities and above the operator-count predictor at three of four cities.", ""]
+    doc += [ec.md(verdict, list(verdict.columns), "Verdict"), ec.md(piv.reset_index(), ["model"] + list(piv.columns), "n-weighted Kendall on the held-out family at the held-out city"),
+            ec.md(per_fam, list(per_fam.columns), "Kendall per held-out family"), ec.md(plain, list(plain.columns), "No family held out: Spearman inside the heads at the held-out city")]
+    (out / "evalscreen_operator_traits.md").write_text("\n".join(doc))
+    pd.set_option("display.width", 250); pd.set_option("display.max_rows", 200)
+    for t in (verdict, piv.reset_index(), plain, per_fam[per_fam.model.isin(["gbr_traits", "gbr_operator_counts", "ridge_traits", "ridge_operator_counts"])]):
+        print(t.to_string(index=False, float_format=lambda x: f"{x:.2f}")); print()
+
+
+# ---------------------------------------------------------------- label_share: a sparse label matrix shared by the cities
+SHARE_NS, SHARE_BS, SHARE_DRAWS = [5, 10, 15, 30], [1, 3, 5], 50
+
+
+def share_design(design: str, n: int, n_arch: int, names: list, rng) -> dict:
+    if design == "independent":
+        return {k: rng.choice(n_arch, n, replace=False) for k in names}
+    perm = rng.permutation(n_arch)
+    if design == "disjoint":
+        return {k: perm[i * n:(i + 1) * n] for i, k in enumerate(names)}
+    a = n // 2; anchor = perm[:a]; rest = perm[a:]; m = n - a                # anchor: half common, half disjoint
+    return {k: np.r_[anchor, rest[i * m:(i + 1) * m]] for i, k in enumerate(names)}
+
+
+def run_label_share(roots: list[Root], cities: dict, out: Path) -> None:
+    arch = arch_matrices(roots, cities); names = list(cities); n_arch = cities[names[0]].n
+    pos = {k: {a: i for i, a in enumerate(c.ids)} for k, c in cities.items()}; ref_ids = cities[names[0]].ids
+    idx = {k: np.array([pos[k][a] for a in ref_ids]) for k in names}       # row r of the matrix = the same architecture at every city
+    Y = {k: cities[k].y[idx[k]] for k in names}; X = {k: arch[k][idx[k]] for k in names}; H = {k: cities[k].full_h[idx[k]] / cities[k].ratio for k in names}
+    fleet = sum(h.sum() for h in H.values()); rows = []
+    for design in ("independent", "disjoint", "anchor"):
+        for n in SHARE_NS:
+            if design != "independent" and n * len(names) > n_arch and design == "disjoint":
+                continue
+            hit = {(m, b, k): [] for m in ("own", "pooled", "pooled_own", "observed_mean", "random") for b in SHARE_BS for k in names}
+            cost = {b: [] for b in SHARE_BS}
+            for d in range(SHARE_DRAWS):
+                rng = np.random.default_rng([d, n, len(design)]); obs = share_design(design, n, n_arch, names, rng)
+                tgt = {k: zscore(-Y[k][obs[k]]) for k in names}
+                Xp = np.vstack([X[k][obs[k]] for k in names]); yp = np.concatenate([tgt[k] for k in names])
+                pooled = {k: pr.fit_predict("ridge", Xp, yp, X[k]) for k in names}
+                seen = np.full((n_arch, len(names)), np.nan)
+                for j, k in enumerate(names):
+                    seen[obs[k], j] = tgt[k]
+                for j, k in enumerate(names):
+                    own = pr.fit_predict("ridge", X[k][obs[k]], tgt[k], X[k])
+                    po = pr.fit_predict("ridge", np.c_[X[k][obs[k]], pooled[k][obs[k]]], tgt[k], np.c_[X[k], pooled[k]])
+                    others = np.delete(seen, j, axis=1); cnt = np.sum(np.isfinite(others), axis=1)
+                    om = np.where(cnt > 0, np.nansum(others, axis=1) / np.maximum(cnt, 1), zscore(pooled[k]) * 0.5)
+                    best = Y[k].min(); un = np.setdiff1d(np.arange(n_arch), obs[k]); base = Y[k][obs[k]].min()
+                    for m, sc in (("own", own), ("pooled", pooled[k]), ("pooled_own", po), ("observed_mean", om), ("random", rng.random(n_arch))):
+                        o = un[order_of(sc[un])]
+                        for b in SHARE_BS:
+                            hit[(m, b, k)].append(min(base, Y[k][o[:b]].min()) - best <= cities[k].sigma + 1e-12)
+                for b in SHARE_BS:                                       # cost of the pairs and of b picks at the mean training cost
+                    cost[b].append((sum(H[k][obs[k]].sum() for k in names) + b * sum(H[k].mean() for k in names)) / fleet * 100)
+            for (m, b, k), v in hit.items():
+                rows.append({"design": design, "n": n, "b": b, "model": m, "city": k, "share": float(np.mean(v)), "fleet_cost_pct": float(np.mean(cost[b]))})
+    t = pd.DataFrame(rows)
+    g = t.groupby(["design", "n", "b", "model"]).agg(fleet_cost_pct=("fleet_cost_pct", "mean"), mean_share=("share", "mean"), min_share=("share", "min"),
+                                                   cities_ge_09=("share", lambda x: int((x >= 0.9).sum()))).reset_index()
+    own = g[g.model == "own"].set_index(["design", "n", "b"]).mean_share
+    g["above_own"] = [r.mean_share > own[(r.design, r.n, r.b)] for r in g.itertuples()]
+    v = []
+    for m in ("pooled", "pooled_own", "observed_mean"):
+        x = g[g.model == m]; ok = x[(x.fleet_cost_pct <= 10) & (x.cities_ge_09 >= 3)]
+        v.append({"model": m, "settings_at_10pct_with_3_cities": len(ok), "share_of_settings_above_own": float(x.above_own.mean()),
+                  "cheapest_setting_with_3_cities_pct": float(x[x.cities_ge_09 >= 3].fleet_cost_pct.min()) if (x.cities_ge_09 >= 3).any() else np.nan})
+    verdict = pd.DataFrame(v); verdict["pass"] = (verdict.settings_at_10pct_with_3_cities > 0) & (verdict.share_of_settings_above_own >= 1.0)
+    ref = []                                                              # one city in full, the others by transfer of its best five
+    for src in names:
+        o = np.argsort(Y[src])[:5]; ok = [bool(Y[k][o].min() - Y[k].min() <= cities[k].sigma + 1e-12) for k in names if k != src]
+        ref.append({"reference": f"{src} in full, transfer of its best 5", "fleet_cost_pct": (H[src].sum() + sum(H[k][o].sum() for k in names if k != src)) / fleet * 100, "other_cities_within_sigma": int(sum(ok))})
+    ref = pd.DataFrame(ref)
+    for n_, x in (("cells", t), ("summary", g), ("verdict", verdict), ("reference", ref)):
+        x.to_csv(out / f"label_share_{n_}.csv", index=False)
+    doc = ["# evalscreen label_share: a sparse label matrix shared by the cities", "",
+           f"n architectures are trained at each city (design: independent, disjoint, or anchor = half common and half disjoint); a model predicts every missing entry; each city trains its b "
+           f"best predictions and keeps the best architecture it trained. share = the share of {SHARE_DRAWS} random designs where that architecture lies within one sigma_seed of the best of "
+           "the list. fleet_cost_pct = the GPU-hours of all pairs and picks over the GPU-hours of the whole matrix. own = a ridge on the labels of the city alone; pooled = one ridge on all "
+           "trained pairs; pooled_own = own with the pooled prediction as an input; observed_mean = the mean rank at the cities that trained the architecture. Pass: a sharing model with a "
+           "share of 0.9 or more at three of four cities at a fleet cost of 10 % or less, and a mean share above own at every setting.", ""]
+    doc += [ec.md(verdict, list(verdict.columns), "Verdict"), ec.md(ref, list(ref.columns), "Reference: one city trained in full"),
+            ec.md(g, list(g.columns), "Every setting"), ec.md(t, list(t.columns), "Every city")]
+    (out / "evalscreen_label_share.md").write_text("\n".join(doc))
+    pd.set_option("display.width", 250); pd.set_option("display.max_rows", 400)
+    print(verdict.to_string(index=False, float_format=lambda x: f"{x:.2f}")); print(ref.to_string(index=False, float_format=lambda x: f"{x:.1f}"))
+    print(g[g.b == 5].pivot_table(index=["design", "n"], columns="model", values="mean_share").to_string(float_format=lambda x: f"{x:.2f}"))
+    print(g[g.b == 5].pivot_table(index=["design", "n"], columns="model", values="cities_ge_09").to_string()); print(g[g.b == 5].groupby("n").fleet_cost_pct.mean().to_string())
+    print(t[(t.b == 5) & (t.design == "independent") & t.model.isin(["own", "pooled_own", "observed_mean", "random"])].pivot_table(index=["n", "model"], columns="city", values="share").to_string(float_format=lambda x: f"{x:.2f}"))
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("what", choices=["base", "proxy_combination", "curve_rank", "transfer", "halving_prior", "active_labels", "space_cut", "route"])
+    ap.add_argument("what", choices=["base", "proxy_combination", "curve_rank", "transfer", "halving_prior", "active_labels", "space_cut", "route", "operator_traits", "label_share"])
     ap.add_argument("--roots", nargs="+", default=ROOTS)
     ap.add_argument("--out", default=OUT)
     a = ap.parse_args()
     roots = [Root(r) for r in a.roots]; out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     cities = load_cities(roots)
     {"base": run_base, "proxy_combination": run_proxy_combination, "curve_rank": run_curve_rank, "transfer": run_transfer, "halving_prior": run_halving_prior, "active_labels": run_active_labels,
-     "space_cut": run_space_cut, "route": run_route}[a.what](roots, cities, out)
+     "space_cut": run_space_cut, "route": run_route, "operator_traits": run_operator_traits, "label_share": run_label_share}[a.what](roots, cities, out)
 
 
 if __name__ == "__main__":

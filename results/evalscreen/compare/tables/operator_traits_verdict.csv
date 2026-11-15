@@ -1,0 +1,5 @@
+model,cities_kendall_ge_05,cities_above_operator_counts,mean_gain,pass
+gbr_traits,1,2,2.389945694641904e-05,False
+gbr_traits_and_counts,1,2,-0.003119594133504197,False
+ridge_traits,1,3,0.0009828289853984068,False
+ridge_traits_and_counts,1,1,-0.0013477774930923253,False
