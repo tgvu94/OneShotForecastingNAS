@@ -14,6 +14,11 @@
 #                                                          config path) on $NAS_ROOT/BasicTS: one 2 h job; ROOT is unused
 #   pilot/submit.sh ablation [ROOT] [DATASET] [HORIZON]  -> the STID single-part ablation replication on DATASET (6 variants x 3 seeds,
 #                                                          pilot/basicts_ablation.sbatch): one 8 h job named abl_<DATASET>; ROOT is unused
+# Cluster: the resource flags come from $CC_CLUSTER.  Default (Nibi, Fir, Rorqual): one 3g.40gb slice of an H100, 8 CPUs, 32 GB,
+#   account def-rwpazzi_gpu.  trillium: one whole H100 (no slices there; 24 cores and the memory share come with the card),
+#   account def-rwpazzi; Trillium refuses --cpus-per-task, --mem and the slice string.  Submit there from the GPU login node, with
+#   the clone in scratch.  A root trained on another unit than the Nibi slice carries its cost ratio in <root>/COST.json (pilot.evalcost).
+# TEST_ONLY=1 passes --test-only to sbatch: the scheduler checks the request and submits nothing.
 # AFTER=<jobid> adds --dependency=afterany:<jobid>; a dependent job waits, so only *running* jobs count toward the cap of 5.
 # CAP (default 5) is the total number of queued or running jobs allowed; ARRAY_MAX (default 3) throttles the train array.
 # Defaults: ROOT=results/stzero/pems04_h12 DATASET=pems04 HORIZON=12.  E.g.  pilot/submit.sh train results/stzero/pems04_h36 pems04 36
@@ -24,8 +29,11 @@ NAS_ROOT="$(dirname "$PWD")"
 mode="${1:-train}"
 ROOT="${2:-results/stzero/pems04_h12}"; DATASET="${3:-pems04}"; HORIZON="${4:-12}"
 tag="${DATASET}h${HORIZON}"
-common=(--cpus-per-task=8 --mem=32G --account=def-rwpazzi_gpu --gres=gpu:nvidia_h100_80gb_hbm3_3g.40gb:1
-        --export="ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON")
+case "${CC_CLUSTER:-}" in
+  trillium) res=(--account=def-rwpazzi --nodes=1 --gpus-per-node=1) ;;
+  *)        res=(--cpus-per-task=8 --mem=32G --account=def-rwpazzi_gpu --gres=gpu:nvidia_h100_80gb_hbm3_3g.40gb:1) ;;
+esac
+common=("${res[@]}" --export="ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON")   # --export stays last: the modes replace common[-1]
 case "$mode" in
   train)   name=${JOB_NAME:-stzero};  extra=(--array=0-5%${ARRAY_MAX:-3} --time=08:00:00 --output="$NAS_ROOT/logs/${JOB_NAME:-stzero}_${tag}_%A_%a.log");  script=pilot/run_train_all.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,MAX_EPOCHS=${MAX_EPOCHS:-20},PATIENCE=${PATIENCE:-5},MIN_EPOCHS=${MIN_EPOCHS:-8},TRAIN_EXTRA=${TRAIN_EXTRA:-},SCORE_PROXIES=${SCORE_PROXIES:-1},SEED_SUBSET=${SEED_SUBSET:-5},LIMIT=${LIMIT:-}" ;;
@@ -60,5 +68,6 @@ fi
 CAP=${CAP:-5}
 if [ "$n_all" -ge "$CAP" ]; then echo "refusing: $n_all jobs already queued/running for $USER (cap $CAP)"; exit 1; fi
 mkdir -p "$NAS_ROOT/logs"
-echo "submitting $mode for ROOT=$ROOT DATASET=$DATASET HORIZON=$HORIZON"
+[ "${TEST_ONLY:-0}" = 1 ] && extra+=(--test-only)
+echo "submitting $mode for ROOT=$ROOT DATASET=$DATASET HORIZON=$HORIZON on ${CC_CLUSTER:-unknown cluster}: ${res[*]}${TEST_ONLY:+ (test only)}"
 sbatch "${common[@]}" "${extra[@]}" --job-name="$name" "$script"
