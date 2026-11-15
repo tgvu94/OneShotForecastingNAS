@@ -11,3 +11,7 @@ optimiser and scaler, same splits, same probe batch and adjacency.
 - `train/`: written by the benchst jobs only. Labels here are masked MAE and are not comparable with the unmasked labels of
   `results/stzero/metrla_h12`; the history rows also keep `val_mae_unmasked` and `test_mae_unmasked`.
 - Proxies: not scored in the first wave (`SCORE_PROXIES=0`); scored later under the masked loss together with GLASS.
+
+## TFAS probe
+
+- tfas: not applicable — TFAS not usable as a distinct proxy: its score is ZiCo on Conv/Linear/Conv1d weights; the time-frequency awareness is an input augmentation (STL residual, |FFT|, Haar DWT) implemented only by its own TimesNet-family backbones. Composite temporal term = base proxy. Degenerate value stored as tfas_zico_cl. (TFAS commit `fd9150d`)
