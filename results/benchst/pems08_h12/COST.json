@@ -1,0 +1,36 @@
+{
+ "cluster": "trillium",
+ "gpu_unit": "whole H100, 24 cores",
+ "cost_ratio": 0.9,
+ "reference_cluster": "nibi",
+ "reference_gpu_unit": "H100 3g.40gb slice",
+ "definition": "cost_ratio = seconds per epoch on this cluster / seconds per epoch on the reference, same architecture, seed and schedule; gpu_hours_ref = gpu_hours / cost_ratio",
+ "rule": "sum of the training seconds of the calibration runs on this cluster / the same sum on the reference: 943.1 / 1045.0",
+ "note": "measured at pems04, not at pems08: the reference cluster holds no masked run of the shared list at pems08. One run per architecture on each cluster; the ratio per architecture is 0.98 and 0.84. The ratio is for time only; a job here holds a whole card, the reference job holds 3/8 of one.",
+ "calibration": [
+  {
+   "arch_id": "c84e311c72",
+   "dataset": "pems04",
+   "mask_zeros": true,
+   "epochs": 20,
+   "train_seconds": 442.7,
+   "train_seconds_reference": 452.8,
+   "ratio": 0.98,
+   "test_mae": 0.1758,
+   "test_mae_reference": 0.176,
+   "job": "trillium 1331332"
+  },
+  {
+   "arch_id": "b03341cf63",
+   "dataset": "pems04",
+   "mask_zeros": true,
+   "epochs": 20,
+   "train_seconds": 500.4,
+   "train_seconds_reference": 592.2,
+   "ratio": 0.84,
+   "test_mae": 0.1721,
+   "test_mae_reference": 0.1718,
+   "job": "trillium 1331332"
+  }
+ ]
+}
