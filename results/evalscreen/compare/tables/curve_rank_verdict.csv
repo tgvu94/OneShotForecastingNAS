@@ -1,0 +1,5 @@
+model,cities_rho_ge_06_at_k_le_3,cities_ge_06_and_above_early_val,cities_above_early_val_at_k3,cities_ci_excludes_0_at_k3,pass
+gbr_curve,1,1,1,0,False
+inverse_epoch,0,0,0,0,False
+loss_sum,0,0,2,1,False
+ridge_curve,1,1,2,0,False

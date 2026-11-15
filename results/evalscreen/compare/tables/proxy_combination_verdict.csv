@@ -1,0 +1,7 @@
+model,cities_rho_ge_05_and_above,cities_ci_excludes_0,cities_family_kendall_ge_05,pass
+gbr_proxies,3,1,0,False
+gbr_proxies_head,3,2,1,False
+gbr_zico_family_params,3,2,0,False
+ridge_proxies,0,0,0,False
+ridge_proxies_head,1,0,1,False
+ridge_zico_family_params,1,0,0,False
