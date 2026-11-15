@@ -4,20 +4,43 @@
   "sigma_seed_n_arch": 5,
   "n": 150,
   "target": "test_mae",
-  "max_epochs": 20
+  "max_epochs": 20,
+  "cluster": "nibi",
+  "gpu_unit": "H100 3g.40gb slice",
+  "cost_ratio": 1.0,
+  "cost_file": false
+ },
+ "pems04": {
+  "sigma_seed": 0.00027167455881492843,
+  "sigma_seed_n_arch": 5,
+  "n": 150,
+  "target": "test_mae",
+  "max_epochs": 20,
+  "cluster": "nibi",
+  "gpu_unit": "H100 3g.40gb slice",
+  "cost_ratio": 1.0,
+  "cost_file": false
  },
  "chengdu": {
   "sigma_seed": 0.001793607678058571,
   "sigma_seed_n_arch": 5,
   "n": 150,
   "target": "test_mae",
-  "max_epochs": 20
+  "max_epochs": 20,
+  "cluster": "rorqual",
+  "gpu_unit": "H100 3g.40gb slice",
+  "cost_ratio": 1.01,
+  "cost_file": true
  },
  "shenzhen": {
   "sigma_seed": 0.0014053566216508232,
   "sigma_seed_n_arch": 5,
   "n": 150,
   "target": "test_mae",
-  "max_epochs": 20
+  "max_epochs": 20,
+  "cluster": "fir",
+  "gpu_unit": "H100 3g.40gb slice",
+  "cost_ratio": 0.94,
+  "cost_file": true
  }
 }
