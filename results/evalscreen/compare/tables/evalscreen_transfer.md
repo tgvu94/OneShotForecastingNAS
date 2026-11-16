@@ -31,7 +31,7 @@ ok = loss <= 0.1 and robust cost at most 1.5 times the full-label pooled rank wi
 |---|---|---|---|---|---|---|---|---|---|
 | metrla | 5 | 0.396 | 0.578 | 0.182 | 0.277 | 1.000 | 4.364 | 0.840 | False |
 | pems04 | 5 | 0.738 | 0.634 | -0.104 | 0.296 | 0.995 | 2.308 | 4.346 | True |
-| chengdu | 5 | 0.322 | 0.657 | 0.336 | 0.280 | 0.830 | 9.638 | 1.828 | False |
+| chengdu | 5 | 0.322 | 0.657 | 0.336 | 0.280 | 0.680 | 10.291 | 1.828 | False |
 | shenzhen | 5 | 0.654 | 0.845 | 0.191 | 0.290 | 0.915 | 4.298 | 0.926 | False |
 
 ### Headroom of transfer in sigma_seed, and the probe statistic
@@ -42,8 +42,8 @@ probe_spread = std of the test MAE of 5 architectures over sigma_seed (the first
 |---|---|---|---|---|---|---|---|---|---|---|
 | metrla | 0.003 | 2.296 | 11.653 | 0.073 | 0.521 | 0.000 | 1.693 | 2.243 | 1.380 | 3.026 |
 | pems04 | 0.000 | 8.429 | 62.712 | 0.007 | 4.087 | 0.000 | 5.979 | 7.552 | 2.802 | 10.671 |
-| chengdu | 0.002 | 2.649 | 12.689 | 0.013 | 1.668 | 0.000 | 2.092 | 2.762 | 1.685 | 3.916 |
-| shenzhen | 0.001 | 3.186 | 16.337 | 0.013 | 0.799 | 0.000 | 2.406 | 3.381 | 2.232 | 4.861 |
+| chengdu | 0.001 | 3.632 | 17.398 | 0.013 | 2.287 | 0.000 | 2.869 | 3.788 | 2.310 | 5.369 |
+| shenzhen | 0.001 | 3.850 | 19.746 | 0.013 | 0.965 | 0.000 | 2.908 | 4.086 | 2.698 | 5.875 |
 
 ### Source pairs: label-free similarities against the transfer quality
 
@@ -55,9 +55,9 @@ probe_spread = std of the test MAE of 5 architectures over sigma_seed (the first
 | pems04 | metrla | 0.951 | -0.600 |  | 0.501 | 0.830 | 8.620 |  |
 | pems04 | chengdu | 0.956 | 0.700 |  | 0.468 | 0.645 | 9.933 |  |
 | pems04 | shenzhen | 0.957 | 0.000 |  | 0.687 | 0.995 | 3.217 | 3.071 |
-| chengdu | metrla | 0.963 | -0.900 |  | 0.435 | 0.960 | 1.848 | 1.767 |
-| chengdu | pems04 | 0.956 | 0.700 |  | 0.468 | 0.795 | 10.359 |  |
-| chengdu | shenzhen | 0.974 | 0.100 | -2.449 | 0.762 | 0.980 | 0.728 | 0.477 |
+| chengdu | metrla | 0.963 | -0.900 |  | 0.435 | 0.755 | 2.525 | 1.767 |
+| chengdu | pems04 | 0.956 | 0.700 |  | 0.468 | 0.740 | 10.359 |  |
+| chengdu | shenzhen | 0.974 | 0.100 | -2.449 | 0.762 | 0.840 | 0.728 | 0.477 |
 | shenzhen | metrla | 0.964 | 0.200 |  | 0.576 | 1.000 | 0.934 | 0.620 |
 | shenzhen | pems04 | 0.957 | 0.000 |  | 0.687 | 0.920 | 2.646 | 1.765 |
 | shenzhen | chengdu | 0.974 | 0.100 | -2.449 | 0.762 | 1.000 | 0.600 | 0.392 |
@@ -111,17 +111,17 @@ probe_spread = std of the test MAE of 5 architectures over sigma_seed (the first
 
 | evaluator | kind | regret_b1_sigma | rank_pct_b1 | b_sigma | hours_sigma_ref | pct_sigma | sub_share | sub_pct_median | sub_b_median |
 |---|---|---|---|---|---|---|---|---|---|
-| from_shenzhen | transfer, one source | 0.000 | 0.000 | 1.000 | 0.100 | 0.477 | 0.980 | 0.728 | 1.000 |
-| from_shenzhen_k5 | transfer, one cheap source | 3.417 | 22.148 | 2.000 | 0.201 | 0.954 | 0.960 | 1.437 | 2.000 |
-| pooled_final_labels | transfer | 1.668 | 6.040 | 2.000 | 0.257 | 1.218 | 0.960 | 1.828 | 2.000 |
-| from_metrla | transfer, one source | 1.668 | 6.040 | 3.000 | 0.372 | 1.767 | 0.960 | 1.848 | 2.000 |
-| pooled_source_k10 | transfer, cheap sources | 1.668 | 6.040 | 3.000 | 0.519 | 2.463 | 0.905 | 2.607 | 2.000 |
-| pooled_source_k1 | transfer, cheap sources | 5.897 | 59.732 | 10.000 | 1.285 | 6.103 | 0.740 | 7.882 | 8.000 |
-| pooled_source_k5 | transfer, cheap sources | 2.145 | 9.396 |  |  |  | 0.830 | 9.638 | 10.000 |
-| from_pems04 | transfer, one source | 2.145 | 9.396 |  |  |  | 0.795 | 10.359 | 8.000 |
-| pooled_source_k3 | transfer, cheap sources | 1.669 | 6.711 |  |  |  | 0.470 |  |  |
-| from_metrla_k5 | transfer, one cheap source | 1.668 | 6.040 |  |  |  | 0.380 |  |  |
-| from_pems04_k5 | transfer, one cheap source | 2.145 | 9.396 |  |  |  | 0.110 |  |  |
+| from_shenzhen | transfer, one source | 0.000 | 0.000 | 1.000 | 0.100 | 0.477 | 0.840 | 0.728 | 1.000 |
+| from_shenzhen_k5 | transfer, one cheap source | 4.685 | 22.148 | 2.000 | 0.201 | 0.954 | 0.755 | 1.439 | 2.000 |
+| pooled_final_labels | transfer | 2.287 | 6.040 | 2.000 | 0.257 | 1.218 | 0.755 | 1.828 | 2.000 |
+| from_metrla | transfer, one source | 2.287 | 6.040 | 3.000 | 0.372 | 1.767 | 0.755 | 2.525 | 3.000 |
+| pooled_source_k10 | transfer, cheap sources | 2.287 | 6.040 | 3.000 | 0.519 | 2.463 | 0.755 | 3.613 | 3.000 |
+| pooled_source_k1 | transfer, cheap sources | 8.085 | 59.732 | 10.000 | 1.285 | 6.103 | 0.740 | 7.882 | 8.000 |
+| pooled_source_k5 | transfer, cheap sources | 2.941 | 9.396 |  |  |  | 0.680 | 10.291 | 10.000 |
+| from_pems04 | transfer, one source | 2.941 | 9.396 |  |  |  | 0.740 | 10.359 | 8.000 |
+| pooled_source_k3 | transfer, cheap sources | 2.288 | 6.711 |  |  |  | 0.460 |  |  |
+| from_metrla_k5 | transfer, one cheap source | 2.287 | 6.040 |  |  |  | 0.205 |  |  |
+| from_pems04_k5 | transfer, one cheap source | 2.941 | 9.396 |  |  |  | 0.110 |  |  |
 
 ### shenzhen: cost to one sigma
 
@@ -129,12 +129,12 @@ probe_spread = std of the test MAE of 5 architectures over sigma_seed (the first
 |---|---|---|---|---|---|---|---|---|---|
 | from_chengdu | transfer, one source | 0.000 | 0.000 | 1.000 | 0.125 | 0.392 | 1.000 | 0.600 | 1.000 |
 | from_chengdu_k5 | transfer, one cheap source | 0.000 | 0.000 | 1.000 | 0.125 | 0.392 | 1.000 | 0.600 | 1.000 |
-| pooled_final_labels | transfer | 0.799 | 0.671 | 1.000 | 0.198 | 0.620 | 1.000 | 0.926 | 1.000 |
-| pooled_source_k10 | transfer, cheap sources | 0.799 | 0.671 | 1.000 | 0.198 | 0.620 | 0.945 | 0.926 | 1.000 |
-| from_metrla | transfer, one source | 0.799 | 0.671 | 1.000 | 0.198 | 0.620 | 1.000 | 0.934 | 1.000 |
-| from_metrla_k5 | transfer, one cheap source | 0.799 | 0.671 | 1.000 | 0.198 | 0.620 | 0.790 | 0.943 | 1.000 |
-| pooled_source_k1 | transfer, cheap sources | 5.835 | 31.544 | 3.000 | 0.439 | 1.373 | 0.730 | 2.053 | 3.000 |
-| from_pems04 | transfer, one source | 2.453 | 2.685 | 2.000 | 0.564 | 1.765 | 0.920 | 2.646 | 2.000 |
-| pooled_source_k3 | transfer, cheap sources | 4.417 | 17.450 | 5.000 | 0.945 | 2.955 | 0.915 | 4.028 | 5.000 |
-| pooled_source_k5 | transfer, cheap sources | 2.453 | 2.685 | 5.000 | 1.197 | 3.743 | 0.915 | 4.298 | 3.000 |
-| from_pems04_k5 | transfer, one cheap source | 2.453 | 2.685 |  |  |  | 0.045 |  |  |
+| pooled_final_labels | transfer | 0.965 | 0.671 | 1.000 | 0.198 | 0.620 | 1.000 | 0.926 | 1.000 |
+| pooled_source_k10 | transfer, cheap sources | 0.965 | 0.671 | 1.000 | 0.198 | 0.620 | 0.945 | 0.926 | 1.000 |
+| from_metrla | transfer, one source | 0.965 | 0.671 | 1.000 | 0.198 | 0.620 | 1.000 | 0.934 | 1.000 |
+| from_metrla_k5 | transfer, one cheap source | 0.965 | 0.671 | 1.000 | 0.198 | 0.620 | 0.790 | 0.943 | 1.000 |
+| pooled_source_k1 | transfer, cheap sources | 7.052 | 31.544 | 3.000 | 0.439 | 1.373 | 0.730 | 2.053 | 3.000 |
+| from_pems04 | transfer, one source | 2.965 | 2.685 | 2.000 | 0.564 | 1.765 | 0.920 | 2.646 | 2.000 |
+| pooled_source_k3 | transfer, cheap sources | 5.339 | 17.450 | 5.000 | 0.945 | 2.955 | 0.915 | 4.028 | 5.000 |
+| pooled_source_k5 | transfer, cheap sources | 2.965 | 2.685 | 5.000 | 1.197 | 3.743 | 0.915 | 4.298 | 3.000 |
+| from_pems04_k5 | transfer, one cheap source | 2.965 | 2.685 |  |  |  | 0.045 |  |  |

@@ -6,8 +6,8 @@ Probes: the first 5 architectures of the list, trained 3 epochs. Features: the m
 
 | setting | cities_within_1_25 | rule_mean | fixed_mean | oracle_mean | pass |
 |---|---|---|---|---|---|
-| cold | 1 | 56.447 | 37.990 | 9.437 | False |
-| warm | 1 | 2.531 | 1.985 | 1.985 | False |
+| cold | 1 | 78.493 | 58.661 | 31.483 | False |
+| warm | 1 | 50.988 | 26.528 | 26.528 | False |
 
 ### Held-out decisions
 
@@ -15,11 +15,11 @@ Probes: the first 5 architectures of the list, trained 3 epochs. Features: the m
 |---|---|---|---|---|---|---|---|---|---|
 | cold | metrla | sh_cold_zico_sizectrl_filter | 6.113 | shenzhen | zico_sizectrl_half_then_k3 | 12.359 | zico_sizectrl_half_then_k5 | 18.337 | False |
 | cold | pems04 | zico_sizectrl | 6.463 | metrla | sh_cold_zico_sizectrl_filter | 100.501 | zico_sizectrl_half_then_k3 | 100.000 | False |
-| cold | chengdu | zico_sizectrl_half_then_k3 | 11.815 | shenzhen | zico_sizectrl_half_then_k3 | 12.400 | zico_sizectrl_half_then_k5 | 17.313 | True |
+| cold | chengdu | early_val_k2 | 100.000 | shenzhen | zico_sizectrl_half_then_k3 | 100.585 | zico_sizectrl_half_then_k5 | 100.000 | True |
 | cold | shenzhen | zico_sizectrl_half_then_k3 | 13.356 | metrla | sh_cold_zico_sizectrl_filter | 100.529 | zico_sizectrl_half_then_k5 | 16.308 | False |
 | warm | metrla | transfer_pooled | 0.840 | shenzhen | transfer_pooled | 1.410 | transfer_pooled | 0.840 | False |
-| warm | pems04 | transfer_pooled | 4.346 | chengdu | transfer_pooled | 4.847 | transfer_pooled | 4.346 | True |
-| warm | chengdu | transfer_pooled | 1.828 | shenzhen | transfer_pooled | 2.413 | transfer_pooled | 1.828 | False |
+| warm | pems04 | transfer_pooled | 4.346 | chengdu | early_val_k2 | 100.501 | transfer_pooled | 4.346 | False |
+| warm | chengdu | early_val_k2 | 100.000 | shenzhen | transfer_pooled | 100.585 | transfer_pooled | 100.000 | True |
 | warm | shenzhen | transfer_pooled | 0.926 | metrla | transfer_pooled | 1.456 | transfer_pooled | 0.926 | False |
 
 ### Probe features

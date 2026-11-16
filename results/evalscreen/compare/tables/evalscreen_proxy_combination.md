@@ -158,27 +158,27 @@ b_sigma = the smallest b whose best pick lies within one sigma_seed of the best 
 
 | evaluator | kind | regret_b1_sigma | rank_pct_b1 | b_sigma | hours_sigma_ref | pct_sigma | sub_share | sub_pct_median | sub_b_median |
 |---|---|---|---|---|---|---|---|---|---|
-| transfer_pooled | transfer | 1.668 | 6.040 | 2.000 | 0.257 | 1.218 | 0.960 | 1.828 | 2.000 |
-| gbr_proxies_head | proxy combination, other cities | 3.417 | 22.148 |  |  |  | 0.925 | 8.097 | 8.000 |
-| ridge_proxies_head | proxy combination, other cities | 2.145 | 9.396 | 8.000 | 1.246 | 5.918 | 0.935 | 8.716 | 8.000 |
-| gbr_zico_family_params | proxy combination, other cities | 2.145 | 9.396 |  |  |  | 0.790 | 10.476 | 8.000 |
-| ridge_proxies | proxy combination, other cities | 7.094 | 72.483 |  |  |  | 0.280 |  |  |
-| gbr_proxies | proxy combination, other cities | 2.145 | 9.396 |  |  |  | 0.480 |  |  |
-| ridge_zico_family_params | proxy combination, other cities | 3.396 | 21.477 |  |  |  | 0.225 |  |  |
-| best_single_proxy (zico_t) | zero-cost proxy | 2.144 | 8.725 |  |  |  | 0.080 |  |  |
+| transfer_pooled | transfer | 2.287 | 6.040 | 2.000 | 0.257 | 1.218 | 0.755 | 1.828 | 2.000 |
+| ridge_proxies_head | proxy combination, other cities | 2.941 | 9.396 | 8.000 | 1.246 | 5.918 | 0.755 | 8.964 | 8.000 |
+| gbr_proxies_head | proxy combination, other cities | 4.685 | 22.148 |  |  |  | 0.720 | 9.339 | 10.000 |
+| gbr_zico_family_params | proxy combination, other cities | 2.941 | 9.396 |  |  |  | 0.750 | 10.476 | 8.000 |
+| ridge_proxies | proxy combination, other cities | 9.726 | 72.483 |  |  |  | 0.095 |  |  |
+| gbr_proxies | proxy combination, other cities | 2.941 | 9.396 |  |  |  | 0.280 |  |  |
+| ridge_zico_family_params | proxy combination, other cities | 4.657 | 21.477 |  |  |  | 0.115 |  |  |
+| best_single_proxy (zico_t) | zero-cost proxy | 2.939 | 8.725 |  |  |  | 0.080 |  |  |
 
 ### chengdu: head control
 
 | evaluator | kind | rho_all | rho_within_head | within_ci_lo | within_ci_hi | rho_mae | rho_mse | rho_quantile | mae_head_regret_sigma | mae_head_rank_pct |
 |---|---|---|---|---|---|---|---|---|---|---|
-| transfer_pooled | transfer | 0.688 | 0.657 | 0.529 | 0.750 | 0.702 | 0.664 | 0.618 | 1.668 | 12.821 |
-| gbr_proxies_head | proxy combination, other cities | 0.645 | 0.608 | 0.471 | 0.706 | 0.564 | 0.641 | 0.606 | 3.417 | 38.462 |
-| gbr_proxies | proxy combination, other cities | 0.648 | 0.600 | 0.459 | 0.697 | 0.618 | 0.566 | 0.621 | 2.145 | 17.949 |
-| gbr_zico_family_params | proxy combination, other cities | 0.630 | 0.587 | 0.457 | 0.694 | 0.635 | 0.617 | 0.523 | 2.145 | 17.949 |
-| best_single_proxy (zico_t) | zero-cost proxy | 0.516 | 0.585 | 0.444 | 0.688 | 0.653 | 0.585 | 0.535 | 2.145 | 17.949 |
-| ridge_zico_family_params | proxy combination, other cities | 0.484 | 0.574 | 0.422 | 0.668 | 0.692 | 0.545 | 0.516 | 2.145 | 17.949 |
-| ridge_proxies_head | proxy combination, other cities | 0.592 | 0.549 | 0.402 | 0.653 | 0.639 | 0.551 | 0.481 | 2.145 | 17.949 |
-| ridge_proxies | proxy combination, other cities | 0.524 | 0.498 | 0.364 | 0.610 | 0.623 | 0.548 | 0.358 | 3.181 | 30.769 |
+| transfer_pooled | transfer | 0.688 | 0.657 | 0.529 | 0.750 | 0.702 | 0.664 | 0.618 | 2.287 | 12.821 |
+| gbr_proxies_head | proxy combination, other cities | 0.645 | 0.608 | 0.471 | 0.706 | 0.564 | 0.641 | 0.606 | 4.685 | 38.462 |
+| gbr_proxies | proxy combination, other cities | 0.648 | 0.600 | 0.459 | 0.697 | 0.618 | 0.566 | 0.621 | 2.941 | 17.949 |
+| gbr_zico_family_params | proxy combination, other cities | 0.630 | 0.587 | 0.457 | 0.694 | 0.635 | 0.617 | 0.523 | 2.941 | 17.949 |
+| best_single_proxy (zico_t) | zero-cost proxy | 0.516 | 0.585 | 0.444 | 0.688 | 0.653 | 0.585 | 0.535 | 2.941 | 17.949 |
+| ridge_zico_family_params | proxy combination, other cities | 0.484 | 0.574 | 0.422 | 0.668 | 0.692 | 0.545 | 0.516 | 2.941 | 17.949 |
+| ridge_proxies_head | proxy combination, other cities | 0.592 | 0.549 | 0.402 | 0.653 | 0.639 | 0.551 | 0.481 | 2.941 | 17.949 |
+| ridge_proxies | proxy combination, other cities | 0.524 | 0.498 | 0.364 | 0.610 | 0.623 | 0.548 | 0.358 | 4.361 | 30.769 |
 
 ### shenzhen: cost to one sigma
 
@@ -186,24 +186,24 @@ b_sigma = the smallest b whose best pick lies within one sigma_seed of the best 
 
 | evaluator | kind | regret_b1_sigma | rank_pct_b1 | b_sigma | hours_sigma_ref | pct_sigma | sub_share | sub_pct_median | sub_b_median |
 |---|---|---|---|---|---|---|---|---|---|
-| transfer_pooled | transfer | 0.799 | 0.671 | 1.000 | 0.198 | 0.620 | 1.000 | 0.926 | 1.000 |
-| gbr_proxies | proxy combination, other cities | 3.117 | 6.711 | 5.000 | 1.007 | 3.150 | 0.975 | 3.366 | 3.000 |
-| ridge_proxies_head | proxy combination, other cities | 2.453 | 2.685 | 3.000 | 0.888 | 2.778 | 0.925 | 4.093 | 3.000 |
-| gbr_proxies_head | proxy combination, other cities | 3.117 | 6.711 | 8.000 | 1.914 | 5.985 | 0.955 | 5.465 | 5.000 |
-| ridge_proxies | proxy combination, other cities | 3.993 | 15.436 |  |  |  | 0.550 | 11.028 | 10.000 |
-| ridge_zico_family_params | proxy combination, other cities | 5.048 | 21.477 |  |  |  | 0.075 |  |  |
-| gbr_zico_family_params | proxy combination, other cities | 4.469 | 18.121 |  |  |  | 0.270 |  |  |
-| best_single_proxy (zico_t) | zero-cost proxy | 4.239 | 16.779 |  |  |  | 0.095 |  |  |
+| transfer_pooled | transfer | 0.965 | 0.671 | 1.000 | 0.198 | 0.620 | 1.000 | 0.926 | 1.000 |
+| gbr_proxies | proxy combination, other cities | 3.767 | 6.711 | 5.000 | 1.007 | 3.150 | 0.965 | 3.367 | 3.000 |
+| ridge_proxies_head | proxy combination, other cities | 2.965 | 2.685 | 3.000 | 0.888 | 2.778 | 0.925 | 4.093 | 3.000 |
+| gbr_proxies_head | proxy combination, other cities | 3.767 | 6.711 | 8.000 | 1.914 | 5.985 | 0.955 | 5.465 | 5.000 |
+| ridge_proxies | proxy combination, other cities | 4.826 | 15.436 |  |  |  | 0.520 | 11.211 | 10.000 |
+| ridge_zico_family_params | proxy combination, other cities | 6.101 | 21.477 |  |  |  | 0.040 |  |  |
+| gbr_zico_family_params | proxy combination, other cities | 5.402 | 18.121 |  |  |  | 0.260 |  |  |
+| best_single_proxy (zico_t) | zero-cost proxy | 5.123 | 16.779 |  |  |  | 0.060 |  |  |
 
 ### shenzhen: head control
 
 | evaluator | kind | rho_all | rho_within_head | within_ci_lo | within_ci_hi | rho_mae | rho_mse | rho_quantile | mae_head_regret_sigma | mae_head_rank_pct |
 |---|---|---|---|---|---|---|---|---|---|---|
-| transfer_pooled | transfer | 0.869 | 0.845 | 0.771 | 0.886 | 0.824 | 0.872 | 0.834 | 0.799 | 2.564 |
-| gbr_proxies | proxy combination, other cities | 0.824 | 0.774 | 0.680 | 0.828 | 0.748 | 0.767 | 0.798 | 3.117 | 15.385 |
-| gbr_proxies_head | proxy combination, other cities | 0.831 | 0.761 | 0.675 | 0.816 | 0.717 | 0.773 | 0.779 | 3.117 | 15.385 |
-| gbr_zico_family_params | proxy combination, other cities | 0.737 | 0.722 | 0.620 | 0.785 | 0.718 | 0.723 | 0.724 | 3.117 | 15.385 |
-| ridge_proxies_head | proxy combination, other cities | 0.764 | 0.666 | 0.546 | 0.740 | 0.808 | 0.537 | 0.691 | 2.453 | 7.692 |
-| ridge_zico_family_params | proxy combination, other cities | 0.506 | 0.632 | 0.510 | 0.715 | 0.738 | 0.501 | 0.686 | 2.453 | 7.692 |
-| best_single_proxy (zico_t) | zero-cost proxy | 0.502 | 0.628 | 0.504 | 0.718 | 0.677 | 0.544 | 0.676 | 2.453 | 7.692 |
-| ridge_proxies | proxy combination, other cities | 0.680 | 0.626 | 0.504 | 0.714 | 0.813 | 0.532 | 0.584 | 2.453 | 7.692 |
+| transfer_pooled | transfer | 0.869 | 0.845 | 0.771 | 0.886 | 0.824 | 0.872 | 0.834 | 0.965 | 2.564 |
+| gbr_proxies | proxy combination, other cities | 0.824 | 0.774 | 0.680 | 0.828 | 0.748 | 0.767 | 0.798 | 3.767 | 15.385 |
+| gbr_proxies_head | proxy combination, other cities | 0.831 | 0.761 | 0.675 | 0.816 | 0.717 | 0.773 | 0.779 | 3.767 | 15.385 |
+| gbr_zico_family_params | proxy combination, other cities | 0.737 | 0.722 | 0.620 | 0.785 | 0.718 | 0.723 | 0.724 | 3.767 | 15.385 |
+| ridge_proxies_head | proxy combination, other cities | 0.764 | 0.666 | 0.546 | 0.740 | 0.808 | 0.537 | 0.691 | 2.965 | 7.692 |
+| ridge_zico_family_params | proxy combination, other cities | 0.506 | 0.632 | 0.510 | 0.715 | 0.738 | 0.501 | 0.686 | 2.965 | 7.692 |
+| best_single_proxy (zico_t) | zero-cost proxy | 0.502 | 0.628 | 0.504 | 0.718 | 0.677 | 0.544 | 0.676 | 2.965 | 7.692 |
+| ridge_proxies | proxy combination, other cities | 0.680 | 0.626 | 0.504 | 0.714 | 0.813 | 0.532 | 0.584 | 2.965 | 7.692 |

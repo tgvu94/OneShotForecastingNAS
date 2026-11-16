@@ -22,6 +22,8 @@
    "gpu_unit": "H100 3g.40gb slice",
    "cost_ratio": 1.0,
    "cost_file": false,
+   "dataset": "metrla",
+   "experiment": "benchst",
    "full_hours_ref": 32.86325
   },
   "pems04": {
@@ -34,11 +36,13 @@
    "gpu_unit": "H100 3g.40gb slice",
    "cost_ratio": 1.0,
    "cost_file": false,
+   "dataset": "pems04",
+   "experiment": "benchst",
    "full_hours_ref": 28.65036111111111
   },
   "chengdu": {
-   "sigma_seed": 0.001793607678058571,
-   "sigma_seed_n_arch": 5,
+   "sigma_seed": 0.0013081480024239045,
+   "sigma_seed_n_arch": 50,
    "n": 150,
    "target": "test_mae",
    "max_epochs": 20,
@@ -46,11 +50,13 @@
    "gpu_unit": "H100 3g.40gb slice",
    "cost_ratio": 1.01,
    "cost_file": true,
+   "dataset": "chengdu",
+   "experiment": "benchst",
    "full_hours_ref": 21.059103410341034
   },
   "shenzhen": {
-   "sigma_seed": 0.0014053566216508232,
-   "sigma_seed_n_arch": 5,
+   "sigma_seed": 0.0011627861002456489,
+   "sigma_seed_n_arch": 50,
    "n": 150,
    "target": "test_mae",
    "max_epochs": 20,
@@ -58,6 +64,8 @@
    "gpu_unit": "H100 3g.40gb slice",
    "cost_ratio": 0.94,
    "cost_file": true,
+   "dataset": "shenzhen",
+   "experiment": "benchst",
    "full_hours_ref": 31.970065011820335
   }
  }
