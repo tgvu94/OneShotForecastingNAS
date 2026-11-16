@@ -1,0 +1,19 @@
+{
+ "cluster": "rorqual",
+ "gpu_unit": "H100 3g.40gb slice",
+ "cost_ratio": 1.01,
+ "reference_cluster": "nibi",
+ "reference_gpu_unit": "H100 3g.40gb slice",
+ "definition": "cost_ratio = seconds per epoch on this cluster / seconds per epoch on the reference, same architecture, seed and schedule; gpu_hours_ref = gpu_hours / cost_ratio",
+ "calibration": [
+  {
+   "arch_id": "c84e311c72",
+   "dataset": "chengdu",
+   "mask_zeros": true,
+   "seconds_per_epoch": 17.0,
+   "seconds_per_epoch_reference": 16.8,
+   "job": "rorqual 26622151"
+  }
+ ],
+ "note": "ratio taken from the chengdu calibration on the same cluster and gpu unit; not measured again at expytky. On a whole H100 (trillium 1336478) c84e311c72 took 24.3 s per epoch against 23.4 s here, eb28991486 97 s against 160 s, 6f77e842fa 138 s against 264 s."
+}
