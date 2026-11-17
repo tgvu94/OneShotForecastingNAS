@@ -1,7 +1,7 @@
 {
  "metrla": {
-  "sigma_seed": 0.0034916029937815977,
-  "sigma_seed_n_arch": 5,
+  "sigma_seed": 0.0014178660828118913,
+  "sigma_seed_n_arch": 50,
   "n": 150,
   "target": "test_mae",
   "max_epochs": 20,
@@ -11,8 +11,8 @@
   "cost_file": false
  },
  "pems04": {
-  "sigma_seed": 0.00027167455881492843,
-  "sigma_seed_n_arch": 5,
+  "sigma_seed": 0.0004214148136155752,
+  "sigma_seed_n_arch": 50,
   "n": 150,
   "target": "test_mae",
   "max_epochs": 20,
@@ -22,8 +22,8 @@
   "cost_file": false
  },
  "chengdu": {
-  "sigma_seed": 0.001793607678058571,
-  "sigma_seed_n_arch": 5,
+  "sigma_seed": 0.0013081480024239045,
+  "sigma_seed_n_arch": 50,
   "n": 150,
   "target": "test_mae",
   "max_epochs": 20,
@@ -33,8 +33,8 @@
   "cost_file": true
  },
  "shenzhen": {
-  "sigma_seed": 0.0014053566216508232,
-  "sigma_seed_n_arch": 5,
+  "sigma_seed": 0.0011627861002456489,
+  "sigma_seed_n_arch": 50,
   "n": 150,
   "target": "test_mae",
   "max_epochs": 20,

@@ -113,4 +113,4 @@ At N = 150 the expected half-width is ±0.17, which is what the bootstrap shows 
 
 ## Seed-noise ceiling
 
-Seed-0 vs seed-1 / 0 vs 2 / 1 vs 2 Spearman of val MAE on the 5 repeated archs: 0.70 / 0.70 / 1.00; within-arch std 0.0013 vs across-arch std 0.0038. The ground truth is not the limiting factor at N = 50.
+Seed-0 vs seed-1 / 0 vs 2 / 1 vs 2 Spearman of val MAE on the 50 repeated archs: 0.79 / 0.81 / 0.84; within-arch std 0.0008 vs across-arch std 0.0038. The ground truth is not the limiting factor at N = 50.
