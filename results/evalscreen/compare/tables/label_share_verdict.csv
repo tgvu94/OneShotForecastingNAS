@@ -1,4 +1,4 @@
 model,settings_at_10pct_with_3_cities,share_of_settings_above_own,cheapest_setting_with_3_cities_pct,pass
-pooled,0,0.5555555555555556,23.309514925525505,False
+pooled,0,0.7777777777777778,23.309514925525505,False
 pooled_own,0,0.8888888888888888,,False
-observed_mean,0,0.3333333333333333,,False
+observed_mean,0,0.75,,False

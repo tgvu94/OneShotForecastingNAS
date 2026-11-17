@@ -13,8 +13,8 @@
  "sub_size": 100,
  "cities": {
   "metrla": {
-   "sigma_seed": 0.0034916029937815977,
-   "sigma_seed_n_arch": 5,
+   "sigma_seed": 0.0014178660828118913,
+   "sigma_seed_n_arch": 50,
    "n": 150,
    "target": "test_mae",
    "max_epochs": 20,
@@ -27,8 +27,8 @@
    "full_hours_ref": 32.86325
   },
   "pems04": {
-   "sigma_seed": 0.00027167455881492843,
-   "sigma_seed_n_arch": 5,
+   "sigma_seed": 0.0004214148136155752,
+   "sigma_seed_n_arch": 50,
    "n": 150,
    "target": "test_mae",
    "max_epochs": 20,
