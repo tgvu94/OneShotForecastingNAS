@@ -17,18 +17,18 @@ Choices: ['seq_family', 'graph_family', 'flat_family', 'decoder'] (single) and t
 
 | city | cut | kept_share | top15_kept | best_kept | mae_head_top4_kept | random5_inside_sigma | random10_full_sigma | rules_removed | ok |
 |---|---|---|---|---|---|---|---|---|---|
-| metrla | learned_single_keep50 | 0.413 | 9 | True | 4 | 2.218 | 1.968 | decoder=linear; seq_family=gru; flat_family=nbeats_s | False |
-| metrla | learned_single_keep25 | 0.200 | 7 | True | 4 | 1.568 | 1.968 | decoder=linear; seq_family=gru; flat_family=nbeats_s; seq_family=lstm; seq_family=tcn | False |
-| metrla | learned_pairs_keep50 | 0.493 | 12 | True | 4 | 2.188 | 1.968 | seq_family=sep_tcn&decoder=linear; seq_family=skip_connection&decoder=linear; flat_family=skip_connection&decoder=linear; flat_family=nbeats_t&decoder=linear; graph_family=mixed&decoder=linear; flat_family=mlp&decoder=linear; seq_family=gru&decoder=seq; seq_family=tcn&flat_family=nbeats_s; seq_family=tcn&graph_family=none | False |
-| metrla | learned_pairs_keep25 | 0.353 | 9 | True | 4 | 2.063 | 1.968 | seq_family=sep_tcn&decoder=linear; seq_family=skip_connection&decoder=linear; flat_family=skip_connection&decoder=linear; flat_family=nbeats_t&decoder=linear; graph_family=mixed&decoder=linear; flat_family=mlp&decoder=linear; seq_family=gru&decoder=seq; seq_family=tcn&flat_family=nbeats_s; seq_family=tcn&graph_family=none; seq_family=lstm&flat_family=skip_connection; flat_family=nbeats_s | False |
-| metrla | ref_zico_sizectrl_top_half | 0.500 | 13 | True | 4 | 2.106 | 1.968 |  | False |
-| metrla | ref_pooled_transfer_top_half | 0.500 | 15 | True | 4 | 1.929 | 1.968 |  | True |
-| pems04 | learned_single_keep50 | 0.393 | 12 | True | 3 | 2.641 | 2.874 | decoder=linear; seq_family=gru; seq_family=tcn | False |
-| pems04 | learned_single_keep25 | 0.247 | 7 | True | 2 | 2.622 | 2.874 | decoder=linear; seq_family=gru; seq_family=tcn; graph_family=diffusion; seq_family=lstm | False |
-| pems04 | learned_pairs_keep50 | 0.500 | 15 | True | 4 | 2.925 | 2.874 | seq_family=sep_tcn&decoder=linear; graph_family=adaptive-only&decoder=linear; seq_family=skip_connection&decoder=linear; flat_family=skip_connection&decoder=linear; graph_family=mixed&decoder=linear; seq_family=gru&decoder=seq; graph_family=diffusion&decoder=linear; seq_family=tcn&flat_family=nbeats_s; decoder=linear | False |
-| pems04 | learned_pairs_keep25 | 0.227 | 8 | True | 2 | 2.253 | 2.874 | seq_family=sep_tcn&decoder=linear; graph_family=adaptive-only&decoder=linear; seq_family=skip_connection&decoder=linear; flat_family=skip_connection&decoder=linear; graph_family=mixed&decoder=linear; seq_family=gru&decoder=seq; graph_family=diffusion&decoder=linear; seq_family=tcn&flat_family=nbeats_s; decoder=linear; seq_family=lstm&graph_family=mixed; seq_family=tcn&graph_family=none; seq_family=lstm; flat_family=nbeats_s; graph_family=adaptive-only | False |
-| pems04 | ref_zico_sizectrl_top_half | 0.500 | 15 | True | 4 | 2.850 | 2.874 |  | True |
-| pems04 | ref_pooled_transfer_top_half | 0.500 | 15 | True | 4 | 2.869 | 2.874 |  | True |
+| metrla | learned_single_keep50 | 0.413 | 9 | True | 4 | 2.555 | 2.267 | decoder=linear; seq_family=gru; flat_family=nbeats_s | False |
+| metrla | learned_single_keep25 | 0.200 | 7 | True | 4 | 1.806 | 2.267 | decoder=linear; seq_family=gru; flat_family=nbeats_s; seq_family=lstm; seq_family=tcn | False |
+| metrla | learned_pairs_keep50 | 0.493 | 12 | True | 4 | 2.521 | 2.267 | seq_family=sep_tcn&decoder=linear; seq_family=skip_connection&decoder=linear; flat_family=skip_connection&decoder=linear; flat_family=nbeats_t&decoder=linear; graph_family=mixed&decoder=linear; flat_family=mlp&decoder=linear; seq_family=gru&decoder=seq; seq_family=tcn&flat_family=nbeats_s; seq_family=tcn&graph_family=none | False |
+| metrla | learned_pairs_keep25 | 0.353 | 9 | True | 4 | 2.376 | 2.267 | seq_family=sep_tcn&decoder=linear; seq_family=skip_connection&decoder=linear; flat_family=skip_connection&decoder=linear; flat_family=nbeats_t&decoder=linear; graph_family=mixed&decoder=linear; flat_family=mlp&decoder=linear; seq_family=gru&decoder=seq; seq_family=tcn&flat_family=nbeats_s; seq_family=tcn&graph_family=none; seq_family=lstm&flat_family=skip_connection; flat_family=nbeats_s | False |
+| metrla | ref_zico_sizectrl_top_half | 0.500 | 13 | True | 4 | 2.426 | 2.267 |  | False |
+| metrla | ref_pooled_transfer_top_half | 0.500 | 15 | True | 4 | 2.222 | 2.267 |  | True |
+| pems04 | learned_single_keep50 | 0.393 | 12 | True | 3 | 2.728 | 2.968 | decoder=linear; seq_family=gru; seq_family=tcn | False |
+| pems04 | learned_single_keep25 | 0.247 | 7 | True | 2 | 2.708 | 2.968 | decoder=linear; seq_family=gru; seq_family=tcn; graph_family=diffusion; seq_family=lstm | False |
+| pems04 | learned_pairs_keep50 | 0.500 | 15 | True | 4 | 3.021 | 2.968 | seq_family=sep_tcn&decoder=linear; graph_family=adaptive-only&decoder=linear; seq_family=skip_connection&decoder=linear; flat_family=skip_connection&decoder=linear; graph_family=mixed&decoder=linear; seq_family=gru&decoder=seq; graph_family=diffusion&decoder=linear; seq_family=tcn&flat_family=nbeats_s; decoder=linear | False |
+| pems04 | learned_pairs_keep25 | 0.227 | 8 | True | 2 | 2.327 | 2.968 | seq_family=sep_tcn&decoder=linear; graph_family=adaptive-only&decoder=linear; seq_family=skip_connection&decoder=linear; flat_family=skip_connection&decoder=linear; graph_family=mixed&decoder=linear; seq_family=gru&decoder=seq; graph_family=diffusion&decoder=linear; seq_family=tcn&flat_family=nbeats_s; decoder=linear; seq_family=lstm&graph_family=mixed; seq_family=tcn&graph_family=none; seq_family=lstm; flat_family=nbeats_s; graph_family=adaptive-only | False |
+| pems04 | ref_zico_sizectrl_top_half | 0.500 | 15 | True | 4 | 2.943 | 2.968 |  | True |
+| pems04 | ref_pooled_transfer_top_half | 0.500 | 15 | True | 4 | 2.963 | 2.968 |  | True |
 | chengdu | learned_single_keep50 | 0.413 | 13 | True | 3 | 2.560 | 2.569 | decoder=linear; seq_family=gru; flat_family=nbeats_s | True |
 | chengdu | learned_single_keep25 | 0.247 | 6 | False | 1 | 3.137 | 2.569 | decoder=linear; seq_family=gru; flat_family=nbeats_s; graph_family=none | False |
 | chengdu | learned_pairs_keep50 | 0.487 | 15 | True | 4 | 2.510 | 2.569 | seq_family=sep_tcn&decoder=linear; seq_family=skip_connection&decoder=linear; flat_family=nbeats_t&decoder=linear; flat_family=skip_connection&decoder=linear; seq_family=gru&decoder=seq; graph_family=mixed&decoder=linear; seq_family=tcn&decoder=linear; flat_family=mlp&decoder=linear; seq_family=tcn&graph_family=none; seq_family=lstm&flat_family=skip_connection | True |
@@ -45,32 +45,32 @@ Choices: ['seq_family', 'graph_family', 'flat_family', 'decoder'] (single) and t
 | expytky | learned_single_keep25 | 0.200 | 6 | True | 3 | 3.447 | 3.969 | decoder=linear; seq_family=gru; seq_family=tcn; seq_family=lstm; flat_family=nbeats_s | False |
 | expytky | learned_pairs_keep50 | 0.493 | 13 | True | 4 | 4.152 | 3.969 | seq_family=skip_connection&decoder=linear; seq_family=sep_tcn&decoder=linear; flat_family=nbeats_t&decoder=linear; flat_family=skip_connection&decoder=linear; graph_family=mixed&decoder=linear; seq_family=gru&decoder=seq; flat_family=mlp&decoder=linear; seq_family=tcn&flat_family=nbeats_s; seq_family=tcn&graph_family=none | False |
 | expytky | learned_pairs_keep25 | 0.320 | 10 | True | 3 | 3.891 | 3.969 | seq_family=skip_connection&decoder=linear; seq_family=sep_tcn&decoder=linear; flat_family=nbeats_t&decoder=linear; flat_family=skip_connection&decoder=linear; graph_family=mixed&decoder=linear; seq_family=gru&decoder=seq; flat_family=mlp&decoder=linear; seq_family=tcn&flat_family=nbeats_s; seq_family=tcn&graph_family=none; seq_family=lstm&flat_family=skip_connection; seq_family=lstm&flat_family=mlp; flat_family=nbeats_s | False |
-| expytky | ref_zico_sizectrl_top_half | 0.500 | 10 | True | 4 | 4.396 | 3.969 |  | False |
+| expytky | ref_zico_sizectrl_top_half | 0.500 | 10 | True | 4 | 4.476 | 3.969 |  | False |
 | expytky | ref_pooled_transfer_top_half | 0.500 | 15 | True | 4 | 3.995 | 3.969 |  | False |
 
 ### metrla: cost to one sigma of random picks inside each reduced list
 
 | evaluator | kind | regret_b1_sigma | rank_pct_b1 | b_sigma | hours_sigma_ref | pct_sigma | sub_share | sub_pct_median | sub_b_median |
 |---|---|---|---|---|---|---|---|---|---|
-| random_inside_learned_single_keep25 | random in a reduced list | 3.805 | 25.503 |  |  |  | 0.675 | 8.639 | 8.000 |
-| random_inside_learned_pairs_keep25 | random in a reduced list | 14.073 | 89.262 |  |  |  | 0.565 | 10.573 | 8.000 |
-| random_inside_learned_pairs_keep50 | random in a reduced list | 3.489 | 22.148 |  |  |  | 0.505 | 12.978 | 10.000 |
-| random_inside_ref_zico_sizectrl_top_half | random in a reduced list | 14.319 | 91.946 | 8.000 | 1.644 | 5.001 | 0.495 |  |  |
-| random_inside_learned_single_keep50 | random in a reduced list | 9.994 | 63.758 | 10.000 | 2.236 | 6.804 | 0.490 |  |  |
-| random_inside_ref_pooled_transfer_top_half | random in a reduced list | 10.161 | 65.101 |  |  |  | 0.495 |  |  |
-| random_full_list | floor | 7.082 | 55.705 |  |  |  | 0.270 |  |  |
+| random_inside_learned_single_keep25 | random in a reduced list | 4.383 | 25.503 |  |  |  | 0.675 | 8.639 | 8.000 |
+| random_inside_learned_pairs_keep25 | random in a reduced list | 16.212 | 89.262 |  |  |  | 0.565 | 10.573 | 8.000 |
+| random_inside_learned_pairs_keep50 | random in a reduced list | 4.019 | 22.148 |  |  |  | 0.505 | 12.978 | 10.000 |
+| random_inside_ref_zico_sizectrl_top_half | random in a reduced list | 16.495 | 91.946 | 8.000 | 1.644 | 5.001 | 0.490 |  |  |
+| random_inside_learned_single_keep50 | random in a reduced list | 11.513 | 63.758 | 10.000 | 2.236 | 6.804 | 0.490 |  |  |
+| random_inside_ref_pooled_transfer_top_half | random in a reduced list | 11.705 | 65.101 |  |  |  | 0.490 |  |  |
+| random_full_list | floor | 8.158 | 55.705 |  |  |  | 0.265 |  |  |
 
 ### pems04: cost to one sigma of random picks inside each reduced list
 
 | evaluator | kind | regret_b1_sigma | rank_pct_b1 | b_sigma | hours_sigma_ref | pct_sigma | sub_share | sub_pct_median | sub_b_median |
 |---|---|---|---|---|---|---|---|---|---|
-| random_inside_learned_pairs_keep25 | random in a reduced list | 4.167 | 12.081 |  |  |  | 0.705 | 8.145 | 8.000 |
-| random_inside_learned_pairs_keep50 | random in a reduced list | 17.031 | 92.617 |  |  |  | 0.550 | 9.137 | 8.000 |
-| random_inside_learned_single_keep50 | random in a reduced list | 9.618 | 48.322 | 5.000 | 0.921 | 3.214 | 0.545 | 9.897 | 10.000 |
-| random_inside_ref_pooled_transfer_top_half | random in a reduced list | 0.819 | 0.671 | 1.000 | 0.163 | 0.568 | 0.510 | 10.512 | 10.000 |
-| random_inside_ref_zico_sizectrl_top_half | random in a reduced list | 10.093 | 51.007 | 8.000 | 1.689 | 5.896 | 0.500 |  |  |
-| random_inside_learned_single_keep25 | random in a reduced list | 8.328 | 36.913 | 10.000 | 1.742 | 6.079 | 0.495 |  |  |
-| random_full_list | floor | 13.871 | 80.537 |  |  |  | 0.285 |  |  |
+| random_inside_learned_pairs_keep25 | random in a reduced list | 4.303 | 12.081 |  |  |  | 0.705 | 8.145 | 8.000 |
+| random_inside_learned_pairs_keep50 | random in a reduced list | 17.588 | 92.617 |  |  |  | 0.550 | 9.137 | 8.000 |
+| random_inside_learned_single_keep50 | random in a reduced list | 9.933 | 48.322 | 5.000 | 0.921 | 3.214 | 0.545 | 9.897 | 10.000 |
+| random_inside_ref_pooled_transfer_top_half | random in a reduced list | 0.846 | 0.671 | 1.000 | 0.163 | 0.568 | 0.510 | 10.512 | 10.000 |
+| random_inside_ref_zico_sizectrl_top_half | random in a reduced list | 10.423 | 51.007 | 8.000 | 1.689 | 5.896 | 0.500 |  |  |
+| random_inside_learned_single_keep25 | random in a reduced list | 8.601 | 36.913 | 10.000 | 1.742 | 6.079 | 0.495 |  |  |
+| random_full_list | floor | 14.325 | 80.537 |  |  |  | 0.285 |  |  |
 
 ### chengdu: cost to one sigma of random picks inside each reduced list
 
@@ -104,6 +104,6 @@ Choices: ['seq_family', 'graph_family', 'flat_family', 'decoder'] (single) and t
 | random_inside_learned_single_keep50 | random in a reduced list | 9.950 | 65.101 |  |  |  | 0.430 |  |  |
 | random_inside_learned_pairs_keep50 | random in a reduced list | 5.471 | 15.436 |  |  |  | 0.400 |  |  |
 | random_inside_learned_pairs_keep25 | random in a reduced list | 7.780 | 31.544 |  |  |  | 0.350 |  |  |
-| random_inside_ref_zico_sizectrl_top_half | random in a reduced list | 4.692 | 7.383 |  |  |  | 0.295 |  |  |
+| random_inside_ref_zico_sizectrl_top_half | random in a reduced list | 6.632 | 22.148 |  |  |  | 0.355 |  |  |
 | random_inside_ref_pooled_transfer_top_half | random in a reduced list | 1.455 | 2.013 |  |  |  | 0.370 |  |  |
 | random_full_list | floor | 12.387 | 87.919 |  |  |  | 0.150 |  |  |
