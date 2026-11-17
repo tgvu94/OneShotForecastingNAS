@@ -8,7 +8,7 @@ Every score is correlated with **−val MAE**, so a *useful* proxy has a **posit
 
 | Proxy | Spearman | 95% CI | CI half-width | excludes 0? | excludes 0.737? |
 |---|---|---|---|---|---|
-| `grasp_all` | 0.45 | (0.28, 0.58) | 0.15 | yes | yes |
+| `grasp_all` | 0.46 | (0.32, 0.59) | 0.14 | yes | yes |
 | `zico_t` | 0.22 | (0.05, 0.39) | 0.17 | yes | yes |
 | `glass_t` | 0.21 | (0.04, 0.38) | 0.17 | yes | yes |
 | `zico` | 0.20 | (0.03, 0.37) | 0.17 | yes | yes |
@@ -56,11 +56,11 @@ Every score is correlated with **−val MAE**, so a *useful* proxy has a **posit
 | `params` | 50 | +0.11 | -0.06 | +0.30 | 0.85 | 0.00 |
 | `params` | 100 | +0.11 | +0.02 | +0.20 | 0.98 | 0.00 |
 | `params` | 150 | +0.11 | +0.11 | +0.11 | 1.00 | 0.00 |
-| `grasp_all` | 10 | +0.48 | +0.01 | +0.80 | 0.13 | 0.09 |
-| `grasp_all` | 20 | +0.43 | +0.22 | +0.52 | 0.02 | 0.01 |
+| `grasp_all` | 10 | +0.47 | -0.11 | +0.78 | 0.23 | 0.15 |
+| `grasp_all` | 20 | +0.41 | +0.22 | +0.67 | 0.06 | 0.03 |
 | `grasp_all` | 30 | +nan | +nan | +nan | 0.00 | 0.00 |
-| `grasp_all` | 40 | +nan | +nan | +nan | 0.00 | 0.00 |
-| `grasp_all` | 50 | +nan | +nan | +nan | 0.00 | 0.00 |
+| `grasp_all` | 40 | +0.48 | +0.48 | +0.48 | 0.00 | 0.00 |
+| `grasp_all` | 50 | +0.48 | +0.48 | +0.48 | 0.00 | 0.00 |
 | `grasp_all` | 100 | +nan | +nan | +nan | 0.00 | 0.00 |
 | `grasp_all` | 150 | +nan | +nan | +nan | 0.00 | 0.00 |
 | `zen` | 10 | +0.01 | -0.54 | +0.49 | 0.51 | 0.10 |
@@ -113,4 +113,4 @@ At N = 150 the expected half-width is ±0.17, which is what the bootstrap shows 
 
 ## Seed-noise ceiling
 
-Seed-0 vs seed-1 / 0 vs 2 / 1 vs 2 Spearman of val MAE on the 5 repeated archs: 0.60 / 0.90 / 0.70; within-arch std 0.0011 vs across-arch std 0.0059. The ground truth is not the limiting factor at N = 50.
+Seed-0 vs seed-1 / 0 vs 2 / 1 vs 2 Spearman of val MAE on the 50 repeated archs: 0.93 / 0.89 / 0.89; within-arch std 0.0010 vs across-arch std 0.0059. The ground truth is not the limiting factor at N = 50.

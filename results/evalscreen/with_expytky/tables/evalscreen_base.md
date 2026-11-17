@@ -2,69 +2,69 @@
 
 Target = test_mae, seed 0, zero-masked pipeline, shared list. b in [1, 2, 3, 5, 8, 10]. b_sigma = the smallest b whose best pick lies within one sigma_seed of the best of the list; hours_sigma_ref = the evaluator's epochs plus the remaining epochs of those b picks on the reference unit; pct_sigma = its share of training the whole list; an empty cell means no b up to 10 meets the line. sub_share = the share of 200 random subsets of 100 architectures where some b meets the line; sub_pct_median = the median cost share over the subsets, empty when fewer than half meet the line. random is an expectation over draws on the full list.
 
-- metrla: N = 150, sigma_seed = 0.0035 over 5 architectures, whole list 32.9 GPU-hours (reference unit; cost_ratio 1.00, nibi)
-- pems04: N = 150, sigma_seed = 0.0003 over 5 architectures, whole list 28.7 GPU-hours (reference unit; cost_ratio 1.00, nibi)
+- metrla: N = 150, sigma_seed = 0.0016 over 35 architectures, whole list 32.9 GPU-hours (reference unit; cost_ratio 1.00, nibi)
+- pems04: N = 150, sigma_seed = 0.0004 over 37 architectures, whole list 28.7 GPU-hours (reference unit; cost_ratio 1.00, nibi)
 - chengdu: N = 150, sigma_seed = 0.0013 over 50 architectures, whole list 21.1 GPU-hours (reference unit; cost_ratio 1.01, rorqual)
 - shenzhen: N = 150, sigma_seed = 0.0012 over 50 architectures, whole list 32.0 GPU-hours (reference unit; cost_ratio 0.94, fir)
-- expytky: N = 150, sigma_seed = 0.0019 over 5 architectures, whole list 56.5 GPU-hours (reference unit; cost_ratio 1.01, rorqual)
+- expytky: N = 150, sigma_seed = 0.0019 over 50 architectures, whole list 56.5 GPU-hours (reference unit; cost_ratio 1.01, rorqual)
 
 ### metrla: cost to one sigma, cheapest robust form first
 
 | evaluator | kind | regret_b1_sigma | rank_pct_b1 | b_sigma | hours_sigma_ref | pct_sigma | sub_share | sub_pct_median | sub_b_median |
 |---|---|---|---|---|---|---|---|---|---|
-| transfer_from_chengdu | transfer | 0.521 | 1.342 | 1.000 | 0.181 | 0.550 | 1.000 | 0.840 | 1.000 |
-| transfer_from_shenzhen | transfer | 0.521 | 1.342 | 1.000 | 0.181 | 0.550 | 1.000 | 0.840 | 1.000 |
-| transfer_from_expytky | transfer | 0.335 | 0.671 | 1.000 | 0.231 | 0.704 | 1.000 | 1.052 | 1.000 |
+| transfer_from_expytky | transfer | 0.717 | 0.671 | 1.000 | 0.231 | 0.704 | 1.000 | 1.067 | 1.000 |
 | transfer_pooled | transfer | 0.000 | 0.000 | 1.000 | 0.317 | 0.965 | 1.000 | 1.436 | 1.000 |
-| loco_gbr_arch | predictor, other cities | 0.560 | 2.013 | 1.000 | 0.347 | 1.057 | 1.000 | 1.597 | 1.000 |
-| loco_gbr_arch_proxies | predictor, other cities | 0.560 | 2.013 | 1.000 | 0.347 | 1.057 | 1.000 | 1.597 | 1.000 |
-| swap | zero-cost proxy | 0.666 | 4.698 | 1.000 | 0.357 | 1.088 | 0.930 | 1.649 | 1.000 |
-| nwot | zero-cost proxy | 0.666 | 4.698 | 1.000 | 0.357 | 1.088 | 0.930 | 1.652 | 1.000 |
-| loco_ridge_arch | predictor, other cities | 1.038 | 8.054 | 2.000 | 0.729 | 2.219 | 1.000 | 1.912 | 1.000 |
-| loco_gbr_proxies | predictor, other cities | 1.457 | 16.107 | 2.000 | 0.632 | 1.922 | 1.000 | 2.835 | 2.000 |
-| transfer_from_pems04 | transfer | 1.038 | 8.054 | 2.000 | 0.729 | 2.219 | 1.000 | 3.182 | 2.000 |
-| zico_sizectrl_half_then_k1 | proxy filter | 1.922 | 29.530 | 3.000 | 2.136 | 6.501 | 1.000 | 6.555 | 2.000 |
-| zico_half_then_k1 | proxy filter | 1.922 | 29.530 | 3.000 | 2.164 | 6.586 | 1.000 | 6.669 | 2.000 |
-| random | floor | 3.641 |  | 10.000 | 2.191 | 6.667 | 0.625 | 8.566 | 8.000 |
-| zen | zero-cost proxy | 1.626 | 21.477 | 8.000 | 1.979 | 6.023 | 0.765 | 9.152 | 8.000 |
-| swap_reg | zero-cost proxy | 7.085 | 94.631 | 8.000 | 2.186 | 6.651 | 0.735 | 9.478 | 8.000 |
-| early_val_k1 | brief training | 1.922 | 29.530 | 3.000 | 3.127 | 9.514 | 1.000 | 9.566 | 2.000 |
-| zico_sizectrl | zero-cost proxy | 5.884 | 79.195 |  |  |  | 0.750 | 10.740 | 9.000 |
-| l2_norm_all | zero-cost proxy | 1.795 | 26.174 |  |  |  | 0.960 | 10.925 | 8.000 |
-| zico | zero-cost proxy | 1.795 | 26.174 |  |  |  | 0.790 | 11.122 | 8.000 |
-| glass | zero-cost proxy | 1.795 | 26.174 |  |  |  | 0.760 | 11.429 | 10.000 |
-| zico_s | zero-cost proxy | 4.324 | 61.745 | 10.000 | 3.196 | 9.724 | 0.785 | 11.476 | 8.000 |
-| glass_s | zero-cost proxy | 4.324 | 61.745 | 10.000 | 3.196 | 9.724 | 0.780 | 11.600 | 8.000 |
-| zico_sizectrl_half_then_k3 | proxy filter | 0.000 | 0.000 | 1.000 | 3.684 | 11.211 | 1.000 | 11.789 | 1.000 |
-| zico_half_then_k3 | proxy filter | 0.000 | 0.000 | 1.000 | 3.770 | 11.472 | 1.000 | 11.953 | 1.000 |
-| zico_t | zero-cost proxy | 2.362 | 39.597 |  |  |  | 0.815 | 11.957 | 10.000 |
-| glass_t | zero-cost proxy | 2.362 | 39.597 |  |  |  | 0.625 | 12.388 | 10.000 |
+| transfer_from_shenzhen | transfer | 1.114 | 1.342 | 2.000 | 0.498 | 1.515 | 1.000 | 1.482 | 1.000 |
+| transfer_from_chengdu | transfer | 1.114 | 1.342 | 5.000 | 1.043 | 3.175 | 0.990 | 2.786 | 3.000 |
+| loco_gbr_proxies | predictor, other cities | 3.114 | 16.107 | 3.000 | 0.949 | 2.887 | 1.000 | 2.936 | 2.000 |
+| loco_gbr_arch_proxies | predictor, other cities | 1.197 | 2.013 | 3.000 | 1.077 | 3.276 | 1.000 | 3.255 | 2.000 |
+| loco_ridge_arch | predictor, other cities | 2.218 | 8.054 | 2.000 | 0.729 | 2.219 | 1.000 | 3.271 | 2.000 |
+| transfer_from_pems04 | transfer | 2.218 | 8.054 | 2.000 | 0.729 | 2.219 | 1.000 | 3.326 | 2.000 |
+| loco_gbr_arch | predictor, other cities | 1.197 | 2.013 | 5.000 | 1.708 | 5.198 | 1.000 | 4.413 | 3.000 |
+| zico_sizectrl_half_then_k1 | proxy filter | 4.109 | 29.530 | 5.000 | 2.458 | 7.478 | 0.770 | 7.783 | 3.000 |
+| zico_half_then_k1 | proxy filter | 4.109 | 29.530 | 5.000 | 2.617 | 7.963 | 0.825 | 7.845 | 3.000 |
+| early_val_k1 | brief training | 4.109 | 29.530 | 5.000 | 3.448 | 10.492 | 0.765 | 10.778 | 3.000 |
+| zico_sizectrl_half_then_k3 | proxy filter | 0.000 | 0.000 | 1.000 | 3.684 | 11.211 | 1.000 | 11.809 | 1.000 |
+| zico_half_then_k3 | proxy filter | 0.000 | 0.000 | 1.000 | 3.770 | 11.472 | 1.000 | 11.977 | 1.000 |
 | early_val_k2 | brief training | 0.000 | 0.000 | 1.000 | 4.498 | 13.687 | 1.000 | 14.022 | 1.000 |
 | sh_r1_eta3 | successive halving | 0.000 | 0.000 | 1.000 | 5.777 | 17.579 | 1.000 | 17.418 | 1.000 |
-| zico_sizectrl_half_then_k5 | proxy filter | 0.000 | 0.000 | 1.000 | 5.867 | 17.851 | 1.000 | 18.337 | 1.000 |
-| zico_half_then_k5 | proxy filter | 0.000 | 0.000 | 1.000 | 6.011 | 18.291 | 1.000 | 18.569 | 1.000 |
+| zico_sizectrl_half_then_k5 | proxy filter | 0.000 | 0.000 | 1.000 | 5.867 | 17.851 | 1.000 | 18.341 | 1.000 |
+| zico_half_then_k5 | proxy filter | 0.000 | 0.000 | 1.000 | 6.011 | 18.291 | 1.000 | 18.583 | 1.000 |
 | sh_r1_eta2 | successive halving | 0.000 | 0.000 | 1.000 | 6.446 | 19.615 | 1.000 | 19.812 | 1.000 |
-| early_val_k3 | brief training | 0.000 | 0.000 | 1.000 | 6.489 | 19.745 | 1.000 | 20.232 | 1.000 |
-| early_val_k4 | brief training | 0.000 | 0.000 | 1.000 | 8.487 | 25.826 | 1.000 | 26.166 | 1.000 |
+| early_val_k3 | brief training | 0.000 | 0.000 | 1.000 | 6.489 | 19.745 | 1.000 | 20.258 | 1.000 |
+| early_val_k4 | brief training | 0.000 | 0.000 | 1.000 | 8.487 | 25.826 | 1.000 | 26.182 | 1.000 |
 | sh_r2_eta3 | successive halving | 0.000 | 0.000 | 1.000 | 9.848 | 29.965 | 1.000 | 30.010 | 1.000 |
-| early_val_k5 | brief training | 0.000 | 0.000 | 1.000 | 10.486 | 31.907 | 1.000 | 32.199 | 1.000 |
+| early_val_k5 | brief training | 0.000 | 0.000 | 1.000 | 10.486 | 31.907 | 1.000 | 32.241 | 1.000 |
 | sh_r2_eta2 | successive halving | 0.000 | 0.000 | 1.000 | 10.676 | 32.487 | 1.000 | 32.582 | 1.000 |
-| early_val_k6 | brief training | 0.656 | 4.027 | 1.000 | 12.408 | 37.756 | 1.000 | 38.095 | 1.000 |
+| early_val_k6 | brief training | 1.403 | 4.027 | 2.000 | 12.628 | 38.426 | 1.000 | 38.583 | 1.000 |
 | sh_r3_eta3 | successive halving | 0.000 | 0.000 | 1.000 | 12.702 | 38.650 | 1.000 | 38.717 | 1.000 |
 | sh_r3_eta2 | successive halving | 0.000 | 0.000 | 1.000 | 14.053 | 42.762 | 1.000 | 43.041 | 1.000 |
 | early_val_k8 | brief training | 0.000 | 0.000 | 1.000 | 16.440 | 50.025 | 1.000 | 50.237 | 1.000 |
 | early_val_k10 | brief training | 0.000 | 0.000 | 1.000 | 20.171 | 61.377 | 1.000 | 61.538 | 1.000 |
 | full_training | ceiling | 0.000 | 0.000 | 1.000 | 32.863 | 100.000 | 1.000 | 100.000 | 1.000 |
-| params | floor | 1.626 | 21.477 |  |  |  | 0.370 |  |  |
-| flops | floor | 2.799 | 51.007 |  |  |  | 0.100 |  |  |
-| synflow_all | zero-cost proxy | 2.362 | 39.597 |  |  |  | 0.225 |  |  |
-| snip_all | zero-cost proxy | 5.914 | 79.866 |  |  |  | 0.000 |  |  |
-| grasp_all | zero-cost proxy | 2.862 | 52.349 |  |  |  | 0.235 |  |  |
-| grad_norm_all | zero-cost proxy | 5.914 | 79.866 |  |  |  | 0.000 |  |  |
-| fisher | zero-cost proxy | 8.502 | 98.658 |  |  |  | 0.000 |  |  |
-| jacov | zero-cost proxy | 1.174 | 10.067 |  |  |  | 0.435 |  |  |
-| plain_all | zero-cost proxy | 8.502 | 98.658 |  |  |  | 0.205 |  |  |
-| nwot_per_layer | zero-cost proxy | 4.661 | 63.087 |  |  |  | 0.200 |  |  |
+| random | floor | 7.782 |  |  |  |  | 0.270 |  |  |
+| params | floor | 3.476 | 21.477 |  |  |  | 0.060 |  |  |
+| flops | floor | 5.984 | 51.007 |  |  |  | 0.000 |  |  |
+| zico | zero-cost proxy | 3.837 | 26.174 |  |  |  | 0.320 |  |  |
+| zico_sizectrl | zero-cost proxy | 12.579 | 79.195 |  |  |  | 0.220 |  |  |
+| swap | zero-cost proxy | 1.424 | 4.698 |  |  |  | 0.265 |  |  |
+| swap_reg | zero-cost proxy | 15.145 | 94.631 |  |  |  | 0.215 |  |  |
+| nwot | zero-cost proxy | 1.424 | 4.698 |  |  |  | 0.265 |  |  |
+| synflow_all | zero-cost proxy | 5.049 | 39.597 |  |  |  | 0.000 |  |  |
+| snip_all | zero-cost proxy | 12.643 | 79.866 |  |  |  | 0.000 |  |  |
+| grasp_all | zero-cost proxy | 6.118 | 52.349 |  |  |  | 0.010 |  |  |
+| grad_norm_all | zero-cost proxy | 12.643 | 79.866 |  |  |  | 0.000 |  |  |
+| fisher | zero-cost proxy | 18.174 | 98.658 |  |  |  | 0.000 |  |  |
+| jacov | zero-cost proxy | 2.509 | 10.067 |  |  |  | 0.070 |  |  |
+| zen | zero-cost proxy | 3.476 | 21.477 |  |  |  | 0.260 |  |  |
+| l2_norm_all | zero-cost proxy | 3.837 | 26.174 |  |  |  | 0.285 |  |  |
+| plain_all | zero-cost proxy | 18.174 | 98.658 |  |  |  | 0.000 |  |  |
+| zico_t | zero-cost proxy | 5.049 | 39.597 |  |  |  | 0.425 |  |  |
+| zico_s | zero-cost proxy | 9.243 | 61.745 |  |  |  | 0.215 |  |  |
+| glass | zero-cost proxy | 3.837 | 26.174 |  |  |  | 0.325 |  |  |
+| glass_t | zero-cost proxy | 5.049 | 39.597 |  |  |  | 0.345 |  |  |
+| glass_s | zero-cost proxy | 9.243 | 61.745 |  |  |  | 0.215 |  |  |
+| nwot_per_layer | zero-cost proxy | 9.963 | 63.087 |  |  |  | 0.010 |  |  |
 
 ### metrla: head control, Spearman with -test_mae
 
@@ -75,101 +75,101 @@ rho_within_head = n-weighted mean of the three heads, with a stratified bootstra
 | full_training | ceiling | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 0.000 | 0.000 |
 | early_val_k10 | brief training | 0.961 | 0.844 | 0.761 | 0.890 | 0.889 | 0.820 | 0.834 | 0.000 | 0.000 |
 | early_val_k8 | brief training | 0.951 | 0.805 | 0.710 | 0.859 | 0.866 | 0.853 | 0.713 | 0.000 | 0.000 |
-| early_val_k6 | brief training | 0.924 | 0.727 | 0.617 | 0.803 | 0.810 | 0.753 | 0.640 | 0.656 | 15.385 |
+| early_val_k6 | brief training | 0.924 | 0.727 | 0.617 | 0.803 | 0.810 | 0.753 | 0.640 | 1.403 | 15.385 |
 | early_val_k5 | brief training | 0.926 | 0.697 | 0.573 | 0.781 | 0.762 | 0.746 | 0.601 | 0.000 | 0.000 |
 | early_val_k4 | brief training | 0.925 | 0.680 | 0.561 | 0.772 | 0.777 | 0.717 | 0.572 | 0.000 | 0.000 |
-| transfer_from_expytky | transfer | 0.756 | 0.626 | 0.517 | 0.705 | 0.597 | 0.595 | 0.676 | 0.335 | 2.564 |
+| transfer_from_expytky | transfer | 0.756 | 0.626 | 0.517 | 0.705 | 0.597 | 0.595 | 0.676 | 0.717 | 2.564 |
 | transfer_pooled | transfer | 0.745 | 0.620 | 0.494 | 0.713 | 0.667 | 0.625 | 0.581 | 0.000 | 0.000 |
 | early_val_k3 | brief training | 0.878 | 0.591 | 0.449 | 0.701 | 0.790 | 0.556 | 0.483 | 0.000 | 0.000 |
-| transfer_from_shenzhen | transfer | 0.716 | 0.576 | 0.438 | 0.668 | 0.629 | 0.606 | 0.507 | 0.521 | 5.128 |
+| transfer_from_shenzhen | transfer | 0.716 | 0.576 | 0.438 | 0.668 | 0.629 | 0.606 | 0.507 | 1.114 | 5.128 |
 | early_val_k2 | brief training | 0.843 | 0.557 | 0.406 | 0.682 | 0.641 | 0.594 | 0.459 | 0.000 | 0.000 |
-| loco_gbr_arch | predictor, other cities | 0.707 | 0.553 | 0.424 | 0.668 | 0.571 | 0.557 | 0.535 | 0.560 | 7.692 |
-| loco_ridge_arch | predictor, other cities | 0.758 | 0.553 | 0.421 | 0.653 | 0.656 | 0.415 | 0.615 | 1.038 | 28.205 |
-| loco_gbr_arch_proxies | predictor, other cities | 0.697 | 0.535 | 0.389 | 0.662 | 0.579 | 0.504 | 0.534 | 0.560 | 7.692 |
-| loco_gbr_proxies | predictor, other cities | 0.693 | 0.520 | 0.383 | 0.636 | 0.571 | 0.479 | 0.524 | 1.457 | 56.410 |
-| transfer_from_pems04 | transfer | 0.576 | 0.501 | 0.368 | 0.643 | 0.548 | 0.594 | 0.372 | 1.038 | 28.205 |
-| early_val_k1 | brief training | 0.581 | 0.446 | 0.303 | 0.585 | 0.638 | 0.500 | 0.252 | 1.922 | 71.795 |
-| transfer_from_chengdu | transfer | 0.530 | 0.435 | 0.285 | 0.550 | 0.537 | 0.420 | 0.377 | 0.521 | 5.128 |
-| glass_t | zero-cost proxy | 0.194 | 0.406 | 0.249 | 0.520 | 0.433 | 0.251 | 0.542 | 1.038 | 28.205 |
-| zico_t | zero-cost proxy | 0.239 | 0.404 | 0.247 | 0.519 | 0.433 | 0.242 | 0.544 | 1.038 | 28.205 |
-| zico | zero-cost proxy | 0.224 | 0.395 | 0.232 | 0.524 | 0.404 | 0.249 | 0.534 | 1.038 | 28.205 |
-| glass | zero-cost proxy | 0.182 | 0.390 | 0.228 | 0.520 | 0.405 | 0.236 | 0.535 | 1.038 | 28.205 |
-| zico_sizectrl | zero-cost proxy | 0.258 | 0.376 | 0.192 | 0.521 | 0.498 | 0.274 | 0.389 | 1.038 | 28.205 |
-| l2_norm_all | zero-cost proxy | 0.136 | 0.295 | 0.140 | 0.448 | 0.309 | 0.231 | 0.350 | 0.666 | 17.949 |
-| params | floor | 0.035 | 0.161 | -0.014 | 0.333 | 0.061 | 0.031 | 0.365 | 3.952 | 100.000 |
-| zen | zero-cost proxy | -0.011 | 0.080 | -0.075 | 0.249 | -0.106 | -0.018 | 0.313 | 0.666 | 17.949 |
-| jacov | zero-cost proxy | 0.104 | 0.026 | -0.134 | 0.175 | -0.028 | -0.007 | 0.099 | 1.174 | 35.897 |
-| grasp_all | zero-cost proxy | 0.484 | 0.024 | -0.135 | 0.180 | 0.170 | -0.006 | -0.053 | 1.082 | 33.333 |
-| plain_all | zero-cost proxy | -0.424 | 0.008 | -0.169 | 0.149 | 0.198 | -0.109 | -0.014 | 1.293 | 46.154 |
-| swap | zero-cost proxy | -0.088 | -0.020 | -0.186 | 0.150 | -0.116 | -0.058 | 0.086 | 0.666 | 17.949 |
-| snip_all | zero-cost proxy | -0.429 | -0.023 | -0.168 | 0.140 | -0.206 | -0.078 | 0.165 | 1.401 | 51.282 |
-| swap_reg | zero-cost proxy | 0.036 | -0.036 | -0.201 | 0.124 | 0.092 | -0.089 | -0.074 | 2.799 | 89.744 |
-| grad_norm_all | zero-cost proxy | -0.475 | -0.047 | -0.203 | 0.121 | -0.212 | -0.093 | 0.118 | 1.401 | 51.282 |
-| nwot | zero-cost proxy | -0.090 | -0.056 | -0.209 | 0.110 | -0.110 | -0.077 | 0.004 | 0.666 | 17.949 |
-| fisher | zero-cost proxy | -0.542 | -0.074 | -0.225 | 0.090 | -0.131 | -0.118 | 0.013 | 1.293 | 46.154 |
-| zico_s | zero-cost proxy | -0.048 | -0.107 | -0.285 | 0.055 | -0.088 | -0.078 | -0.150 | 2.799 | 89.744 |
-| glass_s | zero-cost proxy | -0.059 | -0.108 | -0.286 | 0.053 | -0.088 | -0.082 | -0.150 | 2.799 | 89.744 |
-| synflow_all | zero-cost proxy | -0.208 | -0.124 | -0.298 | 0.047 | 0.020 | -0.238 | -0.113 | 2.799 | 89.744 |
-| flops | floor | -0.120 | -0.130 | -0.298 | 0.037 | -0.204 | -0.144 | -0.062 | 2.799 | 89.744 |
-| nwot_per_layer | zero-cost proxy | -0.188 | -0.278 | -0.432 | -0.113 | -0.310 | -0.008 | -0.524 | 1.582 | 61.538 |
+| loco_gbr_arch | predictor, other cities | 0.707 | 0.553 | 0.424 | 0.668 | 0.571 | 0.557 | 0.535 | 1.197 | 7.692 |
+| loco_ridge_arch | predictor, other cities | 0.758 | 0.553 | 0.421 | 0.653 | 0.656 | 0.415 | 0.615 | 2.218 | 28.205 |
+| loco_gbr_arch_proxies | predictor, other cities | 0.699 | 0.540 | 0.392 | 0.669 | 0.591 | 0.508 | 0.535 | 1.197 | 7.692 |
+| loco_gbr_proxies | predictor, other cities | 0.692 | 0.520 | 0.374 | 0.628 | 0.574 | 0.465 | 0.535 | 3.114 | 56.410 |
+| transfer_from_pems04 | transfer | 0.576 | 0.501 | 0.368 | 0.643 | 0.548 | 0.594 | 0.372 | 2.218 | 28.205 |
+| early_val_k1 | brief training | 0.581 | 0.446 | 0.303 | 0.585 | 0.638 | 0.500 | 0.252 | 4.109 | 71.795 |
+| transfer_from_chengdu | transfer | 0.530 | 0.435 | 0.285 | 0.550 | 0.537 | 0.420 | 0.377 | 1.114 | 5.128 |
+| glass_t | zero-cost proxy | 0.194 | 0.406 | 0.249 | 0.520 | 0.433 | 0.251 | 0.542 | 2.218 | 28.205 |
+| zico_t | zero-cost proxy | 0.239 | 0.404 | 0.247 | 0.519 | 0.433 | 0.242 | 0.544 | 2.218 | 28.205 |
+| zico | zero-cost proxy | 0.224 | 0.395 | 0.232 | 0.524 | 0.404 | 0.249 | 0.534 | 2.218 | 28.205 |
+| glass | zero-cost proxy | 0.182 | 0.390 | 0.228 | 0.520 | 0.405 | 0.236 | 0.535 | 2.218 | 28.205 |
+| zico_sizectrl | zero-cost proxy | 0.258 | 0.376 | 0.192 | 0.521 | 0.498 | 0.274 | 0.389 | 2.218 | 28.205 |
+| l2_norm_all | zero-cost proxy | 0.136 | 0.295 | 0.140 | 0.448 | 0.309 | 0.231 | 0.350 | 1.424 | 17.949 |
+| params | floor | 0.035 | 0.161 | -0.014 | 0.333 | 0.061 | 0.031 | 0.365 | 8.449 | 100.000 |
+| zen | zero-cost proxy | -0.011 | 0.080 | -0.075 | 0.249 | -0.106 | -0.018 | 0.313 | 1.424 | 17.949 |
+| jacov | zero-cost proxy | 0.104 | 0.026 | -0.134 | 0.175 | -0.028 | -0.007 | 0.099 | 2.509 | 35.897 |
+| grasp_all | zero-cost proxy | 0.484 | 0.024 | -0.135 | 0.180 | 0.170 | -0.006 | -0.053 | 2.313 | 33.333 |
+| plain_all | zero-cost proxy | -0.424 | 0.008 | -0.169 | 0.149 | 0.198 | -0.109 | -0.014 | 2.763 | 46.154 |
+| swap | zero-cost proxy | -0.088 | -0.020 | -0.186 | 0.150 | -0.116 | -0.058 | 0.086 | 1.424 | 17.949 |
+| snip_all | zero-cost proxy | -0.429 | -0.023 | -0.168 | 0.140 | -0.206 | -0.078 | 0.165 | 2.996 | 51.282 |
+| swap_reg | zero-cost proxy | 0.036 | -0.036 | -0.201 | 0.124 | 0.092 | -0.089 | -0.074 | 5.984 | 89.744 |
+| grad_norm_all | zero-cost proxy | -0.475 | -0.047 | -0.203 | 0.121 | -0.212 | -0.093 | 0.118 | 2.996 | 51.282 |
+| nwot | zero-cost proxy | -0.090 | -0.056 | -0.209 | 0.110 | -0.110 | -0.077 | 0.004 | 1.424 | 17.949 |
+| fisher | zero-cost proxy | -0.542 | -0.074 | -0.225 | 0.090 | -0.131 | -0.118 | 0.013 | 2.763 | 46.154 |
+| zico_s | zero-cost proxy | -0.048 | -0.107 | -0.285 | 0.055 | -0.088 | -0.078 | -0.150 | 5.984 | 89.744 |
+| glass_s | zero-cost proxy | -0.059 | -0.108 | -0.286 | 0.053 | -0.088 | -0.082 | -0.150 | 5.984 | 89.744 |
+| synflow_all | zero-cost proxy | -0.208 | -0.124 | -0.298 | 0.047 | 0.020 | -0.238 | -0.113 | 5.984 | 89.744 |
+| flops | floor | -0.120 | -0.130 | -0.298 | 0.037 | -0.204 | -0.144 | -0.062 | 5.984 | 89.744 |
+| nwot_per_layer | zero-cost proxy | -0.188 | -0.278 | -0.432 | -0.113 | -0.310 | -0.008 | -0.524 | 3.382 | 61.538 |
 
 ### pems04: cost to one sigma, cheapest robust form first
 
 | evaluator | kind | regret_b1_sigma | rank_pct_b1 | b_sigma | hours_sigma_ref | pct_sigma | sub_share | sub_pct_median | sub_b_median |
 |---|---|---|---|---|---|---|---|---|---|
-| loco_ridge_arch | predictor, other cities | 10.197 | 21.477 | 3.000 | 0.581 | 2.029 | 0.985 | 2.334 | 2.000 |
-| loco_gbr_proxies | predictor, other cities | 1.312 | 0.671 | 5.000 | 0.854 | 2.979 | 0.980 | 3.065 | 3.000 |
-| transfer_from_shenzhen | transfer | 4.087 | 6.711 | 5.000 | 0.880 | 3.071 | 0.995 | 3.217 | 3.000 |
-| transfer_pooled | transfer | 10.197 | 21.477 | 5.000 | 0.840 | 2.933 | 0.985 | 4.199 | 5.000 |
-| zico_sizectrl | zero-cost proxy | 3.918 | 6.040 | 8.000 | 1.825 | 6.369 | 0.950 | 6.463 | 5.000 |
-| loco_gbr_arch_proxies | predictor, other cities | 10.197 | 21.477 | 10.000 | 1.732 | 6.046 | 0.985 | 6.763 | 8.000 |
-| loco_gbr_arch | predictor, other cities | 1.312 | 0.671 | 10.000 | 1.783 | 6.222 | 0.995 | 6.850 | 8.000 |
-| glass_t | zero-cost proxy | 3.918 | 6.040 | 8.000 | 1.971 | 6.878 | 0.940 | 6.978 | 5.000 |
-| glass | zero-cost proxy | 1.795 | 2.013 | 8.000 | 1.971 | 6.878 | 0.925 | 7.099 | 5.000 |
-| transfer_from_expytky | transfer | 10.197 | 21.477 | 10.000 | 1.787 | 6.236 | 0.915 | 7.106 | 8.000 |
-| transfer_from_metrla | transfer | 1.312 | 0.671 |  |  |  | 0.830 | 8.620 | 8.000 |
-| zico_t | zero-cost proxy | 3.918 | 6.040 | 10.000 | 2.437 | 8.505 | 0.915 | 9.923 | 8.000 |
-| transfer_from_chengdu | transfer | 4.087 | 6.711 |  |  |  | 0.645 | 9.933 | 10.000 |
-| zico | zero-cost proxy | 1.795 | 2.013 | 10.000 | 2.563 | 8.946 | 0.920 | 10.182 | 8.000 |
-| swap_reg | zero-cost proxy | 34.221 | 98.658 | 8.000 | 2.057 | 7.181 | 0.680 | 10.382 | 8.000 |
-| l2_norm_all | zero-cost proxy | 1.795 | 2.013 |  |  |  | 0.585 | 13.530 | 10.000 |
-| zico_sizectrl_half_then_k5 | proxy filter | 0.000 | 0.000 | 1.000 | 4.085 | 14.258 | 0.980 | 14.809 | 1.000 |
-| zico_half_then_k5 | proxy filter | 0.000 | 0.000 | 1.000 | 4.156 | 14.507 | 0.980 | 14.981 | 1.000 |
-| early_val_k4 | brief training | 7.828 | 14.094 | 2.000 | 6.249 | 21.810 | 0.990 | 22.388 | 2.000 |
-| early_val_k5 | brief training | 0.000 | 0.000 | 1.000 | 7.543 | 26.327 | 0.955 | 26.736 | 1.000 |
-| sh_r2_eta2 | successive halving | 0.000 | 0.000 | 1.000 | 8.099 | 28.268 | 0.940 | 28.511 | 1.000 |
-| early_val_k6 | brief training | 4.625 | 8.725 | 2.000 | 9.124 | 31.847 | 0.990 | 32.423 | 2.000 |
+| transfer_from_metrla | transfer | 0.819 | 0.671 | 1.000 | 0.163 | 0.568 | 0.965 | 0.864 | 1.000 |
+| loco_gbr_arch | predictor, other cities | 0.819 | 0.671 | 1.000 | 0.163 | 0.568 | 0.995 | 0.864 | 1.000 |
+| loco_gbr_proxies | predictor, other cities | 0.819 | 0.671 | 1.000 | 0.163 | 0.568 | 0.980 | 0.864 | 1.000 |
+| transfer_from_shenzhen | transfer | 2.551 | 6.711 | 2.000 | 0.293 | 1.023 | 1.000 | 1.540 | 2.000 |
+| loco_ridge_arch | predictor, other cities | 6.366 | 21.477 | 2.000 | 0.295 | 1.031 | 0.990 | 1.548 | 2.000 |
+| transfer_pooled | transfer | 6.366 | 21.477 | 2.000 | 0.295 | 1.031 | 0.990 | 1.556 | 2.000 |
+| loco_gbr_arch_proxies | predictor, other cities | 6.366 | 21.477 | 2.000 | 0.295 | 1.031 | 0.990 | 1.556 | 2.000 |
+| transfer_from_expytky | transfer | 6.366 | 21.477 | 5.000 | 0.898 | 3.133 | 0.975 | 2.834 | 3.000 |
+| zico_sizectrl | zero-cost proxy | 2.446 | 6.040 | 8.000 | 1.825 | 6.369 | 0.970 | 6.444 | 5.000 |
+| glass_t | zero-cost proxy | 2.446 | 6.040 | 8.000 | 1.971 | 6.878 | 0.965 | 6.978 | 5.000 |
+| glass | zero-cost proxy | 1.120 | 2.013 | 8.000 | 1.971 | 6.878 | 0.960 | 7.086 | 5.000 |
+| transfer_from_chengdu | transfer | 2.551 | 6.711 | 10.000 | 1.650 | 5.758 | 0.830 | 7.395 | 8.000 |
+| zico_t | zero-cost proxy | 2.446 | 6.040 | 10.000 | 2.437 | 8.505 | 0.960 | 9.822 | 8.000 |
+| zico | zero-cost proxy | 1.120 | 2.013 | 10.000 | 2.563 | 8.946 | 0.960 | 10.009 | 8.000 |
+| swap_reg | zero-cost proxy | 21.363 | 98.658 | 8.000 | 2.057 | 7.181 | 0.680 | 10.382 | 8.000 |
+| l2_norm_all | zero-cost proxy | 1.120 | 2.013 |  |  |  | 0.625 | 13.365 | 10.000 |
+| zico_sizectrl_half_then_k5 | proxy filter | 0.000 | 0.000 | 1.000 | 4.085 | 14.258 | 0.990 | 14.809 | 1.000 |
+| sh_r1_eta3 | successive halving | 0.819 | 0.671 | 1.000 | 4.266 | 14.891 | 0.690 | 14.928 | 1.000 |
+| zico_half_then_k5 | proxy filter | 0.000 | 0.000 | 1.000 | 4.156 | 14.507 | 0.990 | 14.981 | 1.000 |
+| zico_sizectrl_half_then_k3 | proxy filter | 2.887 | 8.725 |  |  |  | 0.895 | 16.248 | 8.000 |
+| zico_half_then_k3 | proxy filter | 2.887 | 8.725 |  |  |  | 0.885 | 16.642 | 8.000 |
+| early_val_k4 | brief training | 4.887 | 14.094 | 2.000 | 6.249 | 21.810 | 0.990 | 22.388 | 2.000 |
+| sh_r2_eta3 | successive halving | 0.848 | 1.342 | 1.000 | 7.343 | 25.629 | 0.700 | 25.870 | 1.000 |
+| early_val_k5 | brief training | 0.000 | 0.000 | 1.000 | 7.543 | 26.327 | 0.970 | 26.736 | 1.000 |
+| sh_r2_eta2 | successive halving | 0.000 | 0.000 | 1.000 | 8.099 | 28.268 | 0.995 | 28.477 | 1.000 |
+| early_val_k6 | brief training | 2.887 | 8.725 | 2.000 | 9.124 | 31.847 | 0.995 | 32.423 | 2.000 |
 | sh_r3_eta3 | successive halving | 0.000 | 0.000 | 1.000 | 9.486 | 33.108 | 0.995 | 33.314 | 1.000 |
 | sh_r3_eta2 | successive halving | 0.000 | 0.000 | 1.000 | 10.676 | 37.263 | 1.000 | 37.470 | 1.000 |
 | early_val_k8 | brief training | 0.000 | 0.000 | 1.000 | 11.754 | 41.027 | 1.000 | 41.315 | 1.000 |
-| early_val_k10 | brief training | 1.359 | 1.342 | 2.000 | 14.700 | 51.308 | 1.000 | 51.571 | 2.000 |
+| early_val_k10 | brief training | 0.848 | 1.342 | 1.000 | 14.558 | 50.811 | 1.000 | 51.036 | 1.000 |
 | full_training | ceiling | 0.000 | 0.000 | 1.000 | 28.650 | 100.000 | 1.000 | 100.000 | 1.000 |
-| random | floor | 16.357 |  |  |  |  | 0.195 |  |  |
-| params | floor | 4.569 | 8.054 |  |  |  | 0.230 |  |  |
-| flops | floor | 18.122 | 59.732 |  |  |  | 0.180 |  |  |
-| swap | zero-cost proxy | 10.003 | 20.805 |  |  |  | 0.230 |  |  |
-| nwot | zero-cost proxy | 14.433 | 42.282 |  |  |  | 0.095 |  |  |
-| synflow_all | zero-cost proxy | 3.918 | 6.040 |  |  |  | 0.000 |  |  |
-| snip_all | zero-cost proxy | 22.620 | 81.879 |  |  |  | 0.000 |  |  |
-| grasp_all | zero-cost proxy | 26.668 | 91.275 |  |  |  | 0.000 |  |  |
-| grad_norm_all | zero-cost proxy | 22.620 | 81.879 |  |  |  | 0.000 |  |  |
-| fisher | zero-cost proxy | 18.502 | 61.745 |  |  |  | 0.000 |  |  |
-| jacov | zero-cost proxy | 29.457 | 95.302 |  |  |  | 0.000 |  |  |
-| zen | zero-cost proxy | 4.569 | 8.054 |  |  |  | 0.230 |  |  |
-| plain_all | zero-cost proxy | 18.502 | 61.745 |  |  |  | 0.000 |  |  |
-| zico_s | zero-cost proxy | 17.242 | 55.705 |  |  |  | 0.010 |  |  |
-| glass_s | zero-cost proxy | 17.242 | 55.705 |  |  |  | 0.010 |  |  |
-| nwot_per_layer | zero-cost proxy | 28.955 | 93.960 |  |  |  | 0.000 |  |  |
-| early_val_k1 | brief training | 24.317 | 85.906 |  |  |  | 0.000 |  |  |
-| early_val_k2 | brief training | 18.963 | 63.087 |  |  |  | 0.000 |  |  |
-| early_val_k3 | brief training | 4.625 | 8.725 |  |  |  | 0.235 |  |  |
-| sh_r1_eta3 | successive halving | 1.312 | 0.671 |  |  |  | 0.295 |  |  |
-| sh_r1_eta2 | successive halving | 2.291 | 2.685 |  |  |  | 0.205 |  |  |
-| sh_r2_eta3 | successive halving | 1.359 | 1.342 |  |  |  | 0.285 |  |  |
-| zico_half_then_k1 | proxy filter | 12.722 | 31.544 |  |  |  | 0.020 |  |  |
-| zico_half_then_k3 | proxy filter | 4.625 | 8.725 |  |  |  | 0.365 |  |  |
-| zico_sizectrl_half_then_k1 | proxy filter | 24.317 | 85.906 |  |  |  | 0.050 |  |  |
-| zico_sizectrl_half_then_k3 | proxy filter | 4.625 | 8.725 |  |  |  | 0.440 |  |  |
+| random | floor | 10.211 |  |  |  |  | 0.285 |  |  |
+| params | floor | 2.852 | 8.054 |  |  |  | 0.230 |  |  |
+| flops | floor | 11.312 | 59.732 |  |  |  | 0.205 |  |  |
+| swap | zero-cost proxy | 6.244 | 20.805 |  |  |  | 0.230 |  |  |
+| nwot | zero-cost proxy | 9.010 | 42.282 |  |  |  | 0.110 |  |  |
+| synflow_all | zero-cost proxy | 2.446 | 6.040 |  |  |  | 0.000 |  |  |
+| snip_all | zero-cost proxy | 14.120 | 81.879 |  |  |  | 0.000 |  |  |
+| grasp_all | zero-cost proxy | 16.647 | 91.275 |  |  |  | 0.000 |  |  |
+| grad_norm_all | zero-cost proxy | 14.120 | 81.879 |  |  |  | 0.000 |  |  |
+| fisher | zero-cost proxy | 11.550 | 61.745 |  |  |  | 0.000 |  |  |
+| jacov | zero-cost proxy | 18.388 | 95.302 |  |  |  | 0.000 |  |  |
+| zen | zero-cost proxy | 2.852 | 8.054 |  |  |  | 0.230 |  |  |
+| plain_all | zero-cost proxy | 11.550 | 61.745 |  |  |  | 0.000 |  |  |
+| zico_s | zero-cost proxy | 10.763 | 55.705 |  |  |  | 0.020 |  |  |
+| glass_s | zero-cost proxy | 10.763 | 55.705 |  |  |  | 0.020 |  |  |
+| nwot_per_layer | zero-cost proxy | 18.075 | 93.960 |  |  |  | 0.000 |  |  |
+| early_val_k1 | brief training | 15.180 | 85.906 |  |  |  | 0.000 |  |  |
+| early_val_k2 | brief training | 11.837 | 63.087 |  |  |  | 0.000 |  |  |
+| early_val_k3 | brief training | 2.887 | 8.725 |  |  |  | 0.310 |  |  |
+| sh_r1_eta2 | successive halving | 1.430 | 2.685 |  |  |  | 0.230 |  |  |
+| zico_half_then_k1 | proxy filter | 7.941 | 31.544 |  |  |  | 0.050 |  |  |
+| zico_sizectrl_half_then_k1 | proxy filter | 15.180 | 85.906 |  |  |  | 0.110 |  |  |
 
 ### pems04: head control, Spearman with -test_mae
 
@@ -178,45 +178,45 @@ rho_within_head = n-weighted mean of the three heads, with a stratified bootstra
 | evaluator | kind | rho_all | rho_within_head | within_ci_lo | within_ci_hi | rho_mae | rho_mse | rho_quantile | mae_head_regret_sigma | mae_head_rank_pct |
 |---|---|---|---|---|---|---|---|---|---|---|
 | full_training | ceiling | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 0.000 | 0.000 |
-| early_val_k10 | brief training | 0.869 | 0.888 | 0.807 | 0.929 | 0.953 | 0.804 | 0.924 | 1.359 | 5.128 |
+| early_val_k10 | brief training | 0.869 | 0.888 | 0.807 | 0.929 | 0.953 | 0.804 | 0.924 | 0.848 | 5.128 |
 | early_val_k8 | brief training | 0.799 | 0.833 | 0.745 | 0.884 | 0.892 | 0.773 | 0.849 | 0.000 | 0.000 |
-| early_val_k6 | brief training | 0.657 | 0.753 | 0.647 | 0.824 | 0.824 | 0.731 | 0.724 | 4.625 | 23.077 |
-| transfer_from_shenzhen | transfer | 0.691 | 0.687 | 0.576 | 0.766 | 0.655 | 0.770 | 0.627 | 4.087 | 17.949 |
+| early_val_k6 | brief training | 0.657 | 0.753 | 0.647 | 0.824 | 0.824 | 0.731 | 0.724 | 2.887 | 23.077 |
+| transfer_from_shenzhen | transfer | 0.691 | 0.687 | 0.576 | 0.766 | 0.655 | 0.770 | 0.627 | 2.551 | 17.949 |
 | glass | zero-cost proxy | 0.588 | 0.686 | 0.575 | 0.759 | 0.618 | 0.622 | 0.799 | 0.000 | 0.000 |
 | zico | zero-cost proxy | 0.594 | 0.685 | 0.574 | 0.754 | 0.622 | 0.616 | 0.800 | 0.000 | 0.000 |
 | early_val_k5 | brief training | 0.582 | 0.676 | 0.548 | 0.774 | 0.754 | 0.619 | 0.676 | 0.000 | 0.000 |
 | glass_t | zero-cost proxy | 0.560 | 0.657 | 0.540 | 0.730 | 0.565 | 0.614 | 0.767 | 0.000 | 0.000 |
 | zico_t | zero-cost proxy | 0.565 | 0.654 | 0.538 | 0.729 | 0.565 | 0.612 | 0.761 | 0.000 | 0.000 |
-| transfer_pooled | transfer | 0.676 | 0.640 | 0.528 | 0.725 | 0.623 | 0.720 | 0.574 | 10.197 | 46.154 |
-| loco_gbr_arch | predictor, other cities | 0.650 | 0.638 | 0.523 | 0.729 | 0.650 | 0.731 | 0.537 | 1.312 | 2.564 |
-| l2_norm_all | zero-cost proxy | 0.547 | 0.627 | 0.507 | 0.716 | 0.584 | 0.601 | 0.684 | 4.703 | 25.641 |
-| loco_gbr_proxies | predictor, other cities | 0.651 | 0.626 | 0.519 | 0.717 | 0.611 | 0.711 | 0.553 | 1.312 | 2.564 |
-| loco_gbr_arch_proxies | predictor, other cities | 0.653 | 0.617 | 0.510 | 0.708 | 0.606 | 0.732 | 0.512 | 10.197 | 46.154 |
+| transfer_pooled | transfer | 0.676 | 0.640 | 0.528 | 0.725 | 0.623 | 0.720 | 0.574 | 6.366 | 46.154 |
+| loco_gbr_arch | predictor, other cities | 0.650 | 0.638 | 0.523 | 0.729 | 0.650 | 0.731 | 0.537 | 0.819 | 2.564 |
+| l2_norm_all | zero-cost proxy | 0.547 | 0.627 | 0.507 | 0.716 | 0.584 | 0.601 | 0.684 | 2.936 | 25.641 |
+| loco_gbr_proxies | predictor, other cities | 0.654 | 0.627 | 0.521 | 0.713 | 0.607 | 0.710 | 0.557 | 0.819 | 2.564 |
+| loco_gbr_arch_proxies | predictor, other cities | 0.651 | 0.618 | 0.508 | 0.708 | 0.605 | 0.731 | 0.513 | 6.366 | 46.154 |
 | zico_sizectrl | zero-cost proxy | 0.569 | 0.606 | 0.442 | 0.714 | 0.651 | 0.560 | 0.619 | 0.000 | 0.000 |
-| early_val_k4 | brief training | 0.468 | 0.591 | 0.451 | 0.695 | 0.707 | 0.473 | 0.624 | 7.828 | 35.897 |
-| loco_ridge_arch | predictor, other cities | 0.623 | 0.587 | 0.457 | 0.680 | 0.605 | 0.624 | 0.538 | 10.197 | 46.154 |
-| transfer_from_metrla | transfer | 0.576 | 0.501 | 0.368 | 0.643 | 0.548 | 0.594 | 0.372 | 1.312 | 2.564 |
-| transfer_from_expytky | transfer | 0.594 | 0.479 | 0.360 | 0.594 | 0.450 | 0.541 | 0.438 | 10.197 | 46.154 |
-| transfer_from_chengdu | transfer | 0.517 | 0.468 | 0.311 | 0.584 | 0.490 | 0.543 | 0.379 | 4.087 | 17.949 |
-| early_val_k3 | brief training | 0.304 | 0.428 | 0.272 | 0.564 | 0.642 | 0.247 | 0.454 | 4.625 | 23.077 |
-| params | floor | 0.244 | 0.324 | 0.170 | 0.476 | 0.129 | 0.280 | 0.511 | 29.457 | 97.436 |
-| early_val_k1 | brief training | 0.130 | 0.312 | 0.137 | 0.468 | 0.498 | 0.274 | 0.214 | 13.564 | 58.974 |
-| early_val_k2 | brief training | 0.156 | 0.309 | 0.133 | 0.453 | 0.361 | 0.211 | 0.369 | 11.931 | 53.846 |
-| nwot | zero-cost proxy | 0.203 | 0.254 | 0.078 | 0.397 | 0.349 | 0.124 | 0.314 | 14.433 | 66.667 |
-| zico_s | zero-cost proxy | 0.231 | 0.221 | 0.049 | 0.375 | 0.406 | 0.074 | 0.235 | 18.122 | 79.487 |
-| glass_s | zero-cost proxy | 0.231 | 0.219 | 0.048 | 0.369 | 0.406 | 0.067 | 0.235 | 18.122 | 79.487 |
-| flops | floor | 0.182 | 0.204 | 0.036 | 0.363 | 0.359 | 0.056 | 0.238 | 18.122 | 79.487 |
-| grasp_all | zero-cost proxy | 0.268 | 0.194 | 0.045 | 0.335 | 0.502 | 0.067 | 0.097 | 14.760 | 71.795 |
-| swap | zero-cost proxy | 0.111 | 0.193 | 0.010 | 0.357 | 0.065 | 0.111 | 0.367 | 4.703 | 25.641 |
-| zen | zero-cost proxy | 0.120 | 0.177 | 0.037 | 0.322 | -0.081 | 0.105 | 0.437 | 4.703 | 25.641 |
-| synflow_all | zero-cost proxy | 0.108 | 0.160 | -0.017 | 0.276 | 0.217 | -0.088 | 0.366 | 18.122 | 79.487 |
-| swap_reg | zero-cost proxy | 0.071 | 0.070 | -0.103 | 0.249 | 0.213 | -0.069 | 0.106 | 18.122 | 79.487 |
-| plain_all | zero-cost proxy | -0.186 | 0.065 | -0.101 | 0.217 | -0.056 | -0.167 | 0.386 | 8.227 | 38.462 |
-| fisher | zero-cost proxy | -0.222 | -0.081 | -0.219 | 0.080 | -0.362 | -0.118 | 0.161 | 8.227 | 38.462 |
-| grad_norm_all | zero-cost proxy | -0.234 | -0.106 | -0.261 | 0.047 | -0.390 | -0.026 | 0.020 | 28.965 | 94.872 |
-| snip_all | zero-cost proxy | -0.233 | -0.142 | -0.296 | 0.012 | -0.423 | -0.049 | -0.030 | 28.965 | 94.872 |
-| jacov | zero-cost proxy | -0.182 | -0.193 | -0.344 | -0.020 | -0.481 | -0.108 | -0.069 | 29.457 | 97.436 |
-| nwot_per_layer | zero-cost proxy | -0.422 | -0.463 | -0.579 | -0.322 | -0.368 | -0.343 | -0.652 | 13.564 | 58.974 |
+| early_val_k4 | brief training | 0.468 | 0.591 | 0.451 | 0.695 | 0.707 | 0.473 | 0.624 | 4.887 | 35.897 |
+| loco_ridge_arch | predictor, other cities | 0.623 | 0.587 | 0.457 | 0.680 | 0.605 | 0.624 | 0.538 | 6.366 | 46.154 |
+| transfer_from_metrla | transfer | 0.576 | 0.501 | 0.368 | 0.643 | 0.548 | 0.594 | 0.372 | 0.819 | 2.564 |
+| transfer_from_expytky | transfer | 0.594 | 0.479 | 0.360 | 0.594 | 0.450 | 0.541 | 0.438 | 6.366 | 46.154 |
+| transfer_from_chengdu | transfer | 0.517 | 0.468 | 0.311 | 0.584 | 0.490 | 0.543 | 0.379 | 2.551 | 17.949 |
+| early_val_k3 | brief training | 0.304 | 0.428 | 0.272 | 0.564 | 0.642 | 0.247 | 0.454 | 2.887 | 23.077 |
+| params | floor | 0.244 | 0.324 | 0.170 | 0.476 | 0.129 | 0.280 | 0.511 | 18.388 | 97.436 |
+| early_val_k1 | brief training | 0.130 | 0.312 | 0.137 | 0.468 | 0.498 | 0.274 | 0.214 | 8.467 | 58.974 |
+| early_val_k2 | brief training | 0.156 | 0.309 | 0.133 | 0.453 | 0.361 | 0.211 | 0.369 | 7.448 | 53.846 |
+| nwot | zero-cost proxy | 0.203 | 0.254 | 0.078 | 0.397 | 0.349 | 0.124 | 0.314 | 9.010 | 66.667 |
+| zico_s | zero-cost proxy | 0.231 | 0.221 | 0.049 | 0.375 | 0.406 | 0.074 | 0.235 | 11.312 | 79.487 |
+| glass_s | zero-cost proxy | 0.231 | 0.219 | 0.048 | 0.369 | 0.406 | 0.067 | 0.235 | 11.312 | 79.487 |
+| flops | floor | 0.182 | 0.204 | 0.036 | 0.363 | 0.359 | 0.056 | 0.238 | 11.312 | 79.487 |
+| grasp_all | zero-cost proxy | 0.268 | 0.194 | 0.045 | 0.335 | 0.502 | 0.067 | 0.097 | 9.214 | 71.795 |
+| swap | zero-cost proxy | 0.111 | 0.193 | 0.010 | 0.357 | 0.065 | 0.111 | 0.367 | 2.936 | 25.641 |
+| zen | zero-cost proxy | 0.120 | 0.177 | 0.037 | 0.322 | -0.081 | 0.105 | 0.437 | 2.936 | 25.641 |
+| synflow_all | zero-cost proxy | 0.108 | 0.160 | -0.017 | 0.276 | 0.217 | -0.088 | 0.366 | 11.312 | 79.487 |
+| swap_reg | zero-cost proxy | 0.071 | 0.070 | -0.103 | 0.249 | 0.213 | -0.069 | 0.106 | 11.312 | 79.487 |
+| plain_all | zero-cost proxy | -0.186 | 0.065 | -0.101 | 0.217 | -0.056 | -0.167 | 0.386 | 5.135 | 38.462 |
+| fisher | zero-cost proxy | -0.222 | -0.081 | -0.219 | 0.080 | -0.362 | -0.118 | 0.161 | 5.135 | 38.462 |
+| grad_norm_all | zero-cost proxy | -0.234 | -0.106 | -0.261 | 0.047 | -0.390 | -0.026 | 0.020 | 18.081 | 94.872 |
+| snip_all | zero-cost proxy | -0.233 | -0.142 | -0.296 | 0.012 | -0.423 | -0.049 | -0.030 | 18.081 | 94.872 |
+| jacov | zero-cost proxy | -0.182 | -0.193 | -0.344 | -0.020 | -0.481 | -0.108 | -0.069 | 18.388 | 97.436 |
+| nwot_per_layer | zero-cost proxy | -0.422 | -0.463 | -0.579 | -0.322 | -0.368 | -0.343 | -0.652 | 8.467 | 58.974 |
 
 ### chengdu: cost to one sigma, cheapest robust form first
 
@@ -229,11 +229,11 @@ rho_within_head = n-weighted mean of the three heads, with a stratified bootstra
 | transfer_from_expytky | transfer | 1.519 | 2.013 |  |  |  | 0.720 | 8.370 | 9.000 |
 | transfer_from_pems04 | transfer | 2.941 | 9.396 |  |  |  | 0.740 | 10.359 | 8.000 |
 | loco_gbr_arch | predictor, other cities | 3.950 | 14.094 |  |  |  | 0.735 | 10.478 | 10.000 |
-| loco_gbr_arch_proxies | predictor, other cities | 4.685 | 22.148 |  |  |  | 0.680 | 10.600 | 10.000 |
+| loco_gbr_arch_proxies | predictor, other cities | 4.685 | 22.148 |  |  |  | 0.680 | 10.606 | 10.000 |
 | zico_sizectrl_half_then_k1 | proxy filter | 6.321 | 33.557 | 8.000 | 1.788 | 8.489 | 0.730 | 10.735 | 8.000 |
 | zen | zero-cost proxy | 9.874 | 74.497 |  |  |  | 0.510 | 11.208 | 10.000 |
 | zico_sizectrl_half_then_k3 | proxy filter | 2.288 | 6.711 | 3.000 | 2.413 | 11.459 | 0.755 | 11.815 | 3.000 |
-| loco_gbr_proxies | predictor, other cities | 4.685 | 22.148 |  |  |  | 0.570 | 12.407 | 10.000 |
+| loco_gbr_proxies | predictor, other cities | 4.685 | 22.148 |  |  |  | 0.570 | 12.342 | 10.000 |
 | early_val_k1 | brief training | 6.321 | 33.557 |  |  |  | 0.655 | 14.950 | 10.000 |
 | sh_r1_eta3 | successive halving | 2.287 | 6.040 | 2.000 | 3.351 | 15.910 | 0.750 | 15.967 | 2.000 |
 | early_val_k2 | brief training | 2.958 | 10.067 | 8.000 | 3.480 | 16.526 | 0.750 | 16.652 | 5.000 |
@@ -289,10 +289,10 @@ rho_within_head = n-weighted mean of the three heads, with a stratified bootstra
 | transfer_from_shenzhen | transfer | 0.779 | 0.762 | 0.667 | 0.822 | 0.820 | 0.751 | 0.731 | 0.000 | 0.000 |
 | early_val_k4 | brief training | 0.666 | 0.751 | 0.637 | 0.814 | 0.787 | 0.790 | 0.686 | 2.287 | 12.821 |
 | early_val_k5 | brief training | 0.681 | 0.727 | 0.616 | 0.807 | 0.780 | 0.717 | 0.700 | 0.000 | 0.000 |
-| loco_gbr_proxies | predictor, other cities | 0.676 | 0.645 | 0.524 | 0.732 | 0.732 | 0.575 | 0.651 | 4.685 | 38.462 |
+| loco_gbr_proxies | predictor, other cities | 0.677 | 0.651 | 0.526 | 0.738 | 0.748 | 0.576 | 0.655 | 4.685 | 38.462 |
 | transfer_pooled | transfer | 0.680 | 0.645 | 0.513 | 0.738 | 0.715 | 0.615 | 0.624 | 2.287 | 12.821 |
 | loco_gbr_arch | predictor, other cities | 0.680 | 0.636 | 0.507 | 0.746 | 0.712 | 0.635 | 0.582 | 3.950 | 25.641 |
-| loco_gbr_arch_proxies | predictor, other cities | 0.672 | 0.631 | 0.503 | 0.729 | 0.695 | 0.636 | 0.580 | 4.685 | 38.462 |
+| loco_gbr_arch_proxies | predictor, other cities | 0.675 | 0.632 | 0.501 | 0.734 | 0.685 | 0.642 | 0.584 | 4.685 | 38.462 |
 | loco_ridge_arch | predictor, other cities | 0.635 | 0.607 | 0.469 | 0.707 | 0.623 | 0.617 | 0.585 | 2.941 | 17.949 |
 | zico_t | zero-cost proxy | 0.516 | 0.585 | 0.444 | 0.688 | 0.653 | 0.585 | 0.535 | 2.941 | 17.949 |
 | early_val_k3 | brief training | 0.486 | 0.583 | 0.438 | 0.680 | 0.502 | 0.665 | 0.559 | 2.288 | 15.385 |
@@ -330,12 +330,12 @@ rho_within_head = n-weighted mean of the three heads, with a stratified bootstra
 | transfer_from_chengdu | transfer | 0.000 | 0.000 | 1.000 | 0.125 | 0.392 | 1.000 | 0.600 | 1.000 |
 | transfer_pooled | transfer | 0.965 | 0.671 | 1.000 | 0.198 | 0.620 | 1.000 | 0.926 | 1.000 |
 | transfer_from_metrla | transfer | 0.965 | 0.671 | 1.000 | 0.198 | 0.620 | 1.000 | 0.934 | 1.000 |
-| loco_gbr_arch_proxies | predictor, other cities | 1.260 | 1.342 | 2.000 | 0.347 | 1.084 | 1.000 | 1.206 | 2.000 |
+| loco_gbr_arch_proxies | predictor, other cities | 1.260 | 1.342 | 2.000 | 0.347 | 1.084 | 1.000 | 1.227 | 2.000 |
 | loco_gbr_arch | predictor, other cities | 1.260 | 1.342 | 2.000 | 0.347 | 1.084 | 1.000 | 1.323 | 1.000 |
 | transfer_from_expytky | transfer | 1.260 | 1.342 | 5.000 | 1.016 | 3.178 | 1.000 | 2.457 | 3.000 |
 | loco_ridge_arch | predictor, other cities | 2.965 | 2.685 | 2.000 | 0.564 | 1.765 | 1.000 | 2.633 | 2.000 |
 | transfer_from_pems04 | transfer | 2.965 | 2.685 | 2.000 | 0.564 | 1.765 | 0.920 | 2.646 | 2.000 |
-| loco_gbr_proxies | predictor, other cities | 2.965 | 2.685 | 3.000 | 0.697 | 2.180 | 1.000 | 3.223 | 3.000 |
+| loco_gbr_proxies | predictor, other cities | 2.965 | 2.685 | 3.000 | 0.697 | 2.180 | 0.975 | 3.225 | 3.000 |
 | zico_sizectrl_half_then_k3 | proxy filter | 4.673 | 14.094 | 8.000 | 4.321 | 13.517 | 1.000 | 13.356 | 5.000 |
 | zico_half_then_k3 | proxy filter | 4.673 | 14.094 | 8.000 | 4.362 | 13.643 | 0.830 | 13.860 | 5.000 |
 | sh_r1_eta3 | successive halving | 0.000 | 0.000 | 1.000 | 4.891 | 15.299 | 1.000 | 15.131 | 1.000 |
@@ -392,8 +392,8 @@ rho_within_head = n-weighted mean of the three heads, with a stratified bootstra
 | early_val_k8 | brief training | 0.897 | 0.859 | 0.800 | 0.889 | 0.860 | 0.844 | 0.872 | 0.000 | 0.000 |
 | loco_gbr_arch | predictor, other cities | 0.887 | 0.844 | 0.772 | 0.886 | 0.907 | 0.821 | 0.821 | 1.260 | 5.128 |
 | transfer_pooled | transfer | 0.879 | 0.843 | 0.771 | 0.881 | 0.862 | 0.870 | 0.801 | 0.965 | 2.564 |
-| loco_gbr_arch_proxies | predictor, other cities | 0.877 | 0.839 | 0.773 | 0.876 | 0.842 | 0.870 | 0.806 | 1.260 | 5.128 |
-| loco_gbr_proxies | predictor, other cities | 0.850 | 0.803 | 0.722 | 0.852 | 0.771 | 0.827 | 0.803 | 2.965 | 7.692 |
+| loco_gbr_arch_proxies | predictor, other cities | 0.876 | 0.836 | 0.769 | 0.874 | 0.836 | 0.861 | 0.811 | 1.260 | 5.128 |
+| loco_gbr_proxies | predictor, other cities | 0.850 | 0.804 | 0.724 | 0.854 | 0.774 | 0.823 | 0.808 | 2.965 | 7.692 |
 | early_val_k6 | brief training | 0.817 | 0.785 | 0.681 | 0.843 | 0.795 | 0.800 | 0.763 | 3.148 | 12.821 |
 | loco_ridge_arch | predictor, other cities | 0.835 | 0.770 | 0.688 | 0.824 | 0.874 | 0.689 | 0.775 | 2.965 | 7.692 |
 | transfer_from_chengdu | transfer | 0.779 | 0.762 | 0.667 | 0.822 | 0.820 | 0.751 | 0.731 | 0.000 | 0.000 |
@@ -432,59 +432,59 @@ rho_within_head = n-weighted mean of the three heads, with a stratified bootstra
 
 | evaluator | kind | regret_b1_sigma | rank_pct_b1 | b_sigma | hours_sigma_ref | pct_sigma | sub_share | sub_pct_median | sub_b_median |
 |---|---|---|---|---|---|---|---|---|---|
-| loco_gbr_arch_proxies | predictor, other cities | 0.620 | 0.671 | 1.000 | 0.123 | 0.218 | 0.995 | 0.337 | 1.000 |
-| loco_gbr_arch | predictor, other cities | 4.582 | 7.383 | 2.000 | 0.195 | 0.345 | 1.000 | 0.527 | 2.000 |
-| transfer_from_chengdu | transfer | 4.582 | 7.383 | 3.000 | 0.296 | 0.524 | 0.970 | 0.702 | 2.000 |
-| transfer_from_metrla | transfer | 1.421 | 2.013 | 2.000 | 0.516 | 0.912 | 1.000 | 1.290 | 1.000 |
-| transfer_from_shenzhen | transfer | 4.582 | 7.383 | 3.000 | 0.587 | 1.039 | 1.000 | 1.308 | 2.000 |
-| transfer_pooled | transfer | 1.421 | 2.013 | 5.000 | 1.276 | 2.257 | 1.000 | 1.754 | 3.000 |
-| loco_gbr_proxies | predictor, other cities | 4.382 | 5.369 | 8.000 | 1.679 | 2.971 | 0.985 | 2.735 | 5.000 |
-| loco_ridge_arch | predictor, other cities | 4.382 | 5.369 | 5.000 | 2.029 | 3.589 | 1.000 | 2.973 | 3.000 |
-| zico_sizectrl | zero-cost proxy | 10.151 | 69.799 |  |  |  | 0.650 | 8.342 | 10.000 |
-| zico_half_then_k1 | proxy filter | 3.138 | 2.685 |  |  |  | 0.885 | 10.484 | 8.000 |
-| zico_sizectrl_half_then_k1 | proxy filter | 3.138 | 2.685 |  |  |  | 0.890 | 10.614 | 8.000 |
-| zico_half_then_k3 | proxy filter | 1.421 | 2.013 | 2.000 | 6.214 | 10.993 | 1.000 | 11.298 | 2.000 |
-| zico_sizectrl_half_then_k3 | proxy filter | 1.421 | 2.013 | 2.000 | 6.425 | 11.366 | 1.000 | 11.624 | 2.000 |
-| early_val_k2 | brief training | 1.421 | 2.013 | 2.000 | 8.602 | 15.217 | 0.940 | 15.515 | 2.000 |
-| early_val_k1 | brief training | 3.138 | 2.685 |  |  |  | 0.520 | 17.690 | 10.000 |
-| zico_half_then_k5 | proxy filter | 1.421 | 2.013 | 2.000 | 10.027 | 17.738 | 1.000 | 18.074 | 1.000 |
-| sh_r1_eta3 | successive halving | 1.421 | 2.013 | 2.000 | 10.321 | 18.259 | 1.000 | 18.214 | 1.000 |
-| zico_sizectrl_half_then_k5 | proxy filter | 1.421 | 2.013 | 2.000 | 10.380 | 18.363 | 1.000 | 18.730 | 1.000 |
-| sh_r1_eta2 | successive halving | 1.421 | 2.013 | 2.000 | 11.455 | 20.264 | 1.000 | 20.472 | 1.000 |
-| early_val_k3 | brief training | 1.421 | 2.013 | 2.000 | 12.645 | 22.369 | 1.000 | 22.682 | 2.000 |
-| early_val_k4 | brief training | 0.620 | 0.671 | 1.000 | 16.419 | 29.045 | 1.000 | 29.271 | 1.000 |
-| sh_r2_eta3 | successive halving | 1.421 | 2.013 | 2.000 | 16.895 | 29.888 | 1.000 | 30.413 | 1.000 |
-| sh_r2_eta2 | successive halving | 1.421 | 2.013 | 2.000 | 19.261 | 34.074 | 1.000 | 33.634 | 1.000 |
-| early_val_k5 | brief training | 1.421 | 2.013 | 2.000 | 20.733 | 36.678 | 1.000 | 37.006 | 1.000 |
-| sh_r3_eta3 | successive halving | 1.421 | 2.013 | 2.000 | 22.757 | 40.258 | 1.000 | 40.065 | 1.000 |
-| early_val_k6 | brief training | 1.421 | 2.013 | 2.000 | 24.778 | 43.834 | 1.000 | 44.024 | 1.000 |
-| sh_r3_eta2 | successive halving | 1.421 | 2.013 | 2.000 | 25.655 | 45.386 | 1.000 | 45.888 | 1.000 |
-| early_val_k8 | brief training | 1.421 | 2.013 | 2.000 | 32.858 | 58.128 | 1.000 | 58.280 | 1.000 |
-| early_val_k10 | brief training | 1.421 | 2.013 | 2.000 | 39.990 | 70.744 | 1.000 | 70.932 | 1.000 |
+| loco_gbr_arch_proxies | predictor, other cities | 0.635 | 0.671 | 1.000 | 0.123 | 0.218 | 0.995 | 0.337 | 1.000 |
+| loco_gbr_arch | predictor, other cities | 4.692 | 7.383 | 2.000 | 0.195 | 0.345 | 1.000 | 0.527 | 2.000 |
+| transfer_from_chengdu | transfer | 4.692 | 7.383 | 3.000 | 0.296 | 0.524 | 0.970 | 0.702 | 2.000 |
+| transfer_from_metrla | transfer | 1.455 | 2.013 | 2.000 | 0.516 | 0.912 | 1.000 | 1.290 | 1.000 |
+| transfer_from_shenzhen | transfer | 4.692 | 7.383 | 3.000 | 0.587 | 1.039 | 1.000 | 1.308 | 2.000 |
+| transfer_pooled | transfer | 1.455 | 2.013 | 5.000 | 1.276 | 2.257 | 1.000 | 1.754 | 3.000 |
+| loco_gbr_proxies | predictor, other cities | 4.487 | 5.369 | 8.000 | 1.679 | 2.971 | 0.985 | 2.735 | 5.000 |
+| loco_ridge_arch | predictor, other cities | 4.487 | 5.369 | 5.000 | 2.029 | 3.589 | 1.000 | 2.973 | 3.000 |
+| zico_sizectrl | zero-cost proxy | 10.394 | 69.799 |  |  |  | 0.650 | 8.342 | 10.000 |
+| zico_half_then_k1 | proxy filter | 3.213 | 2.685 |  |  |  | 0.885 | 10.484 | 8.000 |
+| zico_sizectrl_half_then_k1 | proxy filter | 3.213 | 2.685 |  |  |  | 0.890 | 10.614 | 8.000 |
+| zico_half_then_k3 | proxy filter | 1.455 | 2.013 | 2.000 | 6.214 | 10.993 | 1.000 | 11.298 | 2.000 |
+| zico_sizectrl_half_then_k3 | proxy filter | 1.455 | 2.013 | 2.000 | 6.425 | 11.366 | 1.000 | 11.624 | 2.000 |
+| early_val_k2 | brief training | 1.455 | 2.013 | 2.000 | 8.602 | 15.217 | 0.940 | 15.515 | 2.000 |
+| early_val_k1 | brief training | 3.213 | 2.685 |  |  |  | 0.520 | 17.690 | 10.000 |
+| zico_half_then_k5 | proxy filter | 1.455 | 2.013 | 2.000 | 10.027 | 17.738 | 1.000 | 18.074 | 1.000 |
+| sh_r1_eta3 | successive halving | 1.455 | 2.013 | 2.000 | 10.321 | 18.259 | 1.000 | 18.214 | 1.000 |
+| zico_sizectrl_half_then_k5 | proxy filter | 1.455 | 2.013 | 2.000 | 10.380 | 18.363 | 1.000 | 18.730 | 1.000 |
+| sh_r1_eta2 | successive halving | 1.455 | 2.013 | 2.000 | 11.455 | 20.264 | 1.000 | 20.472 | 1.000 |
+| early_val_k3 | brief training | 1.455 | 2.013 | 2.000 | 12.645 | 22.369 | 1.000 | 22.682 | 2.000 |
+| early_val_k4 | brief training | 0.635 | 0.671 | 1.000 | 16.419 | 29.045 | 1.000 | 29.271 | 1.000 |
+| sh_r2_eta3 | successive halving | 1.455 | 2.013 | 2.000 | 16.895 | 29.888 | 1.000 | 30.413 | 1.000 |
+| sh_r2_eta2 | successive halving | 1.455 | 2.013 | 2.000 | 19.261 | 34.074 | 1.000 | 33.634 | 1.000 |
+| early_val_k5 | brief training | 1.455 | 2.013 | 2.000 | 20.733 | 36.678 | 1.000 | 37.006 | 1.000 |
+| sh_r3_eta3 | successive halving | 1.455 | 2.013 | 2.000 | 22.757 | 40.258 | 1.000 | 40.065 | 1.000 |
+| early_val_k6 | brief training | 1.455 | 2.013 | 2.000 | 24.778 | 43.834 | 1.000 | 44.024 | 1.000 |
+| sh_r3_eta2 | successive halving | 1.455 | 2.013 | 2.000 | 25.655 | 45.386 | 1.000 | 45.888 | 1.000 |
+| early_val_k8 | brief training | 1.455 | 2.013 | 2.000 | 32.858 | 58.128 | 1.000 | 58.280 | 1.000 |
+| early_val_k10 | brief training | 1.455 | 2.013 | 2.000 | 39.990 | 70.744 | 1.000 | 70.932 | 1.000 |
 | full_training | ceiling | 0.000 | 0.000 | 1.000 | 56.527 | 100.000 | 1.000 | 100.000 | 1.000 |
-| random | floor | 8.795 |  |  |  |  | 0.150 |  |  |
-| params | floor | 4.187 | 4.698 |  |  |  | 0.000 |  |  |
-| flops | floor | 11.336 | 81.879 |  |  |  | 0.000 |  |  |
-| zico | zero-cost proxy | 8.609 | 46.980 |  |  |  | 0.260 |  |  |
-| swap | zero-cost proxy | 12.325 | 90.604 |  |  |  | 0.000 |  |  |
-| swap_reg | zero-cost proxy | 11.336 | 81.879 |  |  |  | 0.000 |  |  |
-| nwot | zero-cost proxy | 9.360 | 59.732 |  |  |  | 0.000 |  |  |
-| synflow_all | zero-cost proxy | 7.607 | 32.215 |  |  |  | 0.000 |  |  |
-| snip_all | zero-cost proxy | 9.699 | 64.430 |  |  |  | 0.000 |  |  |
-| grasp_all | zero-cost proxy | 8.813 | 49.664 |  |  |  | 0.000 |  |  |
-| grad_norm_all | zero-cost proxy | 14.564 | 97.315 |  |  |  | 0.000 |  |  |
-| fisher | zero-cost proxy | 14.564 | 97.315 |  |  |  | 0.000 |  |  |
-| jacov | zero-cost proxy | 7.325 | 28.188 |  |  |  | 0.040 |  |  |
-| zen | zero-cost proxy | 4.187 | 4.698 |  |  |  | 0.050 |  |  |
-| l2_norm_all | zero-cost proxy | 8.609 | 46.980 |  |  |  | 0.035 |  |  |
-| plain_all | zero-cost proxy | 8.369 | 41.611 |  |  |  | 0.000 |  |  |
-| zico_t | zero-cost proxy | 7.607 | 32.215 |  |  |  | 0.290 |  |  |
-| zico_s | zero-cost proxy | 17.139 | 98.658 |  |  |  | 0.000 |  |  |
-| glass | zero-cost proxy | 8.609 | 46.980 |  |  |  | 0.250 |  |  |
-| glass_t | zero-cost proxy | 7.607 | 32.215 |  |  |  | 0.265 |  |  |
-| glass_s | zero-cost proxy | 17.139 | 98.658 |  |  |  | 0.000 |  |  |
-| nwot_per_layer | zero-cost proxy | 13.032 | 95.302 |  |  |  | 0.000 |  |  |
-| transfer_from_pems04 | transfer | 4.382 | 5.369 |  |  |  | 0.440 |  |  |
+| random | floor | 9.006 |  |  |  |  | 0.150 |  |  |
+| params | floor | 4.288 | 4.698 |  |  |  | 0.000 |  |  |
+| flops | floor | 11.608 | 81.879 |  |  |  | 0.000 |  |  |
+| zico | zero-cost proxy | 8.816 | 46.980 |  |  |  | 0.260 |  |  |
+| swap | zero-cost proxy | 12.620 | 90.604 |  |  |  | 0.000 |  |  |
+| swap_reg | zero-cost proxy | 11.608 | 81.879 |  |  |  | 0.000 |  |  |
+| nwot | zero-cost proxy | 9.584 | 59.732 |  |  |  | 0.000 |  |  |
+| synflow_all | zero-cost proxy | 7.789 | 32.215 |  |  |  | 0.000 |  |  |
+| snip_all | zero-cost proxy | 9.931 | 64.430 |  |  |  | 0.000 |  |  |
+| grasp_all | zero-cost proxy | 9.024 | 49.664 |  |  |  | 0.000 |  |  |
+| grad_norm_all | zero-cost proxy | 14.913 | 97.315 |  |  |  | 0.000 |  |  |
+| fisher | zero-cost proxy | 14.913 | 97.315 |  |  |  | 0.000 |  |  |
+| jacov | zero-cost proxy | 7.500 | 28.188 |  |  |  | 0.040 |  |  |
+| zen | zero-cost proxy | 4.288 | 4.698 |  |  |  | 0.050 |  |  |
+| l2_norm_all | zero-cost proxy | 8.816 | 46.980 |  |  |  | 0.035 |  |  |
+| plain_all | zero-cost proxy | 8.569 | 41.611 |  |  |  | 0.000 |  |  |
+| zico_t | zero-cost proxy | 7.789 | 32.215 |  |  |  | 0.290 |  |  |
+| zico_s | zero-cost proxy | 17.550 | 98.658 |  |  |  | 0.000 |  |  |
+| glass | zero-cost proxy | 8.816 | 46.980 |  |  |  | 0.250 |  |  |
+| glass_t | zero-cost proxy | 7.789 | 32.215 |  |  |  | 0.265 |  |  |
+| glass_s | zero-cost proxy | 17.550 | 98.658 |  |  |  | 0.000 |  |  |
+| nwot_per_layer | zero-cost proxy | 13.344 | 95.302 |  |  |  | 0.000 |  |  |
+| transfer_from_pems04 | transfer | 4.487 | 5.369 |  |  |  | 0.440 |  |  |
 
 ### expytky: head control, Spearman with -test_mae
 
@@ -493,45 +493,45 @@ rho_within_head = n-weighted mean of the three heads, with a stratified bootstra
 | evaluator | kind | rho_all | rho_within_head | within_ci_lo | within_ci_hi | rho_mae | rho_mse | rho_quantile | mae_head_regret_sigma | mae_head_rank_pct |
 |---|---|---|---|---|---|---|---|---|---|---|
 | full_training | ceiling | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 0.000 | 0.000 |
-| early_val_k6 | brief training | 0.839 | 0.748 | 0.644 | 0.810 | 0.806 | 0.675 | 0.779 | 1.421 | 7.692 |
-| early_val_k8 | brief training | 0.847 | 0.738 | 0.638 | 0.802 | 0.778 | 0.622 | 0.825 | 1.421 | 7.692 |
-| early_val_k10 | brief training | 0.857 | 0.735 | 0.641 | 0.804 | 0.775 | 0.619 | 0.821 | 1.421 | 7.692 |
-| early_val_k5 | brief training | 0.812 | 0.718 | 0.591 | 0.799 | 0.745 | 0.695 | 0.721 | 1.421 | 7.692 |
-| early_val_k4 | brief training | 0.749 | 0.687 | 0.565 | 0.785 | 0.811 | 0.730 | 0.555 | 0.620 | 2.564 |
-| early_val_k3 | brief training | 0.604 | 0.666 | 0.554 | 0.762 | 0.779 | 0.792 | 0.459 | 1.421 | 7.692 |
-| transfer_pooled | transfer | 0.789 | 0.641 | 0.522 | 0.730 | 0.681 | 0.579 | 0.672 | 1.421 | 7.692 |
-| transfer_from_metrla | transfer | 0.756 | 0.626 | 0.517 | 0.705 | 0.597 | 0.595 | 0.676 | 1.421 | 7.692 |
-| transfer_from_shenzhen | transfer | 0.753 | 0.617 | 0.503 | 0.706 | 0.691 | 0.605 | 0.575 | 4.582 | 25.641 |
-| loco_gbr_proxies | predictor, other cities | 0.729 | 0.576 | 0.455 | 0.675 | 0.600 | 0.458 | 0.677 | 4.382 | 17.949 |
-| loco_gbr_arch_proxies | predictor, other cities | 0.705 | 0.553 | 0.434 | 0.656 | 0.615 | 0.384 | 0.676 | 0.620 | 2.564 |
-| loco_gbr_arch | predictor, other cities | 0.693 | 0.541 | 0.409 | 0.664 | 0.645 | 0.382 | 0.624 | 4.582 | 25.641 |
-| loco_ridge_arch | predictor, other cities | 0.727 | 0.512 | 0.402 | 0.627 | 0.641 | 0.260 | 0.671 | 4.382 | 17.949 |
-| early_val_k2 | brief training | 0.344 | 0.504 | 0.367 | 0.628 | 0.669 | 0.706 | 0.182 | 1.421 | 7.692 |
-| transfer_from_chengdu | transfer | 0.584 | 0.481 | 0.327 | 0.597 | 0.581 | 0.373 | 0.516 | 4.582 | 25.641 |
-| transfer_from_pems04 | transfer | 0.594 | 0.479 | 0.360 | 0.594 | 0.450 | 0.541 | 0.438 | 4.382 | 17.949 |
-| glass_t | zero-cost proxy | 0.283 | 0.350 | 0.203 | 0.484 | 0.419 | 0.018 | 0.631 | 4.382 | 17.949 |
-| zico_t | zero-cost proxy | 0.294 | 0.347 | 0.199 | 0.484 | 0.419 | 0.006 | 0.636 | 4.382 | 17.949 |
-| glass | zero-cost proxy | 0.265 | 0.324 | 0.168 | 0.468 | 0.379 | 0.007 | 0.602 | 4.382 | 17.949 |
-| zico | zero-cost proxy | 0.271 | 0.324 | 0.171 | 0.467 | 0.379 | 0.001 | 0.608 | 4.382 | 17.949 |
-| zico_sizectrl | zero-cost proxy | 0.233 | 0.262 | 0.095 | 0.400 | 0.270 | 0.060 | 0.457 | 4.382 | 17.949 |
-| params | floor | 0.144 | 0.190 | 0.031 | 0.334 | 0.170 | -0.061 | 0.456 | 4.850 | 30.769 |
-| early_val_k1 | brief training | 0.099 | 0.173 | -0.004 | 0.318 | 0.465 | 0.309 | -0.174 | 3.138 | 10.256 |
-| l2_norm_all | zero-cost proxy | 0.108 | 0.098 | -0.073 | 0.271 | 0.118 | 0.012 | 0.170 | 4.939 | 33.333 |
-| zen | zero-cost proxy | 0.058 | 0.084 | -0.073 | 0.244 | 0.012 | -0.106 | 0.325 | 4.939 | 33.333 |
-| jacov | zero-cost proxy | 0.124 | 0.083 | -0.096 | 0.227 | 0.047 | 0.081 | 0.110 | 7.325 | 64.103 |
-| grasp_all | zero-cost proxy | 0.294 | 0.053 | -0.121 | 0.248 | 0.436 | 0.003 | -0.175 | 3.985 | 15.385 |
-| snip_all | zero-cost proxy | -0.227 | 0.011 | -0.152 | 0.178 | -0.335 | 0.044 | 0.229 | 7.609 | 66.667 |
-| grad_norm_all | zero-cost proxy | -0.274 | -0.016 | -0.176 | 0.147 | -0.370 | -0.001 | 0.226 | 11.336 | 97.436 |
-| swap | zero-cost proxy | -0.150 | -0.086 | -0.256 | 0.103 | -0.203 | -0.149 | 0.062 | 11.336 | 97.436 |
-| plain_all | zero-cost proxy | -0.323 | -0.094 | -0.264 | 0.083 | -0.312 | -0.194 | 0.164 | 7.908 | 69.231 |
-| fisher | zero-cost proxy | -0.329 | -0.099 | -0.254 | 0.072 | -0.303 | -0.209 | 0.160 | 7.908 | 69.231 |
-| swap_reg | zero-cost proxy | -0.083 | -0.101 | -0.279 | 0.088 | 0.000 | -0.183 | -0.094 | 11.336 | 97.436 |
-| nwot | zero-cost proxy | -0.139 | -0.124 | -0.277 | 0.054 | -0.221 | -0.154 | -0.024 | 9.360 | 92.308 |
-| glass_s | zero-cost proxy | -0.101 | -0.129 | -0.287 | 0.027 | -0.115 | -0.087 | -0.181 | 9.615 | 94.872 |
-| zico_s | zero-cost proxy | -0.101 | -0.130 | -0.288 | 0.027 | -0.115 | -0.089 | -0.181 | 9.615 | 94.872 |
-| flops | floor | -0.161 | -0.167 | -0.334 | -0.007 | -0.210 | -0.183 | -0.119 | 11.336 | 97.436 |
-| synflow_all | zero-cost proxy | -0.239 | -0.178 | -0.339 | -0.014 | -0.053 | -0.346 | -0.102 | 11.336 | 97.436 |
-| nwot_per_layer | zero-cost proxy | -0.205 | -0.200 | -0.343 | -0.060 | -0.172 | 0.048 | -0.469 | 8.468 | 79.487 |
+| early_val_k6 | brief training | 0.839 | 0.748 | 0.644 | 0.810 | 0.806 | 0.675 | 0.779 | 1.455 | 7.692 |
+| early_val_k8 | brief training | 0.847 | 0.738 | 0.638 | 0.802 | 0.778 | 0.622 | 0.825 | 1.455 | 7.692 |
+| early_val_k10 | brief training | 0.857 | 0.735 | 0.641 | 0.804 | 0.775 | 0.619 | 0.821 | 1.455 | 7.692 |
+| early_val_k5 | brief training | 0.812 | 0.718 | 0.591 | 0.799 | 0.745 | 0.695 | 0.721 | 1.455 | 7.692 |
+| early_val_k4 | brief training | 0.749 | 0.687 | 0.565 | 0.785 | 0.811 | 0.730 | 0.555 | 0.635 | 2.564 |
+| early_val_k3 | brief training | 0.604 | 0.666 | 0.554 | 0.762 | 0.779 | 0.792 | 0.459 | 1.455 | 7.692 |
+| transfer_pooled | transfer | 0.789 | 0.641 | 0.522 | 0.730 | 0.681 | 0.579 | 0.672 | 1.455 | 7.692 |
+| transfer_from_metrla | transfer | 0.756 | 0.626 | 0.517 | 0.705 | 0.597 | 0.595 | 0.676 | 1.455 | 7.692 |
+| transfer_from_shenzhen | transfer | 0.753 | 0.617 | 0.503 | 0.706 | 0.691 | 0.605 | 0.575 | 4.692 | 25.641 |
+| loco_gbr_proxies | predictor, other cities | 0.736 | 0.584 | 0.464 | 0.682 | 0.594 | 0.489 | 0.673 | 4.487 | 17.949 |
+| loco_gbr_arch_proxies | predictor, other cities | 0.706 | 0.554 | 0.436 | 0.658 | 0.612 | 0.391 | 0.674 | 0.635 | 2.564 |
+| loco_gbr_arch | predictor, other cities | 0.693 | 0.541 | 0.409 | 0.664 | 0.645 | 0.382 | 0.624 | 4.692 | 25.641 |
+| loco_ridge_arch | predictor, other cities | 0.727 | 0.512 | 0.402 | 0.627 | 0.641 | 0.260 | 0.671 | 4.487 | 17.949 |
+| early_val_k2 | brief training | 0.344 | 0.504 | 0.367 | 0.628 | 0.669 | 0.706 | 0.182 | 1.455 | 7.692 |
+| transfer_from_chengdu | transfer | 0.584 | 0.481 | 0.327 | 0.597 | 0.581 | 0.373 | 0.516 | 4.692 | 25.641 |
+| transfer_from_pems04 | transfer | 0.594 | 0.479 | 0.360 | 0.594 | 0.450 | 0.541 | 0.438 | 4.487 | 17.949 |
+| glass_t | zero-cost proxy | 0.283 | 0.350 | 0.203 | 0.484 | 0.419 | 0.018 | 0.631 | 4.487 | 17.949 |
+| zico_t | zero-cost proxy | 0.294 | 0.347 | 0.199 | 0.484 | 0.419 | 0.006 | 0.636 | 4.487 | 17.949 |
+| glass | zero-cost proxy | 0.265 | 0.324 | 0.168 | 0.468 | 0.379 | 0.007 | 0.602 | 4.487 | 17.949 |
+| zico | zero-cost proxy | 0.271 | 0.324 | 0.171 | 0.467 | 0.379 | 0.001 | 0.608 | 4.487 | 17.949 |
+| zico_sizectrl | zero-cost proxy | 0.233 | 0.262 | 0.095 | 0.400 | 0.270 | 0.060 | 0.457 | 4.487 | 17.949 |
+| params | floor | 0.144 | 0.190 | 0.031 | 0.334 | 0.170 | -0.061 | 0.456 | 4.966 | 30.769 |
+| early_val_k1 | brief training | 0.099 | 0.173 | -0.004 | 0.318 | 0.465 | 0.309 | -0.174 | 3.213 | 10.256 |
+| l2_norm_all | zero-cost proxy | 0.108 | 0.098 | -0.073 | 0.271 | 0.118 | 0.012 | 0.170 | 5.057 | 33.333 |
+| zen | zero-cost proxy | 0.058 | 0.084 | -0.073 | 0.244 | 0.012 | -0.106 | 0.325 | 5.057 | 33.333 |
+| jacov | zero-cost proxy | 0.124 | 0.083 | -0.096 | 0.227 | 0.047 | 0.081 | 0.110 | 7.500 | 64.103 |
+| grasp_all | zero-cost proxy | 0.317 | 0.074 | -0.098 | 0.252 | 0.443 | 0.044 | -0.165 | 4.081 | 15.385 |
+| snip_all | zero-cost proxy | -0.227 | 0.011 | -0.152 | 0.178 | -0.335 | 0.044 | 0.229 | 7.792 | 66.667 |
+| grad_norm_all | zero-cost proxy | -0.274 | -0.016 | -0.176 | 0.147 | -0.370 | -0.001 | 0.226 | 11.608 | 97.436 |
+| swap | zero-cost proxy | -0.150 | -0.086 | -0.256 | 0.103 | -0.203 | -0.149 | 0.062 | 11.608 | 97.436 |
+| plain_all | zero-cost proxy | -0.323 | -0.094 | -0.264 | 0.083 | -0.312 | -0.194 | 0.164 | 8.098 | 69.231 |
+| fisher | zero-cost proxy | -0.329 | -0.099 | -0.254 | 0.072 | -0.303 | -0.209 | 0.160 | 8.098 | 69.231 |
+| swap_reg | zero-cost proxy | -0.083 | -0.101 | -0.279 | 0.088 | 0.000 | -0.183 | -0.094 | 11.608 | 97.436 |
+| nwot | zero-cost proxy | -0.139 | -0.124 | -0.277 | 0.054 | -0.221 | -0.154 | -0.024 | 9.584 | 92.308 |
+| glass_s | zero-cost proxy | -0.101 | -0.129 | -0.287 | 0.027 | -0.115 | -0.087 | -0.181 | 9.845 | 94.872 |
+| zico_s | zero-cost proxy | -0.101 | -0.130 | -0.288 | 0.027 | -0.115 | -0.089 | -0.181 | 9.845 | 94.872 |
+| flops | floor | -0.161 | -0.167 | -0.334 | -0.007 | -0.210 | -0.183 | -0.119 | 11.608 | 97.436 |
+| synflow_all | zero-cost proxy | -0.239 | -0.178 | -0.339 | -0.014 | -0.053 | -0.346 | -0.102 | 11.608 | 97.436 |
+| nwot_per_layer | zero-cost proxy | -0.205 | -0.200 | -0.343 | -0.060 | -0.172 | 0.048 | -0.469 | 8.671 | 79.487 |
 
 ### Convergence
 

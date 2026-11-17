@@ -6,20 +6,20 @@ Probes: the first 5 architectures of the list, trained 3 epochs. Features: the m
 
 | setting | cities_within_1_25 | rule_mean | fixed_mean | oracle_mean | pass |
 |---|---|---|---|---|---|
-| cold | 2 | 64.083 | 50.675 | 26.342 | False |
-| warm | 1 | 41.393 | 22.193 | 21.418 | False |
+| cold | 2 | 64.087 | 50.198 | 26.385 | False |
+| warm | 1 | 41.393 | 21.730 | 20.751 | False |
 
 ### Held-out decisions
 
 | setting | held_out | oracle_recipe | oracle_eff | nearest_city | rule_recipe | rule_eff_with_probes | fixed_recipe | fixed_eff | rule_within_1.25_oracle |
 |---|---|---|---|---|---|---|---|---|---|
-| cold | metrla | sh_cold_zico_sizectrl_filter | 6.113 | shenzhen | zico_sizectrl_half_then_k3 | 12.359 | zico_sizectrl_half_then_k5 | 18.337 | False |
-| cold | pems04 | zico_sizectrl | 6.463 | chengdu | early_val_k2 | 100.501 | zico_sizectrl_half_then_k3 | 100.000 | False |
-| cold | chengdu | early_val_k2 | 100.000 | shenzhen | zico_sizectrl_half_then_k3 | 100.585 | zico_sizectrl_half_then_k5 | 100.000 | True |
-| cold | shenzhen | zico_sizectrl_half_then_k3 | 13.356 | metrla | sh_cold_zico_sizectrl_filter | 100.529 | zico_sizectrl_half_then_k5 | 16.308 | False |
-| cold | expytky | sh_cold_zico_sizectrl_filter | 5.779 | metrla | sh_cold_zico_sizectrl_filter | 6.442 | zico_sizectrl_half_then_k5 | 18.730 | True |
-| warm | metrla | transfer_pooled | 1.436 | shenzhen | transfer_pooled | 2.005 | transfer_pooled | 1.436 | False |
-| warm | pems04 | transfer_pooled | 4.199 | chengdu | early_val_k2 | 100.501 | loco_gbr_arch | 6.850 | False |
+| cold | metrla | sh_cold_zico_sizectrl_filter | 6.346 | shenzhen | zico_sizectrl_half_then_k3 | 12.379 | sh_cold_zico_sizectrl_blend | 18.078 | False |
+| cold | pems04 | zico_sizectrl | 6.444 | chengdu | early_val_k2 | 100.501 | zico_sizectrl_half_then_k3 | 100.000 | False |
+| cold | chengdu | early_val_k2 | 100.000 | shenzhen | zico_sizectrl_half_then_k3 | 100.585 | sh_cold_zico_sizectrl_blend | 100.000 | True |
+| cold | shenzhen | zico_sizectrl_half_then_k3 | 13.356 | metrla | sh_cold_zico_sizectrl_filter | 100.529 | sh_cold_zico_sizectrl_blend | 15.046 | False |
+| cold | expytky | sh_cold_zico_sizectrl_filter | 5.779 | metrla | sh_cold_zico_sizectrl_filter | 6.442 | sh_cold_zico_sizectrl_blend | 17.867 | True |
+| warm | metrla | transfer_pooled | 1.436 | shenzhen | transfer_pooled | 2.005 | loco_gbr_arch | 4.413 | False |
+| warm | pems04 | loco_gbr_arch | 0.864 | chengdu | early_val_k2 | 100.501 | transfer_pooled | 1.556 | False |
 | warm | chengdu | early_val_k2 | 100.000 | shenzhen | transfer_pooled | 100.585 | transfer_pooled | 100.000 | True |
 | warm | shenzhen | transfer_pooled | 0.926 | metrla | transfer_pooled | 1.456 | transfer_pooled | 0.926 | False |
 | warm | expytky | loco_gbr_arch | 0.527 | metrla | transfer_pooled | 2.416 | transfer_pooled | 1.754 | False |

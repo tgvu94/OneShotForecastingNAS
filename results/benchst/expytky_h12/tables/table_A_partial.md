@@ -4,7 +4,7 @@ All values are Spearman with −MAE (positive = useful), point estimates (CIs fo
 
 | Proxy | ρ (val MAE) | ρ(proxy, log params) | partial ρ \| log params | partial ρ \| log flops | small third (n=50) | mid third (n=50) | large third (n=50) | ρ (test MAE) | ρ (val MSE) |
 |---|---|---|---|---|---|---|---|---|---|
-| `grasp_all` | 0.45 | — | 0.46 | 0.44 | 0.44 | 0.36 | 0.56 | 0.29 | -0.48 |
+| `grasp_all` | 0.46 | — | 0.48 | 0.45 | 0.44 | 0.40 | 0.56 | 0.32 | -0.49 |
 | `zico_t` | 0.22 | — | 0.20 | 0.22 | 0.28 | 0.28 | 0.15 | 0.29 | 0.32 |
 | `glass_t` | 0.21 | — | 0.19 | 0.21 | 0.27 | 0.25 | 0.12 | 0.28 | 0.33 |
 | `zico` | 0.20 | — | 0.17 | 0.22 | 0.22 | 0.23 | 0.20 | 0.27 | 0.31 |

@@ -129,25 +129,25 @@ b_sigma = the smallest b whose best pick lies within one sigma_seed of the best 
 | evaluator | kind | regret_b1_sigma | rank_pct_b1 | b_sigma | hours_sigma_ref | pct_sigma | sub_share | sub_pct_median | sub_b_median |
 |---|---|---|---|---|---|---|---|---|---|
 | transfer_pooled | transfer | 0.000 | 0.000 | 1.000 | 0.317 | 0.965 | 1.000 | 1.436 | 1.000 |
-| ridge_curve_k1 | curve model, other cities | 0.645 | 3.356 | 1.000 | 2.508 | 7.631 | 1.000 | 8.119 | 1.000 |
-| loss_sum_k1 | train-loss sum | 0.560 | 2.013 | 1.000 | 2.542 | 7.734 | 0.980 | 8.305 | 1.000 |
-| gbr_curve_k1 | curve model, other cities | 2.299 | 38.926 | 2.000 | 2.664 | 8.108 | 1.000 | 8.648 | 2.000 |
-| early_val_k1 | brief training | 1.922 | 29.530 | 3.000 | 3.127 | 9.514 | 1.000 | 9.566 | 2.000 |
+| gbr_curve_k1 | curve model, other cities | 4.916 | 38.926 | 3.000 | 2.964 | 9.019 | 1.000 | 9.082 | 2.000 |
+| ridge_curve_k1 | curve model, other cities | 1.379 | 3.356 | 3.000 | 3.136 | 9.542 | 1.000 | 9.497 | 2.000 |
+| early_val_k1 | brief training | 4.109 | 29.530 | 5.000 | 3.448 | 10.492 | 0.765 | 10.778 | 3.000 |
+| loss_sum_k1 | train-loss sum | 1.197 | 2.013 | 8.000 | 4.161 | 12.660 | 0.960 | 12.682 | 5.000 |
 | early_val_k2 | brief training | 0.000 | 0.000 | 1.000 | 4.498 | 13.687 | 1.000 | 14.022 | 1.000 |
-| ridge_curve_k2 | curve model, other cities | 0.000 | 0.000 | 1.000 | 4.498 | 13.687 | 1.000 | 14.120 | 1.000 |
-| gbr_curve_k2 | curve model, other cities | 0.645 | 3.356 | 1.000 | 4.493 | 13.673 | 1.000 | 14.127 | 1.000 |
-| inverse_epoch_k2 | extrapolation, no fit | 3.346 | 57.047 | 5.000 | 5.285 | 16.082 | 1.000 | 15.790 | 3.000 |
-| loss_sum_k2 | train-loss sum | 2.694 | 49.664 | 8.000 | 5.749 | 17.493 | 0.990 | 20.040 | 8.000 |
-| gbr_curve_k3 | curve model, other cities | 0.000 | 0.000 | 1.000 | 6.489 | 19.745 | 1.000 | 20.212 | 1.000 |
-| early_val_k3 | brief training | 0.000 | 0.000 | 1.000 | 6.489 | 19.745 | 1.000 | 20.232 | 1.000 |
-| ridge_curve_k3 | curve model, other cities | 0.000 | 0.000 | 1.000 | 6.489 | 19.745 | 1.000 | 20.232 | 1.000 |
-| inverse_epoch_k3 | extrapolation, no fit | 1.612 | 20.805 | 2.000 | 6.665 | 20.280 | 1.000 | 20.776 | 2.000 |
-| loss_sum_k3 | train-loss sum | 2.694 | 49.664 | 8.000 | 7.646 | 23.265 | 0.945 | 23.613 | 5.000 |
-| early_val_k5 | brief training | 0.000 | 0.000 | 1.000 | 10.486 | 31.907 | 1.000 | 32.199 | 1.000 |
-| inverse_epoch_k5 | extrapolation, no fit | 0.000 | 0.000 | 1.000 | 10.486 | 31.907 | 1.000 | 32.319 | 1.000 |
-| ridge_curve_k5 | curve model, other cities | 0.000 | 0.000 | 1.000 | 10.486 | 31.907 | 1.000 | 32.326 | 1.000 |
-| gbr_curve_k5 | curve model, other cities | 0.000 | 0.000 | 1.000 | 10.486 | 31.907 | 1.000 | 32.329 | 1.000 |
-| loss_sum_k5 | train-loss sum | 2.694 | 49.664 |  |  |  | 0.980 | 36.805 | 8.000 |
+| ridge_curve_k2 | curve model, other cities | 0.000 | 0.000 | 1.000 | 4.498 | 13.687 | 1.000 | 14.121 | 1.000 |
+| gbr_curve_k2 | curve model, other cities | 1.379 | 3.356 | 3.000 | 5.088 | 15.481 | 1.000 | 15.363 | 2.000 |
+| inverse_epoch_k2 | extrapolation, no fit | 7.153 | 57.047 | 5.000 | 5.285 | 16.082 | 1.000 | 15.905 | 3.000 |
+| loss_sum_k2 | train-loss sum | 5.759 | 49.664 | 8.000 | 5.749 | 17.493 | 0.965 | 20.164 | 8.000 |
+| gbr_curve_k3 | curve model, other cities | 0.000 | 0.000 | 1.000 | 6.489 | 19.745 | 1.000 | 20.230 | 1.000 |
+| early_val_k3 | brief training | 0.000 | 0.000 | 1.000 | 6.489 | 19.745 | 1.000 | 20.258 | 1.000 |
+| ridge_curve_k3 | curve model, other cities | 0.000 | 0.000 | 1.000 | 6.489 | 19.745 | 1.000 | 20.276 | 1.000 |
+| inverse_epoch_k3 | extrapolation, no fit | 3.445 | 20.805 | 2.000 | 6.665 | 20.280 | 1.000 | 20.784 | 2.000 |
+| loss_sum_k3 | train-loss sum | 5.759 | 49.664 | 8.000 | 7.646 | 23.265 | 0.805 | 25.101 | 8.000 |
+| early_val_k5 | brief training | 0.000 | 0.000 | 1.000 | 10.486 | 31.907 | 1.000 | 32.241 | 1.000 |
+| inverse_epoch_k5 | extrapolation, no fit | 0.000 | 0.000 | 1.000 | 10.486 | 31.907 | 1.000 | 32.321 | 1.000 |
+| gbr_curve_k5 | curve model, other cities | 0.000 | 0.000 | 1.000 | 10.486 | 31.907 | 1.000 | 32.470 | 1.000 |
+| ridge_curve_k5 | curve model, other cities | 0.000 | 0.000 | 1.000 | 10.486 | 31.907 | 1.000 | 32.485 | 1.000 |
+| loss_sum_k5 | train-loss sum | 5.759 | 49.664 |  |  |  | 0.680 | 37.655 | 8.000 |
 
 ### pems04: cost to one sigma
 
@@ -155,26 +155,26 @@ b_sigma = the smallest b whose best pick lies within one sigma_seed of the best 
 
 | evaluator | kind | regret_b1_sigma | rank_pct_b1 | b_sigma | hours_sigma_ref | pct_sigma | sub_share | sub_pct_median | sub_b_median |
 |---|---|---|---|---|---|---|---|---|---|
-| transfer_pooled | transfer | 10.197 | 21.477 | 5.000 | 0.840 | 2.933 | 0.985 | 4.199 | 5.000 |
-| ridge_curve_k1 | curve model, other cities | 11.931 | 29.530 |  |  |  | 0.515 | 18.085 | 10.000 |
+| transfer_pooled | transfer | 6.323 | 21.477 | 2.000 | 0.295 | 1.031 | 0.990 | 1.556 | 2.000 |
+| ridge_curve_k1 | curve model, other cities | 7.397 | 29.530 | 5.000 | 2.569 | 8.965 | 0.880 | 10.784 | 5.000 |
+| gbr_curve_k1 | curve model, other cities | 8.410 | 38.255 |  |  |  | 0.735 | 14.475 | 8.000 |
+| loss_sum_k1 | train-loss sum | 6.341 | 22.148 |  |  |  | 0.720 | 16.668 | 10.000 |
+| ridge_curve_k3 | curve model, other cities | 4.854 | 14.094 | 10.000 | 6.087 | 21.245 | 0.955 | 22.527 | 8.000 |
 | ridge_curve_k5 | curve model, other cities | 0.000 | 0.000 | 1.000 | 7.543 | 26.327 | 1.000 | 26.724 | 1.000 |
-| early_val_k5 | brief training | 0.000 | 0.000 | 1.000 | 7.543 | 26.327 | 0.955 | 26.736 | 1.000 |
-| gbr_curve_k5 | curve model, other cities | 7.828 | 14.094 | 5.000 | 8.074 | 28.182 | 0.995 | 27.986 | 3.000 |
-| inverse_epoch_k5 | extrapolation, no fit | 9.859 | 20.134 |  |  |  | 0.615 | 33.219 | 10.000 |
-| early_val_k1 | brief training | 24.317 | 85.906 |  |  |  | 0.000 |  |  |
-| gbr_curve_k1 | curve model, other cities | 13.564 | 38.255 |  |  |  | 0.240 |  |  |
-| loss_sum_k1 | train-loss sum | 10.227 | 22.148 |  |  |  | 0.220 |  |  |
-| early_val_k2 | brief training | 18.963 | 63.087 |  |  |  | 0.000 |  |  |
-| ridge_curve_k2 | curve model, other cities | 11.700 | 28.859 |  |  |  | 0.015 |  |  |
-| gbr_curve_k2 | curve model, other cities | 11.700 | 28.859 |  |  |  | 0.045 |  |  |
-| loss_sum_k2 | train-loss sum | 10.227 | 22.148 |  |  |  | 0.010 |  |  |
-| inverse_epoch_k2 | extrapolation, no fit | 9.859 | 20.134 |  |  |  | 0.005 |  |  |
-| early_val_k3 | brief training | 4.625 | 8.725 |  |  |  | 0.235 |  |  |
-| ridge_curve_k3 | curve model, other cities | 7.828 | 14.094 |  |  |  | 0.360 |  |  |
-| gbr_curve_k3 | curve model, other cities | 7.828 | 14.094 |  |  |  | 0.260 |  |  |
-| loss_sum_k3 | train-loss sum | 10.227 | 22.148 |  |  |  | 0.005 |  |  |
-| inverse_epoch_k3 | extrapolation, no fit | 9.859 | 20.134 |  |  |  | 0.005 |  |  |
-| loss_sum_k5 | train-loss sum | 3.191 | 5.369 |  |  |  | 0.255 |  |  |
+| early_val_k5 | brief training | 0.000 | 0.000 | 1.000 | 7.543 | 26.327 | 0.970 | 26.736 | 1.000 |
+| gbr_curve_k5 | curve model, other cities | 4.854 | 14.094 | 5.000 | 8.074 | 28.182 | 0.995 | 27.986 | 3.000 |
+| inverse_epoch_k5 | extrapolation, no fit | 6.113 | 20.134 |  |  |  | 0.640 | 33.092 | 10.000 |
+| early_val_k1 | brief training | 15.077 | 85.906 |  |  |  | 0.000 |  |  |
+| early_val_k2 | brief training | 11.758 | 63.087 |  |  |  | 0.000 |  |  |
+| ridge_curve_k2 | curve model, other cities | 7.254 | 28.859 |  |  |  | 0.045 |  |  |
+| gbr_curve_k2 | curve model, other cities | 7.254 | 28.859 |  |  |  | 0.125 |  |  |
+| loss_sum_k2 | train-loss sum | 6.341 | 22.148 |  |  |  | 0.150 |  |  |
+| inverse_epoch_k2 | extrapolation, no fit | 6.113 | 20.134 |  |  |  | 0.030 |  |  |
+| early_val_k3 | brief training | 2.868 | 8.725 |  |  |  | 0.310 |  |  |
+| gbr_curve_k3 | curve model, other cities | 4.854 | 14.094 |  |  |  | 0.375 |  |  |
+| loss_sum_k3 | train-loss sum | 6.341 | 22.148 |  |  |  | 0.105 |  |  |
+| inverse_epoch_k3 | extrapolation, no fit | 6.113 | 20.134 |  |  |  | 0.030 |  |  |
+| loss_sum_k5 | train-loss sum | 1.979 | 5.369 |  |  |  | 0.265 |  |  |
 
 ### chengdu: cost to one sigma
 
@@ -236,23 +236,23 @@ b_sigma = the smallest b whose best pick lies within one sigma_seed of the best 
 
 | evaluator | kind | regret_b1_sigma | rank_pct_b1 | b_sigma | hours_sigma_ref | pct_sigma | sub_share | sub_pct_median | sub_b_median |
 |---|---|---|---|---|---|---|---|---|---|
-| transfer_pooled | transfer | 1.421 | 2.013 | 5.000 | 1.276 | 2.257 | 1.000 | 1.754 | 3.000 |
-| gbr_curve_k1 | curve model, other cities | 7.931 | 36.242 | 2.000 | 5.007 | 8.858 | 0.970 | 9.647 | 2.000 |
-| ridge_curve_k1 | curve model, other cities | 7.931 | 36.242 | 8.000 | 7.051 | 12.473 | 0.970 | 12.166 | 5.000 |
-| inverse_epoch_k2 | extrapolation, no fit | 0.620 | 0.671 | 1.000 | 8.298 | 14.679 | 0.735 | 15.007 | 1.000 |
-| early_val_k2 | brief training | 1.421 | 2.013 | 2.000 | 8.602 | 15.217 | 0.940 | 15.515 | 2.000 |
-| gbr_curve_k2 | curve model, other cities | 1.290 | 1.342 | 2.000 | 9.077 | 16.058 | 0.990 | 16.543 | 2.000 |
-| early_val_k1 | brief training | 3.138 | 2.685 |  |  |  | 0.520 | 17.690 | 10.000 |
-| inverse_epoch_k3 | extrapolation, no fit | 0.620 | 0.671 | 1.000 | 12.358 | 21.862 | 1.000 | 22.273 | 1.000 |
-| early_val_k3 | brief training | 1.421 | 2.013 | 2.000 | 12.645 | 22.369 | 1.000 | 22.682 | 2.000 |
-| ridge_curve_k2 | curve model, other cities | 4.382 | 5.369 |  |  |  | 0.555 | 23.657 | 10.000 |
-| ridge_curve_k3 | curve model, other cities | 4.382 | 5.369 | 8.000 | 14.945 | 26.439 | 1.000 | 24.944 | 5.000 |
-| gbr_curve_k3 | curve model, other cities | 4.540 | 6.711 | 5.000 | 13.900 | 24.590 | 0.995 | 26.005 | 5.000 |
-| inverse_epoch_k5 | extrapolation, no fit | 0.620 | 0.671 | 1.000 | 20.480 | 36.230 | 1.000 | 36.536 | 1.000 |
-| early_val_k5 | brief training | 1.421 | 2.013 | 2.000 | 20.733 | 36.678 | 1.000 | 37.006 | 1.000 |
-| ridge_curve_k5 | curve model, other cities | 1.421 | 2.013 | 5.000 | 21.586 | 38.186 | 1.000 | 37.674 | 2.000 |
-| gbr_curve_k5 | curve model, other cities | 4.582 | 7.383 |  |  |  | 0.595 | 43.358 | 10.000 |
-| loss_sum_k1 | train-loss sum | 9.939 | 68.456 |  |  |  | 0.270 |  |  |
-| loss_sum_k2 | train-loss sum | 9.939 | 68.456 |  |  |  | 0.000 |  |  |
-| loss_sum_k3 | train-loss sum | 9.939 | 68.456 |  |  |  | 0.000 |  |  |
-| loss_sum_k5 | train-loss sum | 9.939 | 68.456 |  |  |  | 0.000 |  |  |
+| transfer_pooled | transfer | 1.455 | 2.013 | 5.000 | 1.276 | 2.257 | 1.000 | 1.754 | 3.000 |
+| gbr_curve_k1 | curve model, other cities | 8.121 | 36.242 | 2.000 | 5.007 | 8.858 | 0.970 | 9.647 | 2.000 |
+| ridge_curve_k1 | curve model, other cities | 8.121 | 36.242 | 8.000 | 7.051 | 12.473 | 0.970 | 12.166 | 5.000 |
+| inverse_epoch_k2 | extrapolation, no fit | 0.635 | 0.671 | 1.000 | 8.298 | 14.679 | 0.735 | 15.007 | 1.000 |
+| early_val_k2 | brief training | 1.455 | 2.013 | 2.000 | 8.602 | 15.217 | 0.940 | 15.515 | 2.000 |
+| gbr_curve_k2 | curve model, other cities | 1.321 | 1.342 | 2.000 | 9.077 | 16.058 | 0.990 | 16.543 | 2.000 |
+| early_val_k1 | brief training | 3.213 | 2.685 |  |  |  | 0.520 | 17.690 | 10.000 |
+| inverse_epoch_k3 | extrapolation, no fit | 0.635 | 0.671 | 1.000 | 12.358 | 21.862 | 1.000 | 22.273 | 1.000 |
+| early_val_k3 | brief training | 1.455 | 2.013 | 2.000 | 12.645 | 22.369 | 1.000 | 22.682 | 2.000 |
+| ridge_curve_k2 | curve model, other cities | 4.487 | 5.369 |  |  |  | 0.555 | 23.657 | 10.000 |
+| ridge_curve_k3 | curve model, other cities | 4.487 | 5.369 | 8.000 | 14.945 | 26.439 | 1.000 | 24.944 | 5.000 |
+| gbr_curve_k3 | curve model, other cities | 4.649 | 6.711 | 5.000 | 13.900 | 24.590 | 0.995 | 26.005 | 5.000 |
+| inverse_epoch_k5 | extrapolation, no fit | 0.635 | 0.671 | 1.000 | 20.480 | 36.230 | 1.000 | 36.536 | 1.000 |
+| early_val_k5 | brief training | 1.455 | 2.013 | 2.000 | 20.733 | 36.678 | 1.000 | 37.006 | 1.000 |
+| ridge_curve_k5 | curve model, other cities | 1.455 | 2.013 | 5.000 | 21.586 | 38.186 | 1.000 | 37.674 | 2.000 |
+| gbr_curve_k5 | curve model, other cities | 4.692 | 7.383 |  |  |  | 0.595 | 43.358 | 10.000 |
+| loss_sum_k1 | train-loss sum | 10.177 | 68.456 |  |  |  | 0.270 |  |  |
+| loss_sum_k2 | train-loss sum | 10.177 | 68.456 |  |  |  | 0.000 |  |  |
+| loss_sum_k3 | train-loss sum | 10.177 | 68.456 |  |  |  | 0.000 |  |  |
+| loss_sum_k5 | train-loss sum | 10.177 | 68.456 |  |  |  | 0.000 |  |  |
