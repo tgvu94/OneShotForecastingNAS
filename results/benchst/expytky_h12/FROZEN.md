@@ -11,3 +11,8 @@ optimiser and scaler, same splits, same probe batch and adjacency.
 - `train/`: written by the benchst jobs only. This city has no stzero root; the raw data were prepared by `pilot.prepare_city`. Labels are masked MAE as in
   `results/stzero/expytky_h12`; the history rows also keep `val_mae_unmasked` and `test_mae_unmasked`.
 - Proxies: not scored in the first wave (`SCORE_PROXIES=0`); scored later under the masked loss together with GLASS.
+- Proxies, two units: the proxy pass ran on the rorqual slice (H100 3g.40gb) with the training array. `zico`, `zico_t`,
+  `zico_s`, `glass`, `glass_t`, `glass_s` at 10 architectures, `grasp` at 14 and `grasp_all` at 20 did not fit in 40 GB
+  (1,843 links). These values, and only these, were scored on a whole H100 80 GB (trillium job 1356386) from the same
+  probe batch (sha1 `4b446cb0ad2b6`...) and the same list; no score that existed was scored again. The `gpu` field of every
+  proxy file names the last unit that opened the file, not the unit of each score. No cost number comes from trillium.
