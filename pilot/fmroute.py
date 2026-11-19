@@ -41,6 +41,11 @@ CITY = {
 }
 REGIMES = ("free", "transition", "congested")
 FREE_MPH, CONGESTED_MPH = 55.0, 25.0
+# The relative rule, for a city where the thresholds of US freeways leave a regime empty: the free-flow speed of a sensor is the
+# 85th percentile of its valid speeds on the training split; free flow is every step above FREE_REL of it, congested is every
+# step below CONGESTED_REL of it (55 and 25 mph over a free-flow speed of 68 mph are 0.81 and 0.37).
+RULES = ("absolute", "relative")
+FREE_REL, CONGESTED_REL, FREE_FLOW_PERCENTILE = 0.8, 0.4, 85
 
 
 def split_rows(n_rows: int, window: int, horizon: int, split: str) -> np.ndarray:
@@ -77,16 +82,32 @@ def targets(dataset: str, split: str, raw: np.ndarray | None = None):
     return y, np.isfinite(y) & (y != 0), rows
 
 
-def regime_labels(dataset: str, split: str, raw: np.ndarray | None = None, free_mph: float = FREE_MPH,
-                  congested_mph: float = CONGESTED_MPH) -> np.ndarray:
-    """int8 [windows, sensors]: 0 free flow, 1 transition, 2 congested, -1 when a speed of the target window is missing."""
+def free_flow_speed(dataset: str, raw: np.ndarray | None = None) -> np.ndarray:
+    """[sensors]: the 85th percentile of the valid speeds of the training split (the first 60 % of the rows)."""
+    raw = load_raw(dataset) if raw is None else raw
+    v = raw[:int(len(raw) * 0.6), :, CITY[dataset]["speed_channel"]].astype(np.float64)
+    v[~np.isfinite(v) | (v == 0)] = np.nan
+    return np.nanpercentile(v, FREE_FLOW_PERCENTILE, axis=0)
+
+
+def regime_labels(dataset: str, split: str, raw: np.ndarray | None = None, rule: str = "absolute") -> np.ndarray:
+    """int8 [windows, sensors]: 0 free flow, 1 transition, 2 congested, -1 when a speed of the target window is missing.
+    ``rule``: absolute (55 and 25 mph) or relative (shares of the free-flow speed of the sensor)."""
     raw = load_raw(dataset) if raw is None else raw
     spec = CITY[dataset]
-    k = MPH if spec["unit"] == "km/h" else 1.0
     rows = split_rows(len(raw), WINDOW, HORIZON, split)
     v = window_view(raw[:, :, spec["speed_channel"]], rows)
     ok = (np.isfinite(v) & (v != 0)).all(1)
-    free, cong = (v > free_mph * k).all(1), (v < congested_mph * k).all(1)
+    if rule == "absolute":
+        k = MPH if spec["unit"] == "km/h" else 1.0
+        hi, lo = FREE_MPH * k, CONGESTED_MPH * k
+    elif rule == "relative":
+        vf = free_flow_speed(dataset, raw)[None, None, :]
+        hi, lo = FREE_REL * vf, CONGESTED_REL * vf
+    else:
+        raise ValueError(f"rule {rule!r}: one of {RULES}")
+    with np.errstate(invalid="ignore"):
+        free, cong = (v > hi).all(1), (v < lo).all(1)
     lab = np.full(ok.shape, 1, dtype=np.int8)
     lab[free], lab[cong] = 0, 2
     lab[~ok] = -1
@@ -111,27 +132,34 @@ def cell_sums(forecast: np.ndarray, y: np.ndarray, valid: np.ndarray, lab: np.nd
 def cmd_regimes(args) -> int:
     raw = load_raw(args.dataset)
     for split in ("val", "test"):
-        lab = regime_labels(args.dataset, split, raw)
-        n = (lab >= 0).sum()
-        share = {REGIMES[r]: round(float((lab == r).sum() / max(n, 1)), 4) for r in range(3)}
-        print(json.dumps({"dataset": args.dataset, "split": split, "windows": int(lab.shape[0]), "sensors": int(lab.shape[1]),
-                          "labelled_share": round(float(n / lab.size), 4), **share}))
+        for rule in RULES:
+            lab = regime_labels(args.dataset, split, raw, rule)
+            n = (lab >= 0).sum()
+            share = {REGIMES[r]: round(float((lab == r).sum() / max(n, 1)), 4) for r in range(3)}
+            print(json.dumps({"dataset": args.dataset, "split": split, "rule": rule, "windows": int(lab.shape[0]),
+                              "sensors": int(lab.shape[1]), "labelled_share": round(float(n / lab.size), 4), **share}))
     return 0
 
 
 def cmd_score(args) -> int:
     raw = load_raw(args.dataset)
     y, valid, rows = targets(args.dataset, args.split, raw)
-    lab = regime_labels(args.dataset, args.split, raw)
-    f = np.load(args.forecast, mmap_mode="r")
-    sums, counts = cell_sums(np.asarray(f), y, valid, lab)
+    f = np.asarray(np.load(args.forecast, mmap_mode="r"))
+    save = {"regimes": np.array(REGIMES), "first_target_row": rows[0]}
+    for rule in RULES:                                    # one file holds the cells of both regime rules
+        sums, counts = cell_sums(f, y, valid, regime_labels(args.dataset, args.split, raw, rule))
+        save[f"sums_{rule}"], save[f"counts_{rule}"] = sums, counts
+        tot = sums.sum((0, 2)) / np.maximum(counts.sum((0, 2)), 1)
+        print(json.dumps({"dataset": args.dataset, "split": args.split, "rule": rule, "forecast": str(args.forecast),
+                          "mae_labelled": float(sums.sum() / max(counts.sum(), 1)),
+                          **{f"mae_{REGIMES[r]}": float(tot[r]) for r in range(3)},
+                          **{f"share_{REGIMES[r]}": float(counts[:, r].sum() / max(counts.sum(), 1)) for r in range(3)}}))
+    err = np.where(valid, np.abs(f.astype(np.float64) - y), 0.0)   # every valid target, also where the speed gives no label
+    save["sums_all"], save["counts_all"] = err.sum(0).T, valid.sum(0).T
+    print(json.dumps({"dataset": args.dataset, "split": args.split, "mae": float(err.sum() / max(valid.sum(), 1))}))
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(out, sums=sums, counts=counts, regimes=np.array(REGIMES), first_target_row=rows[0])
-    tot = sums.sum((0, 2)) / np.maximum(counts.sum((0, 2)), 1)
-    print(json.dumps({"dataset": args.dataset, "split": args.split, "forecast": str(args.forecast),
-                      "mae": float(sums.sum() / max(counts.sum(), 1)), **{f"mae_{REGIMES[r]}": float(tot[r]) for r in range(3)},
-                      **{f"share_{REGIMES[r]}": float(counts[:, r].sum() / max(counts.sum(), 1)) for r in range(3)}}))
+    np.savez_compressed(out, **save)
     return 0
 
 
