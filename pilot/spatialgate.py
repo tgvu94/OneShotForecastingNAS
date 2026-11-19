@@ -11,6 +11,8 @@ Per sensor i, with a per-sensor linear model fit by weighted ridge on z-scored v
            of the product of the two median-removed base residuals), mean over the horizons
 Three fits per dataset: train -> validation (the main reading), first half of train -> second half, second half -> first half.
 A value of 0 or NaN is missing: it is no target, and as an input it is set to the training mean of the sensor (0 after z-scoring).
+A sensor with fewer than half of its training rows valid is excluded: every value of it is missing (without this rule a sensor with
+no training value keeps mean 0 and deviation 1, and its later raw values enter the neighbour mean of other sensors unscaled).
 Splits: first 60 % of the rows = train, next 20 % = validation, as the loaders of the repo.  The test rows are never read.
 
 Datasets: the registry names of pilot.datasets (channel 0 of the .npz, the adjacency of its distance list or pickle), and
@@ -24,6 +26,7 @@ from __future__ import annotations
 import argparse
 import os
 import time
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -40,6 +43,7 @@ HORIZONS = (3, 6, 12)
 HARMONICS = 3
 TRAIN_SHARE, VAL_SHARE = 0.6, 0.2
 TOP = 0.25
+MIN_TRAIN_VALID = 0.5     # a sensor with a lower share of valid training rows has no usable statistics: every value of it is missing
 RIDGE = 1e-3
 STEPS_PER_DAY = {"metrla": 288, "pems03": 288, "pems04": 288, "pems07": 288, "pems08": 288, "pemsbay": 288,
                  "chengdu": 144, "shenzhen": 144, "expytky": 144}
@@ -118,6 +122,8 @@ class Task:
         self.n_train = int(self.T * TRAIN_SHARE)
         self.n_val_end = int(self.T * (TRAIN_SHARE + VAL_SHARE))
         valid = np.isfinite(x) & (x != 0)
+        self.excluded = valid[:self.n_train].mean(0) < MIN_TRAIN_VALID
+        valid[:, self.excluded] = False
         tr, vtr = x[:self.n_train], valid[:self.n_train]
         cnt = np.maximum(vtr.sum(0), 1)
         mu = np.where(vtr, tr, 0).sum(0) / cnt
@@ -185,6 +191,12 @@ class Task:
                 val[:, cols] = w.T.bool()
                 del F
             c1[hi_] = self._c1(res, val)
+        with np.errstate(all="ignore"), warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            return self._mean(e, c1)
+
+    @staticmethod
+    def _mean(e, c1) -> dict:
         return {"e": np.nanmean(e[0], 0), "e_plus": np.nanmean(e[1], 0), "c1": np.nanmean(c1, 0)}
 
     def _c1(self, res: torch.Tensor, val: torch.Tensor) -> np.ndarray:
@@ -213,7 +225,7 @@ def run_dataset(name: str, out: Path, chunk: int) -> None:
     a = task.fit_eval((0, half), (half, task.n_train), chunk)                 # fit on the first half, read on the second
     b = task.fit_eval((half, task.n_train), (0, half), chunk)
     df = pd.DataFrame({
-        "sensor": np.arange(task.N), "degree": task.deg.astype(int), "sd_raw": task.sd, "var_raw": task.var_raw,
+        "sensor": np.arange(task.N), "excluded": task.excluded.astype(int), "degree": task.deg.astype(int), "sd_raw": task.sd, "var_raw": task.var_raw,
         "e": main["e"], "e_plus": main["e_plus"], "d": main["e"] - main["e_plus"], "c1": main["c1"],
         "d_half_a": a["e"] - a["e_plus"], "d_half_b": b["e"] - b["e_plus"], "c1_half_a": a["c1"],
     })
@@ -231,7 +243,7 @@ def summarise(out: Path) -> pd.DataFrame:
         d, tot = df["d"].to_numpy(), float(np.nansum(df["d"]))
         top = _top_mask(d)
         top_a = _top_mask(df["d_half_a"].to_numpy())
-        r = {"dataset": name, "n": len(df), "isolated": int((df["degree"] == 0).sum()),
+        r = {"dataset": name, "n": len(df), "excluded": int(df["excluded"].sum()), "isolated": int((df["degree"] == 0).sum()),
              "mae_base": float(np.nanmean(df["e"])), "mae_plus": float(np.nanmean(df["e_plus"])),
              "g_s": float(np.nansum(df["e"]) / np.nansum(df["e_plus"])),
              "share_positive": float(np.nanmean(d > 0)), "c1_mean": float(np.nanmean(df["c1"])),
