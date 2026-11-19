@@ -9,6 +9,7 @@ so this module imports numpy, torch and ``pilot.datasets`` only).
     python -m pilot.fmroute regimes --dataset pemsbay
     python -m pilot.fmroute chronos --dataset pems08 --split test --setting joint --out <dir> [--limit-windows 50]
     python -m pilot.fmroute score   --dataset pems08 --split test --forecast <file.npy> --out <cells.npz>
+    python -m pilot.fmroute regimecheck --dataset pemsbay
 
 A regime is a property of one sensor and one target window (the protocol of wang2026regime): free flow when every step of the
 window is above the upper speed threshold, congested when every step is below the lower one, transition otherwise.  The label
@@ -197,6 +198,56 @@ def cmd_chronos(args) -> int:
     return 0
 
 
+def cmd_regimecheck(args) -> int:
+    """The published regime table again, as a check of the regime code: Chronos-Bolt-Small under the protocol of wang2026regime
+    (split 70/10/20; the 50 sensors with the highest share of training readings below 25 mph; per seed 42, 43, 44 a draw of 30 of
+    them and of 50 test windows; 14 hours of context; h = 12; MAE and coverage of the 90 % interval per regime).  The paper does
+    not state how it draws the windows: here they are 50 rows of the test split, uniform without replacement, the same for the
+    30 sensors.  A missing value (raw 0) is NaN in the context and no target."""
+    import torch
+    from chronos import ChronosBoltPipeline
+
+    spec = CITY[args.dataset]
+    k = MPH if spec["unit"] == "km/h" else 1.0
+    v = load_raw(args.dataset)[:, :, spec["speed_channel"]].astype(np.float32)
+    v[~np.isfinite(v) | (v == 0)] = np.nan
+    n_train, n_test0 = int(len(v) * 0.7), int(len(v) * 0.8)
+    with np.errstate(invalid="ignore"):
+        freq = np.nanmean(np.where(np.isfinite(v[:n_train]), v[:n_train] < CONGESTED_MPH * k, np.nan), axis=0)
+    pool = np.argsort(-freq)[:50]
+    ctx = args.context_steps or 14 * 60 // spec["step_min"]
+    pipe = ChronosBoltPipeline.from_pretrained(args.model, device_map=args.device)
+    per_seed = []
+    for seed in (42, 43, 44):
+        rng = np.random.default_rng(seed)
+        sensors = np.sort(rng.choice(pool, 30, replace=False))
+        rows = np.sort(rng.choice(np.arange(n_test0 + ctx, len(v) - HORIZON), 50, replace=False))
+        x = np.stack([v[r - ctx:r, i] for r in rows for i in sensors])
+        y = np.stack([v[r:r + HORIZON, i] for r in rows for i in sensors])
+        q, _ = pipe.predict_quantiles(torch.from_numpy(x), prediction_length=HORIZON, quantile_levels=[0.05, 0.5, 0.95])
+        q = q.float().cpu().numpy() / 1.0
+        ok = np.isfinite(y).all(1)
+        free, cong = (y > FREE_MPH * k).all(1), (y < CONGESTED_MPH * k).all(1)
+        lab = np.where(free, 0, np.where(cong, 2, 1))
+        rec = {"seed": seed, "pairs": int(ok.sum())}
+        for r, name in list(enumerate(REGIMES)) + [(None, "overall")]:
+            sel = ok & ((lab == r) if r is not None else True)
+            rec[f"n_{name}"] = int(sel.sum())
+            # the unit of the paper is mph
+            rec[f"mae_{name}"] = float(np.abs(q[sel, :, 1] - y[sel]).mean() / k) if sel.any() else None
+            rec[f"cov90_{name}"] = float(((y[sel] >= q[sel, :, 0]) & (y[sel] <= q[sel, :, 2])).mean()) if sel.any() else None
+            # the last step only (h = 12), the form of a per-horizon table
+            rec[f"mae_h12_{name}"] = float(np.abs(q[sel, -1, 1] - y[sel, -1]).mean() / k) if sel.any() else None
+            rec[f"cov90_h12_{name}"] = float(((y[sel, -1] >= q[sel, -1, 0]) & (y[sel, -1] <= q[sel, -1, 2])).mean()) if sel.any() else None
+        per_seed.append(rec)
+        print(json.dumps(rec))
+    keys = [key for key in per_seed[0] if key != "seed"]
+    summ = {key: [round(float(np.mean([r[key] for r in per_seed if r[key] is not None])), 4),
+                  round(float(np.std([r[key] for r in per_seed if r[key] is not None])), 4)] for key in keys}
+    print(json.dumps({"dataset": args.dataset, "model": args.model, "context_steps": int(ctx), "mean_and_std_over_seeds": summ}))
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -211,8 +262,11 @@ def main(argv=None) -> int:
     p.add_argument("--context-steps", type=int, default=None, help="default: one week of the city clock")
     p.add_argument("--chunk", type=int, default=None, help="windows per part file"); p.add_argument("--batch-size", type=int, default=None)
     p.add_argument("--limit-windows", type=int, default=None, help="a timing run on this many windows, spread over the split")
+    p = sub.add_parser("regimecheck")
+    p.add_argument("--dataset", required=True); p.add_argument("--model", default="amazon/chronos-bolt-small")
+    p.add_argument("--device", default="cuda"); p.add_argument("--context-steps", type=int, default=None, help="default: 14 hours")
     args = ap.parse_args(argv)
-    return {"regimes": cmd_regimes, "score": cmd_score, "chronos": cmd_chronos}[args.cmd](args)
+    return {"regimes": cmd_regimes, "score": cmd_score, "chronos": cmd_chronos, "regimecheck": cmd_regimecheck}[args.cmd](args)
 
 
 if __name__ == "__main__":
