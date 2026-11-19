@@ -1,0 +1,5 @@
+defaults:
+  - /benchmark/PEMS/: largestgla_base
+
+name: largestgla_12
+external_forecast_horizon: 12

@@ -47,6 +47,9 @@ def parse_args(argv=None):
     ap.add_argument("--dump-forecasts", action="store_true",
                     help="keep the weights of the best epoch and, at the end, write its forecasts on the val and test splits in the "
                          "raw unit, in the order of the split: <out>/forecast_{val,test}.npy [windows, horizon, sensors] (pilot.fmroute)")
+    ap.add_argument("--sensor-errors", action="store_true",
+                    help="keep the weights of the best epoch and, at the end, write its masked MAE per sensor on the val and test "
+                         "splits in the raw unit: <out>/sensor_mae.npz (pilot.spatialgate_root)")
     ap.add_argument("--mask-zeros", action="store_true",
                     help="mask the targets that are 0 in the raw data (missing sensor readings) in the training loss and in val/test MAE and MSE")
     args = ap.parse_args(argv)
@@ -122,6 +125,46 @@ def dump_forecasts(trainer, model, best_path, best, out_dir, cfg, dims, device, 
                       "mae_raw": float((np.abs(pred - tgt) * sd * m).sum() / max(m.sum(), 1)), "target_gap": gap}
         print(f"forecast dump {split}: {len(pred)} windows, masked MAE {mae:.6f} (logged {logged:.6f}), raw unit {out[split]['mae_raw']:.4f}")
     best_path.unlink(missing_ok=True)
+    return out
+
+
+def dump_sensor_errors(trainer, model, best_path, best, out_dir, cfg, device, loaders, smoke=False, keep_best=False) -> dict:
+    """Masked MAE per sensor of the best epoch on the val and test splits: <out_dir>/sensor_mae.npz with <split>_mae_raw [N]
+    (raw unit of channel 0; NaN for a sensor with no valid target), <split>_n [N] (valid targets) and <split>_mae_raw_all (the
+    masked MAE over all sensors in the raw unit).  One check, fatal: the masked MAE of the pass in the normalised unit equals
+    the logged value of the best epoch."""
+    import numpy as np
+    import torch
+
+    if not best_path.exists():
+        raise FileNotFoundError(f"{best_path} missing: the run was started without --sensor-errors; train it again in a new folder")
+    model.load_state_dict(torch.load(best_path, map_location="cpu"))
+    model.to(device)
+    raw = np.load(Path(cfg.benchmark.dataset_root) / cfg.benchmark.type / cfg.benchmark.file_name, allow_pickle=True)["data"][:, :, 0]
+    sd = raw[:int(len(raw) * 0.6)].std(0).astype(np.float64)
+    sd = np.where(sd == 0, 1.0, sd)
+    arrays, out = {}, {}
+    for split, loader in loaders.items():
+        s = n = None
+        for pred, tgt in trainer.forecasts(loader):
+            d = (pred - tgt).double().abs()
+            m = trainer.mask_from(tgt)
+            m = torch.ones_like(d) if m is None else m.double()
+            a, b = (d * m).sum((0, 1)), m.sum((0, 1))
+            s, n = (a, b) if s is None else (s + a, n + b)
+        s, n = s.numpy(), n.numpy()
+        mae, logged = float(s.sum() / max(n.sum(), 1.0)), best[f"{split}_mae"]
+        if not smoke and not abs(mae - logged) < 1e-5 + 1e-4 * abs(logged):
+            raise AssertionError(f"{split}: masked MAE of the pass {mae} differs from the logged value {logged} of the best epoch")
+        arrays[f"{split}_mae_raw"] = np.where(n > 0, s / np.maximum(n, 1.0) * sd, np.nan)
+        arrays[f"{split}_n"] = n
+        arrays[f"{split}_mae_raw_all"] = np.float64((s * sd).sum() / max(n.sum(), 1.0))
+        out[split] = {"mae_normalised": mae, "mae_logged": logged, "mae_raw": float(arrays[f"{split}_mae_raw_all"]),
+                      "sensors_without_target": int((n == 0).sum())}
+        print(f"sensor errors {split}: masked MAE {mae:.6f} (logged {logged:.6f}), raw unit {out[split]['mae_raw']:.4f}")
+    np.savez(out_dir / "sensor_mae.npz", **arrays)
+    if not keep_best:
+        best_path.unlink(missing_ok=True)
     return out
 
 
@@ -314,8 +357,8 @@ def main(argv=None) -> int:
 
     # ---- resume
     ckpt_path, log_path, best_path = out_dir / "ckpt.pt", out_dir / "log.csv", out_dir / "best.pt"
-    if args.dump_forecasts and subset is not None:
-        raise NotImplementedError("--dump-forecasts is for a whole city, not for a subset")
+    if (args.dump_forecasts or args.sensor_errors) and subset is not None:
+        raise NotImplementedError("--dump-forecasts and --sensor-errors are for a whole city, not for a subset")
     history, best, no_improve, train_seconds, start_epoch = [], None, 0, 0.0, 0
     if ckpt_path.exists():
         ck = torch.load(ckpt_path, map_location="cpu", weights_only=False)
@@ -371,7 +414,7 @@ def main(argv=None) -> int:
             w.writerow(row)
         if best is None or (math.isfinite(row["val_mae"]) and row["val_mae"] < best["val_mae"]):
             best, no_improve = dict(row), 0
-            if args.dump_forecasts:
+            if args.dump_forecasts or args.sensor_errors:
                 torch.save(model.state_dict(), best_path)
         else:
             no_improve += 1
@@ -402,9 +445,14 @@ def main(argv=None) -> int:
     if not math.isfinite(best["val_mae"]):
         final["status"] = "failed"
         final["error"] = "non-finite val_mae"
-    elif args.dump_forecasts:
-        final["forecast_dump"] = dump_forecasts(trainer, model, best_path, best, out_dir, cfg, dims, device,
-                                                {"val": val_loader, "test": test_loader}, args.smoke_batches)
+    else:
+        if args.sensor_errors:
+            final["sensor_errors"] = dump_sensor_errors(trainer, model, best_path, best, out_dir, cfg, device,
+                                                        {"val": val_loader, "test": test_loader}, smoke=bool(args.smoke_batches),
+                                                        keep_best=args.dump_forecasts)
+        if args.dump_forecasts:
+            final["forecast_dump"] = dump_forecasts(trainer, model, best_path, best, out_dir, cfg, dims, device,
+                                                    {"val": val_loader, "test": test_loader}, args.smoke_batches)
     write_json(metrics_path, final)
     if args.prune_ckpt and final["status"] == "done":
         ckpt_path.unlink(missing_ok=True)

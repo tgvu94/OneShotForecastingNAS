@@ -153,5 +153,8 @@ class HandNet(nn.Module):
         return [{"params": [p for p in self.parameters() if p.requires_grad], "weight_decay": weight_decay}]
 
 
-def build_hand_model(g: dict, dims: dict) -> HandNet:
+def build_hand_model(g: dict, dims: dict):
+    if g["hand_model"] == "stid_spatial":         # STID with a spatial module for a set of receiver sensors (pilot.spatialgate_model)
+        from pilot.spatialgate_model import SpatialHandNet
+        return SpatialHandNet(g, dims)
     return HandNet(g["hand_model"], g.get("clock", "pipeline"), dims)

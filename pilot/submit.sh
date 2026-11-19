@@ -12,6 +12,9 @@
 #                                                          from the stored files are computed) on ROOT and on $EXTRA_ROOTS: one 2 h job
 #   pilot/submit.sh basicts [ROOT] [DATASET] [HORIZON]   -> one timed BasicTS baseline run (MODEL=STID by default, CONFIG overrides the
 #                                                          config path) on $NAS_ROOT/BasicTS: one 2 h job; ROOT is unused
+#   pilot/submit.sh sgtrain ROOT DATASET [HORIZON]       -> the neural stage of spatialgate (pilot/spatialgate_train.sbatch): the runs of
+#                                                          $ROOT/$RUNS (default runs_main.txt) as a job array of NSHARD tasks
+#                                                          (default 4), one GPU unit each, 8 h (TIME overrides); JOB_NAME names it
 #   pilot/submit.sh linear                               -> the linear stage of spatialgate (pilot/spatialgate_linear.sbatch): one CPU job,
 #                                                          8 cores, 64 GB (MEM overrides), 3 h (TIME overrides), account def-rwpazzi_cpu;
 #                                                          SG_DATASETS lists the datasets; ROOT, DATASET and HORIZON are unused
@@ -53,13 +56,17 @@ case "$mode" in
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,MODEL=${MODEL:-STID},CONFIG=${CONFIG:-}" ;;
   ablation) name=abl_$DATASET; extra=(--time=08:00:00 --output="$NAS_ROOT/logs/ablation_STID_${tag}_%j.log");   script=pilot/basicts_ablation.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,VARIANTS=${VARIANTS:-},SEEDS=${SEEDS:-}" ;;
+  sgtrain) name=${JOB_NAME:-sg_$DATASET}; extra=(--array=0-$((${NSHARD:-4} - 1)) --time=${TIME:-08:00:00} --output="$NAS_ROOT/logs/${JOB_NAME:-sg_$DATASET}_%A_%a.log"); script=pilot/spatialgate_train.sbatch
+           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,RUNS=${RUNS:-runs_main.txt},NSHARD=${NSHARD:-4}" ;;
   linear)  name=sg_linear; extra=(--time=${TIME:-03:00:00} --output="$NAS_ROOT/logs/spatialgate_linear_%j.log"); script=pilot/spatialgate_linear.sbatch
            common=(--cpus-per-task=8 --mem=${MEM:-64G} --account=def-rwpazzi_cpu "--export=ALL") ;;   # no GPU; SG_DATASETS is a comma list: ALL carries it
-  *) echo "unknown mode $mode (train | trainone | spatial | proxies | basicts | ablation | linear)"; exit 1 ;;
+  *) echo "unknown mode $mode (train | trainone | spatial | proxies | basicts | ablation | linear | sgtrain)"; exit 1 ;;
 esac
 if [ "$mode" = basicts ] || [ "$mode" = ablation ]; then
   if [ ! -d "$NAS_ROOT/BasicTS/datasets/$(tr a-z A-Z <<<"$DATASET" | sed "s/METRLA/METR-LA/;s/PEMSBAY/PEMS-BAY/")" ]; then echo "refusing: BasicTS dataset folder for $DATASET missing (run its scripts/data_preparation script)"; exit 1; fi
   if [ ! -x "$HOME/basicts-venv/bin/python" ]; then echo "refusing: ~/basicts-venv missing"; exit 1; fi
+elif [ "$mode" = sgtrain ]; then
+  if [ ! -s "$ROOT/${RUNS:-runs_main.txt}" ]; then echo "refusing: $ROOT/${RUNS:-runs_main.txt} missing or empty (python -m pilot.spatialgate_root prepare)"; exit 1; fi
 elif [ "$mode" != linear ]; then
   if [ ! -s "$ROOT/archs.jsonl" ]; then echo "refusing: $ROOT/archs.jsonl missing or empty"; exit 1; fi
   if [ ! -s "$ROOT/data/${DATASET}_probe_batch.pt" ]; then echo "refusing: $ROOT/data/${DATASET}_probe_batch.pt missing (python -m pilot.data --save-probe-batch --root $ROOT)"; exit 1; fi

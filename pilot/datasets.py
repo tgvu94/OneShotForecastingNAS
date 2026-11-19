@@ -50,6 +50,11 @@ DATASETS = {
                  "adj_pickle": "adj_SHENZHEN.pkl", "n_nodes": 627},
     "expytky": {"benchmark_dir": "PEMS/expytky", "file_name": "EXPYTKY.npz", "distance_csv": None,
                 "adj_pickle": "adj_EXPYTKY.pkl", "sensor_ids": "EXPYTKY_link_ids.txt", "n_nodes": 1843},
+    # LargeST 2019 flow at 15-minute steps, prepared by pilot.spatialgate_root (sensors with no training data dropped).
+    "largestsd": {"benchmark_dir": "PEMS/largestsd", "file_name": "LARGESTSD.npz", "distance_csv": None,
+                  "adj_pickle": "adj_LARGESTSD.pkl", "n_nodes": 705},
+    "largestgla": {"benchmark_dir": "PEMS/largestgla", "file_name": "LARGESTGLA.npz", "distance_csv": None,
+                   "adj_pickle": "adj_LARGESTGLA.pkl", "n_nodes": 3805},
 }
 _BENCH_RE = re.compile(r"^(?P<dataset>[a-z0-9]+)_(?P<horizon>\d+)$")
 
