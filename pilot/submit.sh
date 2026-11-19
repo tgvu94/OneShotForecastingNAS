@@ -12,6 +12,9 @@
 #                                                          from the stored files are computed) on ROOT and on $EXTRA_ROOTS: one 2 h job
 #   pilot/submit.sh basicts [ROOT] [DATASET] [HORIZON]   -> one timed BasicTS baseline run (MODEL=STID by default, CONFIG overrides the
 #                                                          config path) on $NAS_ROOT/BasicTS: one 2 h job; ROOT is unused
+#   pilot/submit.sh linear                               -> the linear stage of spatialgate (pilot/spatialgate_linear.sbatch): one CPU job,
+#                                                          8 cores, 64 GB (MEM overrides), 3 h (TIME overrides), account def-rwpazzi_cpu;
+#                                                          SG_DATASETS lists the datasets; ROOT, DATASET and HORIZON are unused
 #   pilot/submit.sh ablation [ROOT] [DATASET] [HORIZON]  -> the STID single-part ablation replication on DATASET (6 variants x 3 seeds,
 #                                                          pilot/basicts_ablation.sbatch): one 8 h job named abl_<DATASET>; ROOT is unused
 # Cluster: the resource flags come from $CC_CLUSTER.  Default (Nibi, Fir, Rorqual): one 3g.40gb slice of an H100, 8 CPUs, 32 GB,
@@ -50,12 +53,14 @@ case "$mode" in
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,MODEL=${MODEL:-STID},CONFIG=${CONFIG:-}" ;;
   ablation) name=abl_$DATASET; extra=(--time=08:00:00 --output="$NAS_ROOT/logs/ablation_STID_${tag}_%j.log");   script=pilot/basicts_ablation.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,VARIANTS=${VARIANTS:-},SEEDS=${SEEDS:-}" ;;
-  *) echo "unknown mode $mode (train | trainone | spatial | proxies | basicts | ablation)"; exit 1 ;;
+  linear)  name=sg_linear; extra=(--time=${TIME:-03:00:00} --output="$NAS_ROOT/logs/spatialgate_linear_%j.log"); script=pilot/spatialgate_linear.sbatch
+           common=(--cpus-per-task=8 --mem=${MEM:-64G} --account=def-rwpazzi_cpu "--export=ALL") ;;   # no GPU; SG_DATASETS is a comma list: ALL carries it
+  *) echo "unknown mode $mode (train | trainone | spatial | proxies | basicts | ablation | linear)"; exit 1 ;;
 esac
 if [ "$mode" = basicts ] || [ "$mode" = ablation ]; then
   if [ ! -d "$NAS_ROOT/BasicTS/datasets/$(tr a-z A-Z <<<"$DATASET" | sed "s/METRLA/METR-LA/;s/PEMSBAY/PEMS-BAY/")" ]; then echo "refusing: BasicTS dataset folder for $DATASET missing (run its scripts/data_preparation script)"; exit 1; fi
   if [ ! -x "$HOME/basicts-venv/bin/python" ]; then echo "refusing: ~/basicts-venv missing"; exit 1; fi
-else
+elif [ "$mode" != linear ]; then
   if [ ! -s "$ROOT/archs.jsonl" ]; then echo "refusing: $ROOT/archs.jsonl missing or empty"; exit 1; fi
   if [ ! -s "$ROOT/data/${DATASET}_probe_batch.pt" ]; then echo "refusing: $ROOT/data/${DATASET}_probe_batch.pt missing (python -m pilot.data --save-probe-batch --root $ROOT)"; exit 1; fi
   if [ ! -s "$ROOT/data/${DATASET}_adj.npy" ]; then echo "refusing: $ROOT/data/${DATASET}_adj.npy missing (python -m pilot.adjacency --root $ROOT)"; exit 1; fi
