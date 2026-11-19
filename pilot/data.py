@@ -49,10 +49,12 @@ def get_cfg(benchmark: str = DEFAULT_BENCHMARK, model: str = DEFAULT_MODEL, over
                        overrides=[f"+benchmark={benchmark}", f"+model={model}", *overrides])
 
 
-def get_dataset_and_loaders(cfg, batch_size: int = 32, batch_size_test: int = 128, num_workers: int = 2, freq: str | None = None):
+def get_dataset_and_loaders(cfg, batch_size: int = 32, batch_size_test: int = 128, num_workers: int = 2, freq: str | None = None,
+                            subset: dict | None = None):
     """Returns (dataset, (train, val, test), dims). Copy of the PEMS branch of test_evaluated_model.py.
     ``freq`` = None keeps the upstream default of the loader (one hour per step) that every list architecture was trained with;
-    a value (the frequency of the benchmark file) gives the time features of the data clock (pilot.hand_models, clock = true)."""
+    a value (the frequency of the benchmark file) gives the time features of the data clock (pilot.hand_models, clock = true).
+    ``subset`` (pilot.subset) keeps a part of the sensors and of the training rows; None = the whole city."""
     from experiments.datasets import get_PEMS_dataset
     from experiments.datasets.get_data_loader import get_dataloader, get_forecasting_dataset, regenerate_splits
 
@@ -66,6 +68,9 @@ def get_dataset_and_loaders(cfg, batch_size: int = 32, batch_size_test: int = 12
         do_normalization=cfg.benchmark.do_normalization,
         forecasting_horizon=cfg.benchmark.external_forecast_horizon,
         make_dataset_uni_variant=cfg.benchmark.get("make_dataset_uni_variant", False), flag="test", **({"freq": freq} if freq else {}))
+    if subset is not None:
+        from pilot.subset import apply_to_data_info
+        apply_to_data_info(data_info, subset, num_train=border2s[0])
     dataset = get_forecasting_dataset(dataset_name=cfg.benchmark.name, **data_info)
     dataset.lagged_value = [0]
     horizon = dataset.n_prediction_steps
@@ -74,6 +79,9 @@ def get_dataset_and_loaders(cfg, batch_size: int = 32, batch_size_test: int = 12
         np.arange(border1s[1] - 1, border2s[1] - horizon),
         np.arange(border1s[2] - 1, border2s[2] - horizon),
     ]
+    if subset is not None and subset.get("segments") is not None:
+        from pilot.subset import train_split
+        split_ms[0] = train_split(subset["segments"], window_size, horizon)
     split = regenerate_splits(dataset, val_share=None, splits_ms=split_ms)
     loaders = get_dataloader(dataset=dataset, splits=split, batch_size=batch_size, window_size=window_size,
                              is_test_sets=[False, True, True], batch_size_test=batch_size_test,
@@ -96,6 +104,7 @@ def get_dataset_and_loaders(cfg, batch_size: int = 32, batch_size_test: int = 12
         "split_sizes": [int(len(s)) for s in split],
         "batch_size": batch_size,
         "batch_size_test": batch_size_test,
+        "subset": subset["name"] if subset is not None else None,
     }
     return dataset, loaders, dims
 
@@ -143,13 +152,18 @@ def preprocess_batch(X: dict, target_scaler, window_size: int, device: torch.dev
     return x_past, x_future, loc, scale
 
 
-def zero_code_for(cfg) -> tuple[torch.Tensor, float]:
+def zero_code_for(cfg, subset: dict | None = None) -> tuple[torch.Tensor, float]:
     """Per-node value that a raw 0 (missing reading) takes after the dataset normalisation of
     experiments/datasets/get_PEMS_dataset.py (StandardScaler on the first 60 % of the rows), and the raw zero share.
     A target equals this code (within 1e-4) exactly when the raw value was 0; checked on METR-LA and PEMS04 with zero
-    disagreement.  Used by train_arch --mask-zeros and score_proxies --mask-zeros."""
+    disagreement.  Used by train_arch --mask-zeros and score_proxies --mask-zeros.  With a ``subset`` (pilot.subset) the code
+    is that of the kept sensors under the scaler of the kept training rows."""
     raw = np.load(Path(cfg.benchmark.dataset_root) / cfg.benchmark.type / cfg.benchmark.file_name, allow_pickle=True)["data"][:, :, 0]
     n_train = int(len(raw) * 0.6)
+    if subset is not None:   # float64, and the rule of pilot.subset for a sensor that is constant on the kept rows
+        from pilot.subset import subset_scaler
+        raw, mu, sd = subset_scaler(raw, subset, n_train)
+        return torch.tensor((0.0 - mu) / sd, dtype=torch.float32), float((raw == 0).mean())
     mu, sd = raw[:n_train].mean(0), raw[:n_train].std(0)
     sd = np.where(sd == 0, 1.0, sd)  # sklearn StandardScaler convention
     return torch.tensor((0.0 - mu) / sd, dtype=torch.float32), float((raw == 0).mean())

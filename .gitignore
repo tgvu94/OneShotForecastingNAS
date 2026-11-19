@@ -148,6 +148,8 @@ results/*/*/*
 !results/*/*/*.md
 !results/*/*/autocts_precheck.json
 !results/*/*/COST.json
+!results/*/*/subset.json
+!results/*/*/subset.sha1
 !results/*/*/tables*/
 results/*/*/tables*/*
 !results/*/*/tables*/*.md

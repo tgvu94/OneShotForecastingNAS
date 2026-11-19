@@ -102,6 +102,11 @@ class Root:
         return self.dir / "train"
 
     @property
+    def subset(self) -> Path:
+        """The proxy task of the root (pilot.subset): kept sensors and kept training rows.  Absent = the whole city."""
+        return self.dir / "subset.json"
+
+    @property
     def tables(self) -> Path:
         return self.dir / self.tables_name
 

@@ -43,6 +43,7 @@ def parse_args(argv=None):
     ap.add_argument("--device", default="cuda", help="cuda (the benchmark) or cpu (smoke tests on a login node)")
     ap.add_argument("--smoke-batches", type=int, default=None,
                     help="debug only: every loader yields its first N batches; recorded in the schedule, never a benchmark label")
+    ap.add_argument("--subset", default=None, help="proxy task (pilot.subset); default: <root>/subset.json when the root has one")
     ap.add_argument("--mask-zeros", action="store_true",
                     help="mask the targets that are 0 in the raw data (missing sensor readings) in the training loss and in val/test MAE and MSE")
     args = ap.parse_args(argv)
@@ -51,6 +52,7 @@ def parse_args(argv=None):
     args.benchmark = args.benchmark or root.benchmark
     args.adj = str(args.adj or root.adj)
     args.out_root = str(args.out_root or root.train)
+    args.subset = args.subset or (str(root.subset) if root.subset.exists() else None)
     return args
 
 
@@ -147,8 +149,10 @@ def main(argv=None) -> int:
                 losses.append(float(w_loss.detach()))
                 torch.cuda.empty_cache()
             self.last_train_loss = float(np.mean(losses)) if losses else float("nan")
+            t_eval = time.time()
             val_res = self.evaluate(self.val_loader, epoch, "val")
             test_res = self.evaluate(self.test_loader, epoch, "test")
+            self.last_eval_seconds = time.time() - t_eval
             if self.lr_scheduler_w is not None and self.lr_scheduler_type == LR_SCHEDULER_TYPE.epoch:
                 self.lr_scheduler_w.step()
             return val_res, test_res
@@ -160,10 +164,19 @@ def main(argv=None) -> int:
     device = torch.device(args.device)
 
     cfg = get_cfg(args.benchmark)
+    subset, adjacency = None, None
+    if args.subset:
+        from pilot.subset import induced_adjacency, load_subset
+        subset = load_subset(args.subset)
+        if g.get("graph") is not None:
+            from pilot.adjacency import load_adj
+            adjacency = induced_adjacency(load_adj(args.adj), subset)
+        print(f"subset {subset['name']} ({subset['sha1'][:13]}): {subset['graph']['n_sensors']} of {subset['n_sensors_city']} sensors, "
+              f"{subset['train_windows']} of {subset['train_windows_city']} training windows")
     seed_everything(args.seed)
     dataset, (train_loader, val_loader, test_loader), dims = get_dataset_and_loaders(
         cfg, batch_size=args.batch_size, num_workers=args.num_workers,
-        freq=str(cfg.benchmark.freq) if g.get("clock") == "true" else None)
+        freq=str(cfg.benchmark.freq) if g.get("clock") == "true" else None, subset=subset)
     if args.smoke_batches:
         import itertools
 
@@ -179,7 +192,7 @@ def main(argv=None) -> int:
         train_loader, val_loader, test_loader = (_FirstBatches(l, args.smoke_batches) for l in (train_loader, val_loader, test_loader))
         print(f"SMOKE: {args.smoke_batches} batches per loader on {device}; the result is not a label")
     seed_everything(args.seed)  # init seed, immediately before build
-    model = build_discrete_net(g, dims, adj_path=args.adj)
+    model = build_discrete_net(g, dims, adjacency=adjacency, adj_path=args.adj)
     n_params = count_params(model)
 
     optim_groups = model.get_weight_optimizer_parameters(cfg.w_optimizer_eval.weight_decay)
@@ -189,7 +202,7 @@ def main(argv=None) -> int:
     zero_code, zero_share = None, None
     if args.mask_zeros:
         from pilot.data import zero_code_for
-        zero_code, zero_share = zero_code_for(cfg)
+        zero_code, zero_share = zero_code_for(cfg, subset)
         print(f"mask-zeros: {zero_share:.4f} of the raw entries are 0; they are skipped in the loss and the metrics")
     trainer = PilotTrainer(
         model=model, w_optimizer=optimizer, lr_scheduler_w=scheduler,
@@ -220,6 +233,7 @@ def main(argv=None) -> int:
         "mask_zeros": bool(args.mask_zeros), "zero_share_raw": zero_share, "smoke_batches": args.smoke_batches, "device": str(device),
         "metric": "MAE/MSE on dataset-normalised targets" + (", raw zeros masked" if args.mask_zeros else ""),
         "train_windows": dims["split_sizes"][0], "iters_per_epoch": len(train_loader),
+        "subset": {"name": subset["name"], "sha1": subset["sha1"], "n_sensors": dims["num_targets"]} if subset is not None else None,
     }
 
     # FLOPs of one forward pass on one training batch (torch.utils.flop_counter; cuDNN RNN kernels may be invisible)
@@ -278,6 +292,7 @@ def main(argv=None) -> int:
                    "masked_share_val": float(val_res["masked share"]), "masked_share_test": float(test_res["masked share"])}
                   if args.mask_zeros else {}),
                "lr": float(optimizer.param_groups[0]["lr"]), "seconds": round(seconds, 1),
+               "eval_seconds": round(trainer.last_eval_seconds, 1),
                "peak_mem_gb": round(torch.cuda.max_memory_allocated(device) / 1e9, 3) if device.type == "cuda" else 0.0,
                "wall": _dt.datetime.now().isoformat(timespec="seconds")}
         history.append(row)
