@@ -992,7 +992,7 @@ def archive(args) -> bool:
 
 
 def verdict(args) -> bool:
-    """RQ1 and RQ9 read under the lines of the map (Branch 3 and Branch 3b tests, copied in stzero-plan.md Section 1).
+    """RQ1 and RQ9 read under the lines of the map (Branch 3 and Branch 3b tests, copied in experiments/stzero-plan.md of the Survey repository, Section 1).
 
     Inputs: --matched-dir/cross_dataset.csv (the h12 datasets at the same N; the h36 probe column is ignored), each matched
     table directory's table_A.csv (family CIs) and analyze_summary.json (seed ceiling), and --compare-dir/predictor_loco.csv
