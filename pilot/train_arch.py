@@ -44,6 +44,9 @@ def parse_args(argv=None):
     ap.add_argument("--smoke-batches", type=int, default=None,
                     help="debug only: every loader yields its first N batches; recorded in the schedule, never a benchmark label")
     ap.add_argument("--subset", default=None, help="proxy task (pilot.subset); default: <root>/subset.json when the root has one")
+    ap.add_argument("--dump-forecasts", action="store_true",
+                    help="keep the weights of the best epoch and, at the end, write its forecasts on the val and test splits in the "
+                         "raw unit, in the order of the split: <out>/forecast_{val,test}.npy [windows, horizon, sensors] (pilot.fmroute)")
     ap.add_argument("--mask-zeros", action="store_true",
                     help="mask the targets that are 0 in the raw data (missing sensor readings) in the training loss and in val/test MAE and MSE")
     args = ap.parse_args(argv)
@@ -67,6 +70,59 @@ def fork_commit():
         return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
     except Exception:
         return None
+
+
+def dump_forecasts(trainer, model, best_path, best, out_dir, cfg, dims, device, loaders, smoke_batches=None) -> dict:
+    """Forecasts of the best epoch on the val and test splits: <out_dir>/forecast_<split>.npy, float32 [windows, horizon, sensors],
+    raw unit of channel 0, window i of the file = entry i of the split (first target row in the returned record).  The loaders of
+    the repo shuffle the val and test splits (``shuffle=~is_test`` is true for both), so the pass here uses an ordered loader on
+    the same subset.  Two checks, both fatal: the targets of the pass equal the raw file at the rows of the split, and the masked
+    MAE of the pass equals the logged value of the best epoch."""
+    import itertools
+
+    import numpy as np
+    import torch
+    from torch.utils.data import DataLoader
+
+    from pilot.fmroute import split_rows
+
+    if not best_path.exists():
+        raise FileNotFoundError(f"{best_path} missing: the run was started without --dump-forecasts; train it again in a new folder")
+    model.load_state_dict(torch.load(best_path, map_location="cpu"))
+    model.to(device)
+    raw = np.load(Path(cfg.benchmark.dataset_root) / cfg.benchmark.type / cfg.benchmark.file_name, allow_pickle=True)["data"][:, :, 0]
+    n_train = int(len(raw) * 0.6)
+    mu, sd = raw[:n_train].mean(0).astype(np.float64), raw[:n_train].std(0).astype(np.float64)
+    sd = np.where(sd == 0, 1.0, sd)
+    horizon, out = int(dims["n_prediction_steps"]), {}
+    for split, loader in loaders.items():
+        base = getattr(loader, "loader", loader)          # a smoke run wraps the loader
+        ordered = DataLoader(base.dataset, batch_size=base.batch_size, shuffle=False, num_workers=0, collate_fn=base.collate_fn)
+        it = trainer.forecasts(itertools.islice(iter(ordered), smoke_batches) if smoke_batches else ordered)
+        preds, tgts = zip(*[(p.numpy(), t.numpy()) for p, t in it])
+        pred, tgt = np.concatenate(preds).astype(np.float64), np.concatenate(tgts).astype(np.float64)
+        rows = split_rows(len(raw), int(dims["window_size"]), horizon, split)
+        if not smoke_batches and len(rows) != len(pred):
+            raise AssertionError(f"{split}: {len(pred)} windows in the pass, {len(rows)} in the split")
+        rows = rows[:len(pred)]
+        pick = np.unique(np.linspace(0, len(rows) - 1, 64).astype(int))
+        want = np.stack([(raw[r:r + horizon] - mu) / sd for r in rows[pick]])
+        gap = float(np.nanmax(np.abs(tgt[pick] - want)))
+        if not gap < 1e-3:
+            raise AssertionError(f"{split}: the targets of the pass differ from the raw file at the rows of the split (max gap {gap})")
+        mask = trainer.mask_from(torch.from_numpy(tgt).float())
+        m = np.ones_like(tgt, dtype=bool) if mask is None else mask.numpy()
+        mae = float((np.abs(pred - tgt) * m).sum() / max(m.sum(), 1))
+        logged = best[f"{split}_mae"]
+        if not smoke_batches and not abs(mae - logged) < 1e-5 + 1e-4 * abs(logged):
+            raise AssertionError(f"{split}: masked MAE of the pass {mae} differs from the logged value {logged} of the best epoch")
+        np.save(out_dir / f"forecast_{split}.npy", (pred * sd + mu).astype(np.float32))
+        out[split] = {"file": f"forecast_{split}.npy", "windows": int(len(pred)), "first_target_row": int(rows[0]),
+                      "last_target_row": int(rows[-1]) + horizon - 1, "mae_normalised": mae, "mae_logged": logged,
+                      "mae_raw": float((np.abs(pred - tgt) * sd * m).sum() / max(m.sum(), 1)), "target_gap": gap}
+        print(f"forecast dump {split}: {len(pred)} windows, masked MAE {mae:.6f} (logged {logged:.6f}), raw unit {out[split]['mae_raw']:.4f}")
+    best_path.unlink(missing_ok=True)
+    return out
 
 
 def main(argv=None) -> int:
@@ -112,6 +168,21 @@ def main(argv=None) -> int:
             """SampledForecastingNetTrainer.evaluate with masked and unmasked sums.  'MAE loss' / 'MSE loss' are masked when
             zero_code is set; the unmasked values and the masked share are returned beside them."""
             sums = {"mse": 0.0, "mae": 0.0, "n": 0.0, "mse_all": 0.0, "mae_all": 0.0, "n_all": 0.0}
+            for pred_test, target_test in self.forecasts(test_loader):
+                diff = (pred_test - target_test).double()
+                sums["mse_all"] += float((diff ** 2).sum()); sums["mae_all"] += float(diff.abs().sum()); sums["n_all"] += diff.numel()
+                m = self.mask_from(target_test)
+                if m is None:
+                    sums["mse"], sums["mae"], sums["n"] = sums["mse_all"], sums["mae_all"], sums["n_all"]
+                else:
+                    md = m.double()
+                    sums["mse"] += float(((diff ** 2) * md).sum()); sums["mae"] += float((diff.abs() * md).sum()); sums["n"] += float(md.sum())
+            return {"MSE loss": sums["mse"] / max(sums["n"], 1.0), "MAE loss": sums["mae"] / max(sums["n"], 1.0),
+                    "MSE loss unmasked": sums["mse_all"] / max(sums["n_all"], 1.0), "MAE loss unmasked": sums["mae_all"] / max(sums["n_all"], 1.0),
+                    "masked share": 1.0 - sums["n"] / max(sums["n_all"], 1.0)}
+
+        def forecasts(self, test_loader):
+            """Yields (prediction, target) per batch, both [B, H, N] on the CPU in the dataset-normalised unit."""
             self.model.eval()
             for (test_X, test_y) in test_loader:
                 x_past_test, x_future_test, scale_value_test = self.preprocessing(test_X)
@@ -128,17 +199,7 @@ def main(argv=None) -> int:
                             prediction_test = prediction_test[-1]
                         prediction_test = rescale_output(prediction_test, *scale_value_test, device=self.device).cpu()
                     pred_test[:, self.target_indices + shift] = prediction_test
-                diff = (pred_test - target_test).double()
-                sums["mse_all"] += float((diff ** 2).sum()); sums["mae_all"] += float(diff.abs().sum()); sums["n_all"] += diff.numel()
-                m = self.mask_from(target_test)
-                if m is None:
-                    sums["mse"], sums["mae"], sums["n"] = sums["mse_all"], sums["mae_all"], sums["n_all"]
-                else:
-                    md = m.double()
-                    sums["mse"] += float(((diff ** 2) * md).sum()); sums["mae"] += float((diff.abs() * md).sum()); sums["n"] += float(md.sum())
-            return {"MSE loss": sums["mse"] / max(sums["n"], 1.0), "MAE loss": sums["mae"] / max(sums["n"], 1.0),
-                    "MSE loss unmasked": sums["mse_all"] / max(sums["n_all"], 1.0), "MAE loss unmasked": sums["mae_all"] / max(sums["n_all"], 1.0),
-                    "masked share": 1.0 - sums["n"] / max(sums["n_all"], 1.0)}
+                yield pred_test, target_test
 
         def train_epoch(self, epoch: int):
             self.model.train()
@@ -252,7 +313,9 @@ def main(argv=None) -> int:
         flops_note = f"failed: {e!r}"
 
     # ---- resume
-    ckpt_path, log_path = out_dir / "ckpt.pt", out_dir / "log.csv"
+    ckpt_path, log_path, best_path = out_dir / "ckpt.pt", out_dir / "log.csv", out_dir / "best.pt"
+    if args.dump_forecasts and subset is not None:
+        raise NotImplementedError("--dump-forecasts is for a whole city, not for a subset")
     history, best, no_improve, train_seconds, start_epoch = [], None, 0, 0.0, 0
     if ckpt_path.exists():
         ck = torch.load(ckpt_path, map_location="cpu", weights_only=False)
@@ -308,6 +371,8 @@ def main(argv=None) -> int:
             w.writerow(row)
         if best is None or (math.isfinite(row["val_mae"]) and row["val_mae"] < best["val_mae"]):
             best, no_improve = dict(row), 0
+            if args.dump_forecasts:
+                torch.save(model.state_dict(), best_path)
         else:
             no_improve += 1
         print(f"epoch {epoch}: train_loss={row['train_loss']:.4f} val_mae={row['val_mae']:.4f} "
@@ -337,6 +402,9 @@ def main(argv=None) -> int:
     if not math.isfinite(best["val_mae"]):
         final["status"] = "failed"
         final["error"] = "non-finite val_mae"
+    elif args.dump_forecasts:
+        final["forecast_dump"] = dump_forecasts(trainer, model, best_path, best, out_dir, cfg, dims, device,
+                                                {"val": val_loader, "test": test_loader}, args.smoke_batches)
     write_json(metrics_path, final)
     if args.prune_ckpt and final["status"] == "done":
         ckpt_path.unlink(missing_ok=True)
