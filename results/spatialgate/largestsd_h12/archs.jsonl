@@ -18,3 +18,6 @@
 {"arch_id": "gate_rnd50a", "genotype": {"hand_model": "stid_spatial", "clock": "true", "head": "mae", "graph": null, "space": "hand_v1", "spatial": {"root": "results/spatialgate/largestsd_h12", "set": "rnd50a", "k": 16}}}
 {"arch_id": "gate_rnd50b", "genotype": {"hand_model": "stid_spatial", "clock": "true", "head": "mae", "graph": null, "space": "hand_v1", "spatial": {"root": "results/spatialgate/largestsd_h12", "set": "rnd50b", "k": 16}}}
 {"arch_id": "gate_rnd50c", "genotype": {"hand_model": "stid_spatial", "clock": "true", "head": "mae", "graph": null, "space": "hand_v1", "spatial": {"root": "results/spatialgate/largestsd_h12", "set": "rnd50c", "k": 16}}}
+{"arch_id": "gate_ora10", "genotype": {"hand_model": "stid_spatial", "clock": "true", "head": "mae", "graph": null, "space": "hand_v1", "spatial": {"root": "results/spatialgate/largestsd_h12", "set": "ora10", "k": 16}}}
+{"arch_id": "gate_ora25", "genotype": {"hand_model": "stid_spatial", "clock": "true", "head": "mae", "graph": null, "space": "hand_v1", "spatial": {"root": "results/spatialgate/largestsd_h12", "set": "ora25", "k": 16}}}
+{"arch_id": "gate_ora50", "genotype": {"hand_model": "stid_spatial", "clock": "true", "head": "mae", "graph": null, "space": "hand_v1", "spatial": {"root": "results/spatialgate/largestsd_h12", "set": "ora50", "k": 16}}}

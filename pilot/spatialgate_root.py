@@ -174,6 +174,10 @@ def read(args) -> int:
                                       test_mae_raw=("test_mae_raw", "mean"), raw_sd=("test_mae_raw", "std"),
                                       seconds_per_epoch=("seconds_per_epoch", "mean"), peak_mem_gb=("peak_mem_gb", "max")).reset_index()
         g.to_csv(root / "tables" / "archs.csv", index=False, float_format="%.6g")
+        cols = ["arch_id", "seeds", "test_mae_raw", "raw_sd", "seconds_per_epoch", "peak_mem_gb"]
+        lines = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
+        lines += ["| " + " | ".join(f"{v:.3f}" if isinstance(v, float) else str(v) for v in r) + " |" for r in g[cols].itertuples(index=False)]
+        (root / "tables" / "archs.md").write_text(f"# {ds}: test MAE in the raw unit, mean and standard deviation of the seeds\n\n" + "\n".join(lines) + "\n")
         print(g.to_string(index=False))
     return 0
 
