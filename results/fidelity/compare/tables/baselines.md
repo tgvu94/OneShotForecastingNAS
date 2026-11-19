@@ -4,7 +4,7 @@ Label = mean test MAE of seeds 0 to 2 (20 epochs, zero mask). Scores come from s
 
 ## metrla
 
-N = 50; heads {'mse': np.int64(20), 'quantile': np.int64(16), 'mae': np.int64(14)}; sigma_seed 0.00142; std of the label 5.55 sigma_seed; full training of seed 0: 10.3 GPU-hours logged on nibi, 10.3 on the reference unit.
+N = 50; heads mae 14, mse 20, quantile 16; sigma_seed 0.00142; std of the label 5.55 sigma_seed; full training of seed 0: 10.3 GPU-hours logged on nibi, 10.3 on the reference unit.
 
 | kind | evaluator | rho | rho inside heads (95 % interval) | regret b = 1 | regret b = 5 | cost share | picks to one sigma | cost to one sigma |
 |---|---|---|---|---|---|---|---|---|
@@ -40,7 +40,7 @@ N = 50; heads {'mse': np.int64(20), 'quantile': np.int64(16), 'mae': np.int64(14
 
 ## pems04
 
-N = 50; heads {'mse': np.int64(20), 'quantile': np.int64(16), 'mae': np.int64(14)}; sigma_seed 0.00042; std of the label 5.18 sigma_seed; full training of seed 0: 9.5 GPU-hours logged on nibi, 9.5 on the reference unit.
+N = 50; heads mae 14, mse 20, quantile 16; sigma_seed 0.00042; std of the label 5.18 sigma_seed; full training of seed 0: 9.5 GPU-hours logged on nibi, 9.5 on the reference unit.
 
 | kind | evaluator | rho | rho inside heads (95 % interval) | regret b = 1 | regret b = 5 | cost share | picks to one sigma | cost to one sigma |
 |---|---|---|---|---|---|---|---|---|
@@ -76,7 +76,7 @@ N = 50; heads {'mse': np.int64(20), 'quantile': np.int64(16), 'mae': np.int64(14
 
 ## chengdu
 
-N = 50; heads {'mse': np.int64(20), 'quantile': np.int64(16), 'mae': np.int64(14)}; sigma_seed 0.00131; std of the label 3.13 sigma_seed; full training of seed 0: 7.3 GPU-hours logged on rorqual, 7.2 on the reference unit.
+N = 50; heads mae 14, mse 20, quantile 16; sigma_seed 0.00131; std of the label 3.13 sigma_seed; full training of seed 0: 7.3 GPU-hours logged on rorqual, 7.2 on the reference unit.
 
 | kind | evaluator | rho | rho inside heads (95 % interval) | regret b = 1 | regret b = 5 | cost share | picks to one sigma | cost to one sigma |
 |---|---|---|---|---|---|---|---|---|
@@ -112,7 +112,7 @@ N = 50; heads {'mse': np.int64(20), 'quantile': np.int64(16), 'mae': np.int64(14
 
 ## shenzhen
 
-N = 50; heads {'mse': np.int64(20), 'quantile': np.int64(16), 'mae': np.int64(14)}; sigma_seed 0.00116; std of the label 3.60 sigma_seed; full training of seed 0: 10.4 GPU-hours logged on fir, 11.0 on the reference unit.
+N = 50; heads mae 14, mse 20, quantile 16; sigma_seed 0.00116; std of the label 3.60 sigma_seed; full training of seed 0: 10.4 GPU-hours logged on fir, 11.0 on the reference unit.
 
 | kind | evaluator | rho | rho inside heads (95 % interval) | regret b = 1 | regret b = 5 | cost share | picks to one sigma | cost to one sigma |
 |---|---|---|---|---|---|---|---|---|
@@ -148,7 +148,7 @@ N = 50; heads {'mse': np.int64(20), 'quantile': np.int64(16), 'mae': np.int64(14
 
 ## expytky
 
-N = 50; heads {'mse': np.int64(20), 'quantile': np.int64(16), 'mae': np.int64(14)}; sigma_seed 0.00188; std of the label 2.67 sigma_seed; full training of seed 0: 19.3 GPU-hours logged on rorqual, 19.1 on the reference unit.
+N = 50; heads mae 14, mse 20, quantile 16; sigma_seed 0.00188; std of the label 2.67 sigma_seed; full training of seed 0: 19.3 GPU-hours logged on rorqual, 19.1 on the reference unit.
 
 | kind | evaluator | rho | rho inside heads (95 % interval) | regret b = 1 | regret b = 5 | cost share | picks to one sigma | cost to one sigma |
 |---|---|---|---|---|---|---|---|---|
@@ -184,7 +184,7 @@ N = 50; heads {'mse': np.int64(20), 'quantile': np.int64(16), 'mae': np.int64(14
 
 ## pemsbay
 
-N = 50; heads {'mse': np.int64(20), 'quantile': np.int64(16), 'mae': np.int64(14)}; sigma_seed 0.00110; std of the label 6.23 sigma_seed; full training of seed 0: 31.8 GPU-hours logged on narval, 25.4 on the reference unit.
+N = 50; heads mae 14, mse 20, quantile 16; sigma_seed 0.00110; std of the label 6.23 sigma_seed; full training of seed 0: 31.8 GPU-hours logged on narval, 25.4 on the reference unit.
 
 | kind | evaluator | rho | rho inside heads (95 % interval) | regret b = 1 | regret b = 5 | cost share | picks to one sigma | cost to one sigma |
 |---|---|---|---|---|---|---|---|---|
