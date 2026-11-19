@@ -304,6 +304,8 @@ def find_arch(arch_id_: str, archs_path: str | Path = "results/stzero/pems04_h12
 
 
 def summarize(g: dict) -> str:
+    if g.get("hand_model"):
+        return f"hand_model={g['hand_model']} clock={g.get('clock', 'pipeline')} head={g['head']}"
     def ops(edges):
         return ",".join(f"{i}<-{j}:{op}" for i, j, op in edges if op is not None)
     s = (f"head={g['head']} dec={g['seq']['decoder_type']} | seq.enc[{ops(g['seq']['encoder'])}] "

@@ -85,6 +85,9 @@ def graph_init_kwargs(g: dict) -> dict:
 
 
 def build_discrete_net(g: dict, dims: dict, adjacency: np.ndarray | None = None, adj_path: str | Path | None = None):
+    if g.get("hand_model"):                      # a hand-designed reference model, not a genotype of the space
+        from pilot.hand_models import build_hand_model
+        return build_hand_model(g, dims)
     kwargs = net_init_kwargs(g, dims)
     if g.get("graph") is None:
         return MixedConcatSampledNet(**kwargs)

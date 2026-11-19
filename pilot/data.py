@@ -49,8 +49,10 @@ def get_cfg(benchmark: str = DEFAULT_BENCHMARK, model: str = DEFAULT_MODEL, over
                        overrides=[f"+benchmark={benchmark}", f"+model={model}", *overrides])
 
 
-def get_dataset_and_loaders(cfg, batch_size: int = 32, batch_size_test: int = 128, num_workers: int = 2):
-    """Returns (dataset, (train, val, test), dims). Copy of the PEMS branch of test_evaluated_model.py."""
+def get_dataset_and_loaders(cfg, batch_size: int = 32, batch_size_test: int = 128, num_workers: int = 2, freq: str | None = None):
+    """Returns (dataset, (train, val, test), dims). Copy of the PEMS branch of test_evaluated_model.py.
+    ``freq`` = None keeps the upstream default of the loader (one hour per step) that every list architecture was trained with;
+    a value (the frequency of the benchmark file) gives the time features of the data clock (pilot.hand_models, clock = true)."""
     from experiments.datasets import get_PEMS_dataset
     from experiments.datasets.get_data_loader import get_dataloader, get_forecasting_dataset, regenerate_splits
 
@@ -63,7 +65,7 @@ def get_dataset_and_loaders(cfg, batch_size: int = 32, batch_size_test: int = 12
         series_type=cfg.benchmark.series_type, window_size=window_size,
         do_normalization=cfg.benchmark.do_normalization,
         forecasting_horizon=cfg.benchmark.external_forecast_horizon,
-        make_dataset_uni_variant=cfg.benchmark.get("make_dataset_uni_variant", False), flag="test")
+        make_dataset_uni_variant=cfg.benchmark.get("make_dataset_uni_variant", False), flag="test", **({"freq": freq} if freq else {}))
     dataset = get_forecasting_dataset(dataset_name=cfg.benchmark.name, **data_info)
     dataset.lagged_value = [0]
     horizon = dataset.n_prediction_steps

@@ -162,7 +162,8 @@ def main(argv=None) -> int:
     cfg = get_cfg(args.benchmark)
     seed_everything(args.seed)
     dataset, (train_loader, val_loader, test_loader), dims = get_dataset_and_loaders(
-        cfg, batch_size=args.batch_size, num_workers=args.num_workers)
+        cfg, batch_size=args.batch_size, num_workers=args.num_workers,
+        freq=str(cfg.benchmark.freq) if g.get("clock") == "true" else None)
     if args.smoke_batches:
         import itertools
 
