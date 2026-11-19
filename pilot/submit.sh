@@ -20,6 +20,9 @@
 #                                                          SG_DATASETS lists the datasets; ROOT, DATASET and HORIZON are unused
 #   pilot/submit.sh ablation [ROOT] [DATASET] [HORIZON]  -> the STID single-part ablation replication on DATASET (6 variants x 3 seeds,
 #                                                          pilot/basicts_ablation.sbatch): one 8 h job named abl_<DATASET>; ROOT is unused
+#   pilot/submit.sh chronos [ROOT] [DATASET]             -> the frozen side of fmroute (pilot/fmroute_chronos.sbatch): Chronos-2 on the val and
+#                                                          test windows of DATASET, one 8 h job named fz_<DATASET>; needs ~/chronos-venv and
+#                                                          the weights under hf/ next to the nas tree; the root needs no data/ folder
 # Cluster: the resource flags come from $CC_CLUSTER.  Default (Nibi, Fir, Rorqual): one 3g.40gb slice of an H100, 8 CPUs, 32 GB,
 #   account def-rwpazzi_gpu.  trillium: one whole H100 (no slices there; 24 cores and the memory share come with the card),
 #   account def-rwpazzi; Trillium refuses --cpus-per-task, --mem and the slice string.  Submit there from the GPU login node, with
@@ -60,13 +63,19 @@ case "$mode" in
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET,HORIZON=$HORIZON,RUNS=${RUNS:-runs_main.txt},NSHARD=${NSHARD:-4}" ;;
   linear)  name=sg_linear; extra=(--time=${TIME:-03:00:00} --output="$NAS_ROOT/logs/spatialgate_linear_%j.log"); script=pilot/spatialgate_linear.sbatch
            common=(--cpus-per-task=8 --mem=${MEM:-64G} --account=def-rwpazzi_cpu "--export=ALL") ;;   # no GPU; SG_DATASETS is a comma list: ALL carries it
-  *) echo "unknown mode $mode (train | trainone | spatial | proxies | basicts | ablation | linear | sgtrain)"; exit 1 ;;
+  chronos) name=fz_$DATASET; extra=(--time=${TIME:-08:00:00} --output="$NAS_ROOT/logs/fmroute_chronos_${DATASET}_%j.log"); script=pilot/fmroute_chronos.sbatch
+           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # SETTINGS and SPLITS are space lists: ALL carries them
+  *) echo "unknown mode $mode (train | trainone | spatial | proxies | basicts | ablation | linear | sgtrain | chronos)"; exit 1 ;;
 esac
 if [ "$mode" = basicts ] || [ "$mode" = ablation ]; then
   if [ ! -d "$NAS_ROOT/BasicTS/datasets/$(tr a-z A-Z <<<"$DATASET" | sed "s/METRLA/METR-LA/;s/PEMSBAY/PEMS-BAY/")" ]; then echo "refusing: BasicTS dataset folder for $DATASET missing (run its scripts/data_preparation script)"; exit 1; fi
   if [ ! -x "$HOME/basicts-venv/bin/python" ]; then echo "refusing: ~/basicts-venv missing"; exit 1; fi
 elif [ "$mode" = sgtrain ]; then
   if [ ! -s "$ROOT/${RUNS:-runs_main.txt}" ]; then echo "refusing: $ROOT/${RUNS:-runs_main.txt} missing or empty (python -m pilot.spatialgate_root prepare)"; exit 1; fi
+elif [ "$mode" = chronos ]; then
+  if [ ! -x "${CHRONOS_VENV:-$HOME/chronos-venv}/bin/python" ]; then echo "refusing: the chronos venv is missing"; exit 1; fi
+  if [ ! -d "${HF_HOME:-$(dirname "$NAS_ROOT")/hf}/hub/models--amazon--chronos-2" ]; then echo "refusing: the weights of amazon/chronos-2 are missing under hf/"; exit 1; fi
+  mkdir -p "$ROOT"
 elif [ "$mode" != linear ]; then
   if [ ! -s "$ROOT/archs.jsonl" ]; then echo "refusing: $ROOT/archs.jsonl missing or empty"; exit 1; fi
   if [ ! -s "$ROOT/data/${DATASET}_probe_batch.pt" ]; then echo "refusing: $ROOT/data/${DATASET}_probe_batch.pt missing (python -m pilot.data --save-probe-batch --root $ROOT)"; exit 1; fi
