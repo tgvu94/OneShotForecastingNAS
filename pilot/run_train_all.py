@@ -11,6 +11,7 @@ import argparse
 import datetime as _dt
 import json
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -22,10 +23,11 @@ from pilot.paths import Root
 
 def lock_is_fresh(lock: Path, minutes: float) -> bool:
     try:
-        pid, ts = lock.read_text().split()[:2]
+        pid, ts, *host = lock.read_text().split()[:3]
         fresh = time.time() - float(ts) < minutes * 60
-        alive = _pid_alive(int(pid))
-        return fresh and alive
+        if host and host[0] != socket.gethostname():
+            return fresh  # the pid of another node cannot be tested here; the age of the lock decides
+        return fresh and _pid_alive(int(pid))
     except Exception:  # noqa: BLE001
         return False
 
@@ -89,7 +91,7 @@ def main(argv=None) -> int:
             print(f"{aid} seed {seed}: LOCK held by another runner -> skip")
             n_skip += 1
             continue
-        lock.write_text(f"{os.getpid()} {time.time()}\n")
+        lock.write_text(f"{os.getpid()} {time.time()} {socket.gethostname()}\n")
         cmd = [sys.executable, "-m", "pilot.train_arch", "--arch-id", aid, "--seed", str(seed),
                "--epochs", str(args.max_epochs), "--patience", str(args.patience), "--min-epochs", str(args.min_epochs),
                "--root", str(root.dir), "--dataset", root.dataset, "--horizon", str(root.horizon),
