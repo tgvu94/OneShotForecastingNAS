@@ -324,6 +324,16 @@ def main(argv=None) -> int:
         def _masked_training_loss(target, prediction):
             return model.head.loss(target, prediction, mask=trainer.mask_from(target))
         model.get_training_loss = _masked_training_loss
+    if g.get("train_loss"):
+        # another training loss than that of the head (pilot.regimehead); a backcast target keeps the loss of the head
+        from pilot.regimehead import make_loss
+        _named_loss, _head_loss = make_loss(g["train_loss"], Root.from_args(args).dataset), model.get_training_loss
+
+        def _named_training_loss(target, prediction):
+            if target.shape[1] != dataset.n_prediction_steps:
+                return _head_loss(target, prediction)
+            return _named_loss(target, prediction, trainer.mask_from(target))
+        model.get_training_loss = _named_training_loss
 
     min_epochs = min(args.min_epochs, args.epochs)
     schedule = {
@@ -333,7 +343,7 @@ def main(argv=None) -> int:
         "optimizer": OmegaConf.to_container(cfg.w_optimizer_eval, resolve=True),
         "lr_scheduler": OmegaConf.to_container(cfg.lr_scheduler_eval, resolve=True),
         "grad_clip": float(cfg.train.grad_clip), "amp": bool(cfg.train.amp_enable),
-        "target_scaler": str(cfg.train.targe_scaler), "loss": f"head={g['head']}" + (", zeros masked" if args.mask_zeros else ""),
+        "target_scaler": str(cfg.train.targe_scaler), "loss": f"head={g['head']}" + (f", train_loss={g['train_loss']}" if g.get("train_loss") else "") + (", zeros masked" if args.mask_zeros else ""),
         "mask_zeros": bool(args.mask_zeros), "zero_share_raw": zero_share, "smoke_batches": args.smoke_batches, "device": str(device),
         "metric": "MAE/MSE on dataset-normalised targets" + (", raw zeros masked" if args.mask_zeros else ""),
         "train_windows": dims["split_sizes"][0], "iters_per_epoch": len(train_loader),
