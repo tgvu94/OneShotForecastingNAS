@@ -7,6 +7,12 @@ is a benchmark yaml ``experiments/configs/benchmark/<benchmark_dir>/<dataset>_<h
 
     python -m pilot.datasets --list            # one line per dataset with the files that exist
     python -m pilot.datasets --list --verify   # also open every .npz and compare its node count with the registry
+    python -m pilot.datasets --clock           # the clock of every file: whole days, and the time stamps where a source has them
+
+The clock.  No .npz holds a time stamp; the loader counts the clock from the row position.  A file with rows absent has every
+later time feature behind the clock of the data.  ``absent_rows`` of a dataset lists its holes as (first row after the hole,
+absent rows); ``stamps`` names an HDF5 source file with the time stamps, against which ``--clock`` checks the list.
+pilot.data repairs the time features from ``absent_rows``.
 """
 from __future__ import annotations
 
@@ -33,7 +39,7 @@ DATASETS = {
     # its distance list uses the real sensor ids, so the adjacency is built from the pickle, not from a 0..n-1 csv
     # (files fetched from github.com/liyaguang/DCRNN/data/sensor_graph into DATA_ROOT).
     "metrla": {"benchmark_dir": "PEMS/metrla", "file_name": "METR-LA.npz", "distance_csv": None,
-               "adj_pickle": "adj_METR-LA.pkl", "sensor_ids": "metrla_graph_sensor_ids.txt",
+               "adj_pickle": "adj_METR-LA.pkl", "sensor_ids": "metrla_graph_sensor_ids.txt", "stamps": "METR-LA.h5",
                "raw_distances": "metrla_distances_la_2012.csv", "n_nodes": 207},
     # Candidate cities of the shared-list benchmark (statistics first, roots only if chosen).  PEMS03's distance list uses the
     # real sensor ids (PEMS03.txt gives the order); PEMS07 ships a ready 883 x 883 adjacency pickle.
@@ -41,7 +47,9 @@ DATASETS = {
                "adj_pickle": None, "sensor_ids": "PEMS03.txt", "raw_distances": "PEMS03_distances.csv", "n_nodes": 358},
     "pems07": {"benchmark_dir": "PEMS/pems07", "file_name": "PEMS07.npz", "distance_csv": None,
                "adj_pickle": "adj_PEMS07.pkl", "n_nodes": 883},
+    # PEMS-BAY: one hour is absent (the change to summer time); every later row is 12 steps behind the clock of the data.
     "pemsbay": {"benchmark_dir": "PEMS/pemsbay", "file_name": "PEMS-BAY.npz", "distance_csv": None,
+                "stamps": "PEMS-BAY.h5", "absent_rows": [(20184, 12)],
                 "adj_pickle": "adj_mx_bay.pkl", "sensor_ids": "PEMS-BAY_sensor_ids.txt", "raw_distances": "bay_distances.csv", "n_nodes": 325},
     # Non-California candidates, prepared by pilot.prepare_city (10-minute steps; speed).
     "chengdu": {"benchmark_dir": "PEMS/chengdu", "file_name": "CHENGDU.npz", "distance_csv": None,
@@ -136,11 +144,69 @@ def verify_npz(dataset: str) -> dict:
     return {"shape": shape, "n_nodes_match": len(shape) >= 2 and shape[1] == n_nodes(dataset)}
 
 
+def absent_rows(dataset: str) -> list[tuple[int, int]]:
+    """Holes of the file as (first row after the hole, absent rows); [] = the row position is the clock."""
+    return [(int(a), int(k)) for a, k in info(dataset).get("absent_rows", [])]
+
+
+def freq_of(dataset: str) -> str:
+    """The step of the benchmark file ('5min'), from its base yaml."""
+    info(dataset)
+    f = CONFIG_DIR / "benchmark" / "PEMS" / f"{dataset}_base.yaml"
+    m = re.search(r"^freq:\s*['\"]?(\w+)", f.read_text(), re.M) if f.exists() else None
+    if m:
+        return m[1]
+    raise KeyError(f"no freq in the benchmark yaml files of {dataset}")
+
+
+def stamp_holes(dataset: str) -> list[tuple[int, int]] | None:
+    """Holes read from the time stamps of the HDF5 source (pandas fixed format: <group>/axis1); None = no such source here."""
+    import h5py
+    import numpy as np
+
+    p = _resolve(info(dataset).get("stamps"))
+    if p is None or not p.exists():
+        return None
+    with h5py.File(p, "r") as f:
+        t = np.asarray(f[list(f.keys())[0]]["axis1"][:], dtype=np.int64)
+    d = np.diff(t)
+    step = int(np.bincount((d // d.min()).astype(np.int64)).argmax()) * int(d.min())
+    return [(int(i) + 1, int(d[i] // step) - 1) for i in np.nonzero(d != step)[0]]
+
+
+def clock_check(dataset: str) -> dict:
+    """Rows of the file against whole days, and the registered holes against the time stamps."""
+    import numpy as np
+    import pandas as pd
+
+    rows = int(np.load(npz_path(dataset), mmap_mode="r")["data"].shape[0])
+    per_day = int(pd.Timedelta(days=1) / pd.Timedelta(freq_of(dataset)))
+    holes = absent_rows(dataset)
+    stamps = stamp_holes(dataset)
+    return {"rows": rows, "steps_per_day": per_day, "absent_rows": holes, "stamp_holes": stamps,
+            "whole_days": (rows + sum(k for _, k in holes)) % per_day == 0,
+            "stamps_agree": None if stamps is None else stamps == holes}
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="pilot dataset registry")
+    ap.add_argument("--clock", action="store_true", help="check the clock of every file that exists")
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--verify", action="store_true", help="with --list: open every .npz and check its node count")
     args = ap.parse_args(argv)
+    if args.clock:
+        rc = 0
+        for ds in DATASETS:
+            if not npz_path(ds).exists():
+                print(f"{ds:11s} no file")
+                continue
+            c = clock_check(ds)
+            ok = c["whole_days"] and c["stamps_agree"] is not False
+            rc |= 0 if ok else 1
+            print(f"{ds:11s} rows {c['rows']:6d}  steps per day {c['steps_per_day']:4d}  days {(c['rows'] + sum(k for _, k in c['absent_rows'])) / c['steps_per_day']:.2f}  "
+                  f"absent rows {c['absent_rows'] or 'none'}  time stamps {'no source' if c['stamp_holes'] is None else c['stamp_holes'] or 'no hole'}  "
+                  f"{'ok' if ok else 'FAIL'}")
+        return rc
     if not args.list:
         ap.print_help()
         return 0

@@ -49,11 +49,27 @@ def get_cfg(benchmark: str = DEFAULT_BENCHMARK, model: str = DEFAULT_MODEL, over
                        overrides=[f"+benchmark={benchmark}", f"+model={model}", *overrides])
 
 
+def repair_clock(features, holes, week: int) -> int:
+    """features [rows, F] counted from the row position -> the same array with the clock of the data, in place.
+    ``holes`` = (first row after the hole, absent rows).  Row r behind a hole of k rows gets the features of position r + k.
+    The last rows take the features one week earlier: minute, hour and day of week are right; day of month and day of year,
+    which no hand model reads, are not.  Returns the number of rows that changed."""
+    n = len(features)
+    src = np.arange(n)
+    for first, k in holes:
+        src[first:] += k
+    src = np.where(src >= n, src - week, src)
+    features[:] = features[src]
+    return int((src != np.arange(n)).sum())
+
+
 def get_dataset_and_loaders(cfg, batch_size: int = 32, batch_size_test: int = 128, num_workers: int = 2, freq: str | None = None,
                             subset: dict | None = None):
     """Returns (dataset, (train, val, test), dims). Copy of the PEMS branch of test_evaluated_model.py.
     ``freq`` = None keeps the upstream default of the loader (one hour per step) that every list architecture was trained with;
     a value (the frequency of the benchmark file) gives the time features of the data clock (pilot.hand_models, clock = true).
+    With a value, the holes of the file (pilot.datasets.absent_rows) are repaired, so that the features follow the clock of the
+    data and not the row position; PILOT_ROW_CLOCK=1 keeps the row position, which every run before this repair had.
     ``subset`` (pilot.subset) keeps a part of the sensors and of the training rows; None = the whole city."""
     from experiments.datasets import get_PEMS_dataset
     from experiments.datasets.get_data_loader import get_dataloader, get_forecasting_dataset, regenerate_splits
@@ -86,6 +102,15 @@ def get_dataset_and_loaders(cfg, batch_size: int = 32, batch_size_test: int = 12
     loaders = get_dataloader(dataset=dataset, splits=split, batch_size=batch_size, window_size=window_size,
                              is_test_sets=[False, True, True], batch_size_test=batch_size_test,
                              num_workers=num_workers)
+    clock_rows_moved = 0
+    if freq and os.environ.get("PILOT_ROW_CLOCK", "0") != "1":
+        import pandas as pd
+        from pilot.datasets import absent_rows, setting_from_benchmark_name
+        holes = absent_rows(setting_from_benchmark_name(str(cfg.benchmark.name))[0])
+        if holes:
+            week = int(pd.Timedelta(days=7) / pd.Timedelta(freq))
+            clock_rows_moved = sum(repair_clock(d._cached_time_features, holes, week) for d in dataset.datasets)
+            print(f"clock: the time features of {clock_rows_moved} rows moved to the clock of the data ({holes})", flush=True)
     num_targets = int(dataset.num_targets)
     n_time_features = len(dataset.time_feature_transform)
     search_sample_interval = int(cfg.benchmark.dataloader.get("search_sample_interval", 1))
@@ -105,6 +130,7 @@ def get_dataset_and_loaders(cfg, batch_size: int = 32, batch_size_test: int = 12
         "batch_size": batch_size,
         "batch_size_test": batch_size_test,
         "subset": subset["name"] if subset is not None else None,
+        "clock_rows_moved": int(clock_rows_moved),
     }
     return dataset, loaders, dims
 
