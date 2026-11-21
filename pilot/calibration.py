@@ -149,18 +149,23 @@ def parts_table(cities: list[dict], ours: bool = False) -> list[str]:
 
 
 def list_sample(ds: str) -> list[str]:
-    """A sample of the shared list trained again under a variant of pilot/calibration_ours.sbatch, against the stored labels of
-    results/calibration/<city>/list_sample.csv (arch_id, val_mae, test_mae of seed 0 in the benchst root; the dataset-normalised unit)."""
+    """Architectures of the shared list trained again under a variant of pilot/calibration_ours.sbatch, against the stored labels
+    of results/calibration/<city>/list_*.csv (arch_id, val_mae, test_mae of seed 0 in the benchst root; the dataset-normalised
+    unit).  One table per folder results/calibration/<city>/list*/<variant>/ (list = the sample, list_top = the best stored
+    architectures outside the sample, list_patience = a patience of 20 epochs); a folder other than list also has the run of
+    the same architecture and variant in list, where one exists."""
     import csv
     from scipy.stats import kendalltau, spearmanr
-    stored = {r["arch_id"]: r for r in csv.DictReader(open(BASE / ds / "list_sample.csv"))}
-    L = [f"## {ds}: the sample of the shared list", ""]
-    for d in sorted((BASE / ds / "list").glob("*")):
+    stored = {r["arch_id"]: r for f in sorted((BASE / ds).glob("list_*.csv")) for r in csv.DictReader(open(f))}
+    L, best = [f"## {ds}: architectures of the shared list", ""], []
+    for d in sorted(p for p in (BASE / ds).glob("list*/*") if p.is_dir()):
         new = {f.parts[-3]: json.loads(f.read_text()) for f in sorted(d.glob("*/seed0/metrics.json")) if f.parts[-3] in stored}
         ids = sorted(new)
         if len(ids) < 3:
             continue
-        L += [f"**Variant {d.name}: {len(ids)} of {len(stored)} architectures.**", ""]
+        arm = f"{d.parent.name}/{d.name}"
+        best += [(new[i]["test_mae"], new[i]["val_mae"], i, arm) for i in ids]
+        L += [f"**{arm}: {len(ids)} architectures.**", ""]
         for key in ("val_mae", "test_mae"):
             a = np.array([float(stored[i][key]) for i in ids]); b = np.array([float(new[i][key]) for i in ids])
             L.append(f"- {key}: stored median {np.median(a):.4f}, best {a.min():.4f}; new median {np.median(b):.4f}, best {b.min():.4f}; "
@@ -169,11 +174,24 @@ def list_sample(ds: str) -> list[str]:
                      f"spread of the list (max - min) stored {a.max() - a.min():.4f}, new {b.max() - b.min():.4f}")
         top = sorted(ids, key=lambda i: float(stored[i]["val_mae"]))[:5]
         rank_new = {i: k + 1 for k, i in enumerate(sorted(ids, key=lambda i: new[i]["val_mae"]))}
-        L += [f"- the 5 best of the stored validation label have the new validation ranks {[rank_new[i] for i in top]}", "",
-              "| arch_id | stored val | stored test | new val | new test | epochs run |", "|---|---|---|---|---|---|"]
+        L.append(f"- the 5 best of the stored validation label have the new validation ranks {[rank_new[i] for i in top]}")
+        ref = {}
+        if d.parent.name != "list":
+            ref = {i: json.loads(f.read_text()) for i in ids for f in [BASE / ds / "list" / d.name / i / "seed0" / "metrics.json"] if f.exists()}
+        if ref:
+            dv = np.array([new[i]["val_mae"] - ref[i]["val_mae"] for i in sorted(ref)]); dt = np.array([new[i]["test_mae"] - ref[i]["test_mae"] for i in sorted(ref)])
+            L.append(f"- against the run of list/{d.name} ({len(ref)} architectures): median change of val_mae {np.median(dv):+.4f}, of test_mae {np.median(dt):+.4f} "
+                     f"(range {dt.min():+.4f} to {dt.max():+.4f})")
+        L += ["", "| arch_id | stored val | stored test | new val | new test | epochs run |" + (f" list/{d.name} val | list/{d.name} test | epochs run |" if ref else ""),
+              "|---|---|---|---|---|---|" + ("---|---|---|" if ref else "")]
         L += [f"| {i} | {float(stored[i]['val_mae']):.4f} | {float(stored[i]['test_mae']):.4f} | {new[i]['val_mae']:.4f} | {new[i]['test_mae']:.4f} | {new[i].get('epochs_run', '')} |"
+              + (f" {ref[i]['val_mae']:.4f} | {ref[i]['test_mae']:.4f} | {ref[i].get('epochs_run', '')} |" if i in ref else (" | | |" if ref else ""))
               for i in sorted(ids, key=lambda i: float(stored[i]["val_mae"]))]
         L.append("")
+    if best:
+        t = min(best); v = min(best, key=lambda r: r[1])
+        L += [f"**Every run: {len(best)} runs of {len({r[2] for r in best})} architectures.** Best test_mae {t[0]:.4f} ({t[2]}, {t[3]}); "
+              f"the run with the best val_mae ({v[1]:.4f}; {v[2]}, {v[3]}) has test_mae {v[0]:.4f}.", ""]
     return L
 
 

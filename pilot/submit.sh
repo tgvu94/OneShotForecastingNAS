@@ -74,7 +74,7 @@ case "$mode" in
   calibparts) name=cp_$DATASET; extra=(--time=${TIME:-03:00:00} --output="$NAS_ROOT/logs/calibration_parts_${DATASET}_%j.log"); script=pilot/calibration_parts.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # VARIANTS and SEEDS are space lists: ALL carries them
   calibours) name=${JOB_NAME:-co_$DATASET}; extra=(--time=${TIME:-03:00:00} --output="$NAS_ROOT/logs/calibration_ours_${JOB_NAME:-$DATASET}_%j.log"); script=pilot/calibration_ours.sbatch
-           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # VARIANTS, SEEDS, ARCH_FILE, SHARD, OUT_SUB, DUMP: ALL carries them
+           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # VARIANTS, SEEDS, ARCH_FILE, SHARD, OUT_SUB, DUMP, PATIENCE: ALL carries them
   autoctspp) name=${JOB_NAME:-ap_$DATASET}; extra=(--time=${TIME:-03:00:00} --output="$NAS_ROOT/logs/autoctspp_${JOB_NAME:-$DATASET}_%j.log"); script=pilot/autoctspp.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # STEPS, SEEDS, ARCHS, EPOCHS, EVAL_BATCH, SHARD, LIMIT, OUT_SUB, SAMPLE_SCALE: ALL carries them
   *) echo "unknown mode $mode (autoctspp | calibours | calibparts | train | trainone | spatial | proxies | basicts | ablation | linear | sgtrain | chronos)"; exit 1 ;;
