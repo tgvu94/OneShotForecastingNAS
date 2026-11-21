@@ -18,8 +18,11 @@ for step in ${STEPS:-train}; do
              cp "$UP/task_feature/PEMS-BAY/pems-bay/${P}_ts2vec_task_feature.npy" "$R/task_feature.npy" ;;
     search)  (cd "$UP/scripts" && python ../exps/random_search.py --dataset PEMS-BAY/pems-bay --mode search --exp_id 0 --sample_scale "${SAMPLE_SCALE:-300000}" --seq_len "$P" 2>&1 | grep -E "pred time|^\[\[|Error|Traceback" | tail -5)
              cp "$UP/results/searched_archs/PEMS-BAY/pems-bay/${P}_param_0.npy" "$R/searched.npy" ;;
-    train)   python -m pilot.autoctspp_run train --up "$UP" --seq-len "$P" --archs "${ARCHS:-$R/searched.npy}" --seeds ${SEEDS:-0} --epochs "${EPOCHS:-100}" \
-               --eval-batch "${EVAL_BATCH:-1}" ${SHARD:+--shard "$SHARD"} ${LIMIT:+--limit "$LIMIT"} --out "$R/${OUT_SUB:-train}" 2>&1 | grep -E "^data|^done|^skip|Error|Traceback|error" ;;
+    train)   for eb in ${EVAL_BATCH:-1}; do      # more than one value: one output folder per value (a timing of the evaluation)
+               sub="${OUT_SUB:-train}"; [ "${EVAL_BATCH:-1}" != "$eb" ] && sub="${sub}_evalbatch$eb"
+               python -m pilot.autoctspp_run train --up "$UP" --seq-len "$P" --archs "${ARCHS:-$R/searched.npy}" --seeds ${SEEDS:-0} --epochs "${EPOCHS:-100}" \
+                 --eval-batch "$eb" ${SHARD:+--shard "$SHARD"} ${LIMIT:+--limit "$LIMIT"} --out "$R/$sub" 2>&1 | grep -E "^data|^done|^skip|Error|Traceback|error"
+             done ;;
     *) echo "unknown step $step" ;;
   esac
   echo "step $step elapsed $(( $(date +%s) - t0 )) s"
