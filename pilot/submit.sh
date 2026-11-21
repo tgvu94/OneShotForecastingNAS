@@ -23,6 +23,9 @@
 #   pilot/submit.sh chronos [ROOT] [DATASET]             -> the frozen side of fmroute (pilot/fmroute_chronos.sbatch): Chronos-2 on the val and
 #                                                          test windows of DATASET, one 8 h job named fz_<DATASET>; needs ~/chronos-venv and
 #                                                          the weights under hf/ next to the nas tree; the root needs no data/ folder
+#   pilot/submit.sh calibparts [ROOT] DATASET            -> STID under BasicTS with one part of our pipeline at a time
+#                                                          (pilot/calibration_parts.sbatch): one 3 h job named cp_<DATASET> (TIME
+#                                                          overrides); VARIANTS and SEEDS select the runs; ROOT is unused
 # Cluster: the resource flags come from $CC_CLUSTER.  Default (Nibi, Fir, Rorqual): one 3g.40gb slice of an H100, 8 CPUs, 32 GB,
 #   account def-rwpazzi_gpu.  trillium: one whole H100 (no slices there; 24 cores and the memory share come with the card),
 #   account def-rwpazzi; Trillium refuses --cpus-per-task, --mem and the slice string.  Submit there from the GPU login node, with
@@ -65,9 +68,11 @@ case "$mode" in
            common=(--cpus-per-task=8 --mem=${MEM:-64G} --account=def-rwpazzi_cpu "--export=ALL") ;;   # no GPU; SG_DATASETS is a comma list: ALL carries it
   chronos) name=fz_$DATASET; extra=(--time=${TIME:-08:00:00} --output="$NAS_ROOT/logs/fmroute_chronos_${DATASET}_%j.log"); script=pilot/fmroute_chronos.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # SETTINGS and SPLITS are space lists: ALL carries them
-  *) echo "unknown mode $mode (train | trainone | spatial | proxies | basicts | ablation | linear | sgtrain | chronos)"; exit 1 ;;
+  calibparts) name=cp_$DATASET; extra=(--time=${TIME:-03:00:00} --output="$NAS_ROOT/logs/calibration_parts_${DATASET}_%j.log"); script=pilot/calibration_parts.sbatch
+           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # VARIANTS and SEEDS are space lists: ALL carries them
+  *) echo "unknown mode $mode (calibparts | train | trainone | spatial | proxies | basicts | ablation | linear | sgtrain | chronos)"; exit 1 ;;
 esac
-if [ "$mode" = basicts ] || [ "$mode" = ablation ]; then
+if [ "$mode" = basicts ] || [ "$mode" = ablation ] || [ "$mode" = calibparts ]; then
   if [ ! -d "$NAS_ROOT/BasicTS/datasets/$(tr a-z A-Z <<<"$DATASET" | sed "s/METRLA/METR-LA/;s/PEMSBAY/PEMS-BAY/")" ]; then echo "refusing: BasicTS dataset folder for $DATASET missing (run its scripts/data_preparation script)"; exit 1; fi
   if [ ! -x "$HOME/basicts-venv/bin/python" ]; then echo "refusing: ~/basicts-venv missing"; exit 1; fi
 elif [ "$mode" = sgtrain ]; then

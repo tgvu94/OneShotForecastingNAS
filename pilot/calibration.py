@@ -2,6 +2,7 @@
 (Survey/experiments/calibration-plan.md).
 
     python -m pilot.calibration --datasets metrla pemsbay --out results/calibration/compare/MEASURES.md
+    python -m pilot.calibration --datasets metrla pemsbay --parts --out results/calibration/compare/PARTS.md
 
 Reads, per city:
   $NAS_ROOT/BasicTS/checkpoints/<run>/<NAME>/full_s<seed>/*/test_results/predictions.npy   BasicTS run of a model, stock config,
@@ -81,13 +82,78 @@ def city(ds: str, basicts: Path) -> dict:
     return out
 
 
+PARTS = ("stock", "split", "nodescale", "nodeloss", "instnorm", "clip", "sched", "all")
+LONG_HISTORY = ("instnorm", "all")                                   # variants whose dataset gives 96 history steps
+
+
+def parts(ds: str, basicts: Path) -> dict:
+    """STID under BasicTS with one part of our pipeline at a time (checkpoints/STID_parts), on the windows that every variant
+    and the benchst split hold."""
+    raw = load_raw(ds)[:, :, 0].astype(np.float32)
+    n, N = raw.shape
+    test_len = int(n * 0.2)
+    first = lambda hist: (n - test_len) + hist                         # noqa: E731  first target row of the first test window
+    our_rows = split_rows(n, WINDOW, HORIZON, "test")
+    start = max(first(96), int(our_rows[0]))
+    rows = np.arange(start, n - HORIZON + 1)
+    y = raw[rows[:, None] + np.arange(HORIZON)[None]]
+    v = y != 0
+    lab = regime_labels(ds, "test", load_raw(ds), "absolute")[start - int(our_rows[0]):]
+    out = {"dataset": ds, "windows": int(len(rows)), "rows": {}}
+    for run in sorted((basicts / "checkpoints" / "STID_parts" / NAME[ds]).glob("*_s*")):
+        variant, seed = run.name.rsplit("_s", 1)
+        f = sorted(run.glob("*/test_results/predictions.npy"))
+        if not f:
+            continue
+        hist = 96 if variant in LONG_HISTORY else 12
+        w = test_len - hist - HORIZON + 1
+        p = np.memmap(f[-1], dtype=np.float32, mode="r", shape=(w, HORIZON, N, 1))[..., 0]
+        t = np.memmap(f[-1].with_name("targets.npy"), dtype=np.float32, mode="r", shape=(w, HORIZON, N, 1))[..., 0]
+        skip = start - first(hist)
+        gap = float(np.abs(np.asarray(t[skip:]) - y).max())
+        assert gap < 1e-2, f"{f[-1]}: the targets of the run differ from the raw file (max gap {gap})"
+        out["rows"].setdefault(variant, []).append(scores(np.asarray(p[skip:]), y, v, lab))
+    bench = [np.load(f)[start - int(our_rows[0]):] for f in sorted((BASE / ds / "benchst").glob("stid_trueclock_seed*.npy"))]
+    if bench:
+        out["rows"]["benchst, stid_trueclock"] = [scores(p, y, v, lab) for p in bench]
+    fz = BASE / ds / "frozen" / "chronos2_joint_test.npy"
+    if fz.exists():
+        out["rows"]["chronos2_joint"] = [scores(np.load(fz)[start - int(our_rows[0]):], y, v, lab)]
+    return out
+
+
+def parts_table(cities: list[dict]) -> list[str]:
+    L = ["# calibration: STID under the BasicTS pipeline with one part of our pipeline at a time", "",
+         "Masked MAE in the raw unit (mph) on the test windows that every variant and the benchst split hold.  A value is the mean of",
+         "the seeds of the row; the column 'against stock' is the mean of the 12 steps against the row 'stock'.", ""]
+    for c in cities:
+        L += [f"## {c['dataset']} ({c['windows']} windows)", "", "| Variant | seeds | " + " | ".join(COLS) + " | against stock |", "|---|---|" + "---|" * (len(COLS) + 1)]
+        ref = np.mean(c["rows"]["stock"], 0)[3] if "stock" in c["rows"] else None
+        order = [p for p in PARTS if p in c["rows"]] + [k for k in c["rows"] if k not in PARTS]
+        for k in order:
+            m = np.mean(c["rows"][k], 0)
+            L.append(f"| {k} | {len(c['rows'][k])} | " + " | ".join(f"{x:.4f}" for x in m) + f" | {100 * (m[3] / ref - 1):+.2f} % |" if ref else "")
+        L.append("")
+    return L
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="calibration: published protocol against the published error and the frozen model")
     ap.add_argument("--datasets", nargs="+", required=True, choices=sorted(NAME))
     ap.add_argument("--basicts", default=None, help="default: $NAS_ROOT/BasicTS, or ../BasicTS")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--parts", action="store_true", help="the table of the runs of pilot/calibration_parts.sbatch")
     args = ap.parse_args(argv)
     basicts = Path(args.basicts or Path(os.environ.get("NAS_ROOT", "..")) / "BasicTS")
+    if args.parts:
+        cities = [parts(ds, basicts) for ds in args.datasets]
+        L = parts_table(cities)
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text("\n".join(L) + "\n")
+        out.with_suffix(".json").write_text(json.dumps(cities, indent=1))
+        print("\n".join(L))
+        return 0
     cities = [city(ds, basicts) for ds in args.datasets]
     L = ["# calibration: hand designs under the published protocol, the frozen model and the benchst protocol", "",
          "Masked MAE in the raw unit (mph); a target of 0 is missing.  A trained value is the mean ± standard deviation (ddof = 1) of 3 seeds.",
