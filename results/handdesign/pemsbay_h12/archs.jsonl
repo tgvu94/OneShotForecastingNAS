@@ -1,0 +1,4 @@
+{"arch_id": "stid_pipeclock", "genotype": {"hand_model": "stid", "clock": "pipeline", "head": "mae", "graph": null, "space": "hand_v1"}}
+{"arch_id": "stid_trueclock", "genotype": {"hand_model": "stid", "clock": "true", "head": "mae", "graph": null, "space": "hand_v1"}}
+{"arch_id": "staeformer_pipeclock", "genotype": {"hand_model": "staeformer", "clock": "pipeline", "head": "mae", "graph": null, "space": "hand_v1"}}
+{"arch_id": "staeformer_trueclock", "genotype": {"hand_model": "staeformer", "clock": "true", "head": "mae", "graph": null, "space": "hand_v1"}}
