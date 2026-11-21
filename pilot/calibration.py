@@ -86,7 +86,7 @@ PARTS = ("stock", "split", "nodescale", "nodeloss", "instnorm", "clip", "sched",
 LONG_HISTORY = ("instnorm", "all")                                   # variants whose dataset gives 96 history steps
 
 
-def parts(ds: str, basicts: Path) -> dict:
+def parts(ds: str, basicts: Path, ours: bool = False) -> dict:
     """STID under BasicTS with one part of our pipeline at a time (checkpoints/STID_parts), on the windows that every variant
     and the benchst split hold."""
     raw = load_raw(ds)[:, :, 0].astype(np.float32)
@@ -102,6 +102,8 @@ def parts(ds: str, basicts: Path) -> dict:
     out = {"dataset": ds, "windows": int(len(rows)), "rows": {}}
     for run in sorted((basicts / "checkpoints" / "STID_parts" / NAME[ds]).glob("*_s*")):
         variant, seed = run.name.rsplit("_s", 1)
+        if ours and variant != "stock":
+            continue
         f = sorted(run.glob("*/test_results/predictions.npy"))
         if not f:
             continue
@@ -113,6 +115,11 @@ def parts(ds: str, basicts: Path) -> dict:
         gap = float(np.abs(np.asarray(t[skip:]) - y).max())
         assert gap < 1e-2, f"{f[-1]}: the targets of the run differ from the raw file (max gap {gap})"
         out["rows"].setdefault(variant, []).append(scores(np.asarray(p[skip:]), y, v, lab))
+    for d in sorted((BASE / ds / "ours").glob("*")) if ours else []:      # runs of pilot/calibration_ours.sbatch
+        dumps = [np.load(f) for f in sorted(d.glob("stid_trueclock/seed*/forecast_test.npy"))]
+        assert all(p.shape == (len(our_rows), HORIZON, N) for p in dumps), f"{d}: a forecast dump has an unexpected shape"
+        if dumps:
+            out["rows"][f"ours, {d.name}"] = [scores(p[start - int(our_rows[0]):], y, v, lab) for p in dumps]
     bench = [np.load(f)[start - int(our_rows[0]):] for f in sorted((BASE / ds / "benchst").glob("stid_trueclock_seed*.npy"))]
     if bench:
         out["rows"]["benchst, stid_trueclock"] = [scores(p, y, v, lab) for p in bench]
@@ -122,17 +129,21 @@ def parts(ds: str, basicts: Path) -> dict:
     return out
 
 
-def parts_table(cities: list[dict]) -> list[str]:
-    L = ["# calibration: STID under the BasicTS pipeline with one part of our pipeline at a time", "",
+def parts_table(cities: list[dict], ours: bool = False) -> list[str]:
+    L = ["# calibration: stid_trueclock under our pipeline with the two settings of the trainer taken out" if ours else
+         "# calibration: STID under the BasicTS pipeline with one part of our pipeline at a time", "",
          "Masked MAE in the raw unit (mph) on the test windows that every variant and the benchst split hold.  A value is the mean of",
-         "the seeds of the row; the column 'against stock' is the mean of the 12 steps against the row 'stock'.", ""]
+         "the seeds of the row; the column 'against stock' is the mean of the 12 steps against the row 'stock' (STID under the stock",
+         "BasicTS run on this cluster); 'sd' is the standard deviation (ddof = 1) of the mean of the 12 steps over the seeds.", ""]
     for c in cities:
-        L += [f"## {c['dataset']} ({c['windows']} windows)", "", "| Variant | seeds | " + " | ".join(COLS) + " | against stock |", "|---|---|" + "---|" * (len(COLS) + 1)]
+        L += [f"## {c['dataset']} ({c['windows']} windows)", "", "| Variant | seeds | " + " | ".join(COLS) + " | sd | against stock |", "|---|---|" + "---|" * (len(COLS) + 2)]
         ref = np.mean(c["rows"]["stock"], 0)[3] if "stock" in c["rows"] else None
         order = [p for p in PARTS if p in c["rows"]] + [k for k in c["rows"] if k not in PARTS]
         for k in order:
-            m = np.mean(c["rows"][k], 0)
-            L.append(f"| {k} | {len(c['rows'][k])} | " + " | ".join(f"{x:.4f}" for x in m) + f" | {100 * (m[3] / ref - 1):+.2f} % |" if ref else "")
+            r = np.array(c["rows"][k])
+            m = r.mean(0)
+            sd = f"{r[:, 3].std(ddof=1):.4f}" if len(r) > 1 else ""
+            L.append(f"| {k} | {len(r)} | " + " | ".join(f"{x:.4f}" for x in m) + f" | {sd} | " + (f"{100 * (m[3] / ref - 1):+.2f} %" if ref else "") + " |")
         L.append("")
     return L
 
@@ -143,11 +154,12 @@ def main(argv=None) -> int:
     ap.add_argument("--basicts", default=None, help="default: $NAS_ROOT/BasicTS, or ../BasicTS")
     ap.add_argument("--out", required=True)
     ap.add_argument("--parts", action="store_true", help="the table of the runs of pilot/calibration_parts.sbatch")
+    ap.add_argument("--ours", action="store_true", help="the table of the runs of pilot/calibration_ours.sbatch, beside the stock BasicTS run")
     args = ap.parse_args(argv)
     basicts = Path(args.basicts or Path(os.environ.get("NAS_ROOT", "..")) / "BasicTS")
-    if args.parts:
-        cities = [parts(ds, basicts) for ds in args.datasets]
-        L = parts_table(cities)
+    if args.parts or args.ours:
+        cities = [parts(ds, basicts, args.ours) for ds in args.datasets]
+        L = parts_table(cities, args.ours)
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text("\n".join(L) + "\n")
