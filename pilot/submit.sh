@@ -70,8 +70,8 @@ case "$mode" in
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # SETTINGS and SPLITS are space lists: ALL carries them
   calibparts) name=cp_$DATASET; extra=(--time=${TIME:-03:00:00} --output="$NAS_ROOT/logs/calibration_parts_${DATASET}_%j.log"); script=pilot/calibration_parts.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # VARIANTS and SEEDS are space lists: ALL carries them
-  calibours) name=co_$DATASET; extra=(--time=${TIME:-03:00:00} --output="$NAS_ROOT/logs/calibration_ours_${DATASET}_%j.log"); script=pilot/calibration_ours.sbatch
-           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # VARIANTS and SEEDS are space lists: ALL carries them
+  calibours) name=${JOB_NAME:-co_$DATASET}; extra=(--time=${TIME:-03:00:00} --output="$NAS_ROOT/logs/calibration_ours_${JOB_NAME:-$DATASET}_%j.log"); script=pilot/calibration_ours.sbatch
+           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # VARIANTS, SEEDS, ARCH_FILE, SHARD, OUT_SUB, DUMP: ALL carries them
   *) echo "unknown mode $mode (calibours | calibparts | train | trainone | spatial | proxies | basicts | ablation | linear | sgtrain | chronos)"; exit 1 ;;
 esac
 if [ "$mode" = basicts ] || [ "$mode" = ablation ] || [ "$mode" = calibparts ]; then
@@ -84,7 +84,10 @@ elif [ "$mode" = chronos ]; then
   if [ ! -d "${HF_HOME:-$(dirname "$NAS_ROOT")/hf}/hub/models--amazon--chronos-2" ]; then echo "refusing: the weights of amazon/chronos-2 are missing under hf/"; exit 1; fi
   mkdir -p "$ROOT"
 elif [ "$mode" = calibours ]; then
-  if ! grep -q '"stid_trueclock"' "$ROOT/archs.jsonl" 2>/dev/null; then echo "refusing: $ROOT/archs.jsonl has no record stid_trueclock"; exit 1; fi
+  if [ -n "${ARCH_FILE:-}" ]; then
+    if [ ! -s "$ARCH_FILE" ]; then echo "refusing: $ARCH_FILE missing or empty"; exit 1; fi
+    if [ ! -s "$ROOT/data/${DATASET}_adj.npy" ]; then echo "refusing: $ROOT/data/${DATASET}_adj.npy missing"; exit 1; fi
+  elif ! grep -q '"stid_trueclock"' "$ROOT/archs.jsonl" 2>/dev/null; then echo "refusing: $ROOT/archs.jsonl has no record stid_trueclock"; exit 1; fi
 elif [ "$mode" != linear ]; then
   if [ ! -s "$ROOT/archs.jsonl" ]; then echo "refusing: $ROOT/archs.jsonl missing or empty"; exit 1; fi
   if [ ! -s "$ROOT/data/${DATASET}_probe_batch.pt" ]; then echo "refusing: $ROOT/data/${DATASET}_probe_batch.pt missing (python -m pilot.data --save-probe-batch --root $ROOT)"; exit 1; fi

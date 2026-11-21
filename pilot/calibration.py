@@ -148,15 +148,55 @@ def parts_table(cities: list[dict], ours: bool = False) -> list[str]:
     return L
 
 
+def list_sample(ds: str) -> list[str]:
+    """A sample of the shared list trained again under a variant of pilot/calibration_ours.sbatch, against the stored labels of
+    results/calibration/<city>/list_sample.csv (arch_id, val_mae, test_mae of seed 0 in the benchst root; the dataset-normalised unit)."""
+    import csv
+    from scipy.stats import kendalltau, spearmanr
+    stored = {r["arch_id"]: r for r in csv.DictReader(open(BASE / ds / "list_sample.csv"))}
+    L = [f"## {ds}: the sample of the shared list", ""]
+    for d in sorted((BASE / ds / "list").glob("*")):
+        new = {f.parts[-3]: json.loads(f.read_text()) for f in sorted(d.glob("*/seed0/metrics.json")) if f.parts[-3] in stored}
+        ids = sorted(new)
+        if len(ids) < 3:
+            continue
+        L += [f"**Variant {d.name}: {len(ids)} of {len(stored)} architectures.**", ""]
+        for key in ("val_mae", "test_mae"):
+            a = np.array([float(stored[i][key]) for i in ids]); b = np.array([float(new[i][key]) for i in ids])
+            L.append(f"- {key}: stored median {np.median(a):.4f}, best {a.min():.4f}; new median {np.median(b):.4f}, best {b.min():.4f}; "
+                     f"median change {100 * np.median(b / a - 1):+.2f} % (range {100 * (b / a - 1).min():+.2f} to {100 * (b / a - 1).max():+.2f}); "
+                     f"Spearman {spearmanr(a, b)[0]:.3f}, Kendall {kendalltau(a, b)[0]:.3f}; "
+                     f"spread of the list (max - min) stored {a.max() - a.min():.4f}, new {b.max() - b.min():.4f}")
+        top = sorted(ids, key=lambda i: float(stored[i]["val_mae"]))[:5]
+        rank_new = {i: k + 1 for k, i in enumerate(sorted(ids, key=lambda i: new[i]["val_mae"]))}
+        L += [f"- the 5 best of the stored validation label have the new validation ranks {[rank_new[i] for i in top]}", "",
+              "| arch_id | stored val | stored test | new val | new test | epochs run |", "|---|---|---|---|---|---|"]
+        L += [f"| {i} | {float(stored[i]['val_mae']):.4f} | {float(stored[i]['test_mae']):.4f} | {new[i]['val_mae']:.4f} | {new[i]['test_mae']:.4f} | {new[i].get('epochs_run', '')} |"
+              for i in sorted(ids, key=lambda i: float(stored[i]["val_mae"]))]
+        L.append("")
+    return L
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="calibration: published protocol against the published error and the frozen model")
     ap.add_argument("--datasets", nargs="+", required=True, choices=sorted(NAME))
     ap.add_argument("--basicts", default=None, help="default: $NAS_ROOT/BasicTS, or ../BasicTS")
     ap.add_argument("--out", required=True)
     ap.add_argument("--parts", action="store_true", help="the table of the runs of pilot/calibration_parts.sbatch")
+    ap.add_argument("--list", action="store_true", help="the sample of the shared list under a variant, against the stored labels")
     ap.add_argument("--ours", action="store_true", help="the table of the runs of pilot/calibration_ours.sbatch, beside the stock BasicTS run")
     args = ap.parse_args(argv)
     basicts = Path(args.basicts or Path(os.environ.get("NAS_ROOT", "..")) / "BasicTS")
+    if args.list:
+        L = ["# calibration: a sample of the shared list trained again with a setting of the trainer changed", "",
+             "Masked MAE in the dataset-normalised unit, seed 0, the benchst split.  'stored' is the label of the benchst root.", ""]
+        for ds in args.datasets:
+            L += list_sample(ds)
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text("\n".join(L) + "\n")
+        print("\n".join(L))
+        return 0
     if args.parts or args.ours:
         cities = [parts(ds, basicts, args.ours) for ds in args.datasets]
         L = parts_table(cities, args.ours)
