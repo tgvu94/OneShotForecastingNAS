@@ -23,6 +23,9 @@
 #   pilot/submit.sh chronos [ROOT] [DATASET]             -> the frozen side of fmroute (pilot/fmroute_chronos.sbatch): Chronos-2 on the val and
 #                                                          test windows of DATASET, one 8 h job named fz_<DATASET>; needs ~/chronos-venv and
 #                                                          the weights under hf/ next to the nas tree; the root needs no data/ folder
+#   pilot/submit.sh autoctspp [ROOT] DATASET            -> AutoCTS++ with its released code (pilot/autoctspp.sbatch): one job named
+#                                                          ap_<DATASET> (JOB_NAME overrides), 3 h (TIME overrides); STEPS lists
+#                                                          feature, search, train; ROOT is unused
 #   pilot/submit.sh calibparts [ROOT] DATASET            -> STID under BasicTS with one part of our pipeline at a time
 #                                                          (pilot/calibration_parts.sbatch): one 3 h job named cp_<DATASET> (TIME
 #                                                          overrides); VARIANTS and SEEDS select the runs; ROOT is unused
@@ -72,7 +75,9 @@ case "$mode" in
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # VARIANTS and SEEDS are space lists: ALL carries them
   calibours) name=${JOB_NAME:-co_$DATASET}; extra=(--time=${TIME:-03:00:00} --output="$NAS_ROOT/logs/calibration_ours_${JOB_NAME:-$DATASET}_%j.log"); script=pilot/calibration_ours.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # VARIANTS, SEEDS, ARCH_FILE, SHARD, OUT_SUB, DUMP: ALL carries them
-  *) echo "unknown mode $mode (calibours | calibparts | train | trainone | spatial | proxies | basicts | ablation | linear | sgtrain | chronos)"; exit 1 ;;
+  autoctspp) name=${JOB_NAME:-ap_$DATASET}; extra=(--time=${TIME:-03:00:00} --output="$NAS_ROOT/logs/autoctspp_${JOB_NAME:-$DATASET}_%j.log"); script=pilot/autoctspp.sbatch
+           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # STEPS, SEEDS, ARCHS, EPOCHS, EVAL_BATCH, SHARD, LIMIT, OUT_SUB, SAMPLE_SCALE: ALL carries them
+  *) echo "unknown mode $mode (autoctspp | calibours | calibparts | train | trainone | spatial | proxies | basicts | ablation | linear | sgtrain | chronos)"; exit 1 ;;
 esac
 if [ "$mode" = basicts ] || [ "$mode" = ablation ] || [ "$mode" = calibparts ]; then
   if [ ! -d "$NAS_ROOT/BasicTS/datasets/$(tr a-z A-Z <<<"$DATASET" | sed "s/METRLA/METR-LA/;s/PEMSBAY/PEMS-BAY/")" ]; then echo "refusing: BasicTS dataset folder for $DATASET missing (run its scripts/data_preparation script)"; exit 1; fi
@@ -83,6 +88,8 @@ elif [ "$mode" = chronos ]; then
   if [ ! -x "${CHRONOS_VENV:-$HOME/chronos-venv}/bin/python" ]; then echo "refusing: the chronos venv is missing"; exit 1; fi
   if [ ! -d "${HF_HOME:-$(dirname "$NAS_ROOT")/hf}/hub/models--amazon--chronos-2" ]; then echo "refusing: the weights of amazon/chronos-2 are missing under hf/"; exit 1; fi
   mkdir -p "$ROOT"
+elif [ "$mode" = autoctspp ]; then
+  if [ ! -s "$NAS_ROOT/AutoCTS_plusplus/NAS_Net/AHC/AHC_param/AHC_0.pth" ]; then echo "refusing: the upstream tree is missing (pilot/autoctspp_setup.sh)"; exit 1; fi
 elif [ "$mode" = calibours ]; then
   if [ -n "${ARCH_FILE:-}" ]; then
     if [ ! -s "$ARCH_FILE" ]; then echo "refusing: $ARCH_FILE missing or empty"; exit 1; fi

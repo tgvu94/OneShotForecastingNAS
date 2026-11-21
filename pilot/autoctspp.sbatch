@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# AutoCTS++ with its released code at PEMS-BAY (Survey/experiments/autoctspp-plan.md).  STEPS is a space list:
+#   feature   the task embedding of the released script (TS2Vec, 20 epochs, 100 samples), timed
+#   search    the released zero-shot search with the released comparator (SAMPLE_SCALE candidates, default 300000), timed;
+#             writes results/autoctspp/<city>_p<P>/searched.npy
+#   train     pilot.autoctspp_run train on ARCHS (default: searched.npy) with SEEDS, EPOCHS, EVAL_BATCH, SHARD, LIMIT, OUT_SUB
+# The upstream tree is $NAS_ROOT/AutoCTS_plusplus (pilot/autoctspp_setup.sh).  A finished run is skipped.
+source "$SLURM_SUBMIT_DIR/pilot/env.sh"
+REPO="$PWD"; UP="$NAS_ROOT/AutoCTS_plusplus"; P="${SEQ_LEN:-12}"; R="$REPO/results/autoctspp/${DATASET:-pemsbay}_p$P"
+mkdir -p "$R"
+echo "start $(date -Is) host $(hostname) commit $(git rev-parse --short HEAD) upstream $(git -C "$UP" rev-parse --short HEAD) steps ${STEPS:-train}"
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
+export PYTHONPATH="$UP:$PYTHONPATH"
+for step in ${STEPS:-train}; do
+  t0=$(date +%s)
+  case "$step" in
+    feature) (cd "$UP/scripts" && python ../exps/generate_task_feature.py --dataset PEMS-BAY/pems-bay run --loader h5 --repr_dims 256 --seq_len "$P" --sample_num 100 --epochs 20 --ratio 0.7 0.1 0.2 2>&1 | grep -E "Training time|Finished|Error|Traceback" | tail -5)
+             cp "$UP/task_feature/PEMS-BAY/pems-bay/${P}_ts2vec_task_feature.npy" "$R/task_feature.npy" ;;
+    search)  (cd "$UP/scripts" && python ../exps/random_search.py --dataset PEMS-BAY/pems-bay --mode search --exp_id 0 --sample_scale "${SAMPLE_SCALE:-300000}" --seq_len "$P" 2>&1 | grep -E "pred time|^\[\[|Error|Traceback" | tail -5)
+             cp "$UP/results/searched_archs/PEMS-BAY/pems-bay/${P}_param_0.npy" "$R/searched.npy" ;;
+    train)   python -m pilot.autoctspp_run train --up "$UP" --seq-len "$P" --archs "${ARCHS:-$R/searched.npy}" --seeds ${SEEDS:-0} --epochs "${EPOCHS:-100}" \
+               --eval-batch "${EVAL_BATCH:-1}" ${SHARD:+--shard "$SHARD"} ${LIMIT:+--limit "$LIMIT"} --out "$R/${OUT_SUB:-train}" 2>&1 | grep -E "^data|^done|^skip|Error|Traceback|error" ;;
+    *) echo "unknown step $step" ;;
+  esac
+  echo "step $step elapsed $(( $(date +%s) - t0 )) s"
+done
+echo "end $(date -Is)"
