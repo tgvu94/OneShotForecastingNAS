@@ -42,7 +42,7 @@ SETTINGS = {
     "t25_E": (None, None, None, 0.25, "E"), "t50_E": (None, None, None, 0.50, "E"),
     "both_s25_t25": (0.25, "P", 0, 0.25, "L"),
 }
-TIMING = ["full", "s10_R0", "s25_R0", "s50_R0", "t25_L", "t50_L"]
+TIMING = ["full", "s10_R0", "s25_R0", "s50_R0", "t25_L", "t50_L", "both_s25_t25"]
 SEED_BASE = {"R": 1000, "C": 2000, "P": 3000}
 
 
@@ -306,13 +306,13 @@ def timing_archs(source: Root, n_archs: int) -> list:
     return [lines[i] for i in pick]
 
 
-def cmd_timing(source: Root, base: str, n_archs: int) -> None:
+def cmd_timing(source: Root, base: str, n_archs: int, tag: str = "timing_") -> None:
     lines = timing_archs(source, n_archs)
     for name in TIMING:
         rec = None
         if name != "full":
             rec = load_subset(root_dir(source.dataset, source.horizon, name, base) / "subset.json")
-        row = write_root(name, rec, source, lines, base, "Timing root: 3 architectures, 3 epochs; a run of this root is not a label.", tag="timing_")
+        row = write_root(name, rec, source, lines, base, "Timing root: 3 architectures, 3 epochs; a run of this root is not a label.", tag=tag)
         print(row["root"], row["subset_sha1"])
 
 
@@ -476,12 +476,13 @@ def main() -> int:
     ap.add_argument("--base", default=BASE)
     ap.add_argument("--n-archs", type=int, default=N_ARCHS)
     ap.add_argument("--batches", type=int, default=3)
+    ap.add_argument("--tag", default="timing_", help="timing: prefix of the setting name in the root name")
     a = ap.parse_args()
     source = Root(a.source, a.dataset, a.horizon)
     if a.cmd == "make":
         cmd_make(source, a.base, a.n_archs)
     elif a.cmd == "timing":
-        cmd_timing(source, a.base, a.n_archs)
+        cmd_timing(source, a.base, a.n_archs, a.tag)
     elif a.cmd == "link":
         cmd_link(source, a.base)
     else:

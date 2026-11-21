@@ -1,0 +1,38 @@
+{
+ "benchmark": "PEMS/shenzhen/shenzhen_12",
+ "graph": {
+  "edges": 2109,
+  "edges_city": 2109,
+  "isolated_share": 0.007974481658692184,
+  "mean_degree": 6.7272727272727275,
+  "n_sensors": 627
+ },
+ "horizon": 12,
+ "n_sensors_city": 627,
+ "name": "t50_L",
+ "num_train": 10368,
+ "period_rule": {
+  "method": "L",
+  "row_share": 0.4861111111111111,
+  "share": 0.5,
+  "steps_per_week": 1008,
+  "weeks_kept": [
+   5,
+   6,
+   7,
+   8,
+   9
+  ],
+  "weeks_total": 10
+ },
+ "segments": [
+  [
+   5328,
+   10368
+  ]
+ ],
+ "sensors": null,
+ "train_windows": 4933,
+ "train_windows_city": 10261,
+ "window": 96
+}

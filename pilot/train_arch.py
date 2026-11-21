@@ -44,6 +44,9 @@ def parse_args(argv=None):
     ap.add_argument("--smoke-batches", type=int, default=None,
                     help="debug only: every loader yields its first N batches; recorded in the schedule, never a benchmark label")
     ap.add_argument("--subset", default=None, help="proxy task (pilot.subset); default: <root>/subset.json when the root has one")
+    ap.add_argument("--test-at-end", action="store_true",
+                    help="evaluate the test part once, at the weights of the best validation epoch, and not after every epoch "
+                         "(a proxy task ranks by the validation MAE); the test columns of log.csv are then empty")
     ap.add_argument("--dump-forecasts", action="store_true",
                     help="keep the weights of the best epoch and, at the end, write its forecasts on the val and test splits in the "
                          "raw unit, in the order of the split: <out>/forecast_{val,test}.npy [windows, horizon, sensors] (pilot.fmroute)")
@@ -255,7 +258,7 @@ def main(argv=None) -> int:
             self.last_train_loss = float(np.mean(losses)) if losses else float("nan")
             t_eval = time.time()
             val_res = self.evaluate(self.val_loader, epoch, "val")
-            test_res = self.evaluate(self.test_loader, epoch, "test")
+            test_res = self.evaluate(self.test_loader, epoch, "test") if getattr(self, "test_each_epoch", True) else None
             self.last_eval_seconds = time.time() - t_eval
             if self.lr_scheduler_w is not None and self.lr_scheduler_type == LR_SCHEDULER_TYPE.epoch:
                 self.lr_scheduler_w.step()
@@ -349,6 +352,8 @@ def main(argv=None) -> int:
         "train_windows": dims["split_sizes"][0], "iters_per_epoch": len(train_loader),
         "subset": {"name": subset["name"], "sha1": subset["sha1"], "n_sensors": dims["num_targets"]} if subset is not None else None,
     }
+    if args.test_at_end:  # the key exists only with the flag, so the record of an earlier run stays equal
+        schedule["test_at_end"] = True
 
     # FLOPs of one forward pass on one training batch (torch.utils.flop_counter; cuDNN RNN kernels may be invisible)
     flops, flops_note = None, None
@@ -366,6 +371,7 @@ def main(argv=None) -> int:
         flops_note = f"failed: {e!r}"
 
     # ---- resume
+    trainer.test_each_epoch = not args.test_at_end
     ckpt_path, log_path, best_path = out_dir / "ckpt.pt", out_dir / "log.csv", out_dir / "best.pt"
     if (args.dump_forecasts or args.sensor_errors) and subset is not None:
         raise NotImplementedError("--dump-forecasts and --sensor-errors are for a whole city, not for a subset")
@@ -401,6 +407,8 @@ def main(argv=None) -> int:
         val_res, test_res = trainer.train_epoch(epoch)
         seconds = time.time() - t0
         train_seconds += seconds
+        if test_res is None:  # --test-at-end
+            test_res = {k: float("nan") for k in val_res}
         row = {"epoch": epoch, "train_loss": trainer.last_train_loss,
                "val_mse": float(val_res["MSE loss"]), "val_mae": float(val_res["MAE loss"]),
                "test_mse": float(test_res["MSE loss"]), "test_mae": float(test_res["MAE loss"]),
@@ -424,7 +432,7 @@ def main(argv=None) -> int:
             w.writerow(row)
         if best is None or (math.isfinite(row["val_mae"]) and row["val_mae"] < best["val_mae"]):
             best, no_improve = dict(row), 0
-            if args.dump_forecasts or args.sensor_errors:
+            if args.dump_forecasts or args.sensor_errors or args.test_at_end:
                 torch.save(model.state_dict(), best_path)
         else:
             no_improve += 1
@@ -446,12 +454,27 @@ def main(argv=None) -> int:
             print(f"early stop: no val_mae improvement for {args.patience} epochs")
             break
 
+    test_seconds = None
+    if args.test_at_end and math.isfinite(best["val_mae"]):
+        if not best_path.exists():
+            raise FileNotFoundError(f"{best_path} missing: the run was started without --test-at-end; train it again in a new folder")
+        model.load_state_dict(torch.load(best_path, map_location="cpu"))
+        t0 = time.time()
+        test_res = trainer.evaluate(trainer.test_loader, best["epoch"], "test")
+        test_seconds = round(time.time() - t0, 1)
+        best.update({"test_mse": float(test_res["MSE loss"]), "test_mae": float(test_res["MAE loss"])})
+        if args.mask_zeros:
+            best.update({"test_mae_unmasked": float(test_res["MAE loss unmasked"]), "masked_share_test": float(test_res["masked share"])})
+        if not (args.dump_forecasts or args.sensor_errors):
+            best_path.unlink(missing_ok=True)
     final = {**base, "status": "done", "epochs_run": len(history), "stopped_early": stopped_early,
              "best_epoch": best["epoch"], "val_mae": best["val_mae"], "val_mse": best["val_mse"],
              "test_mae": best["test_mae"], "test_mse": best["test_mse"],
              "train_seconds": round(train_seconds, 1),
              "peak_mem_gb": max(r["peak_mem_gb"] for r in history), "history": history,
              "finished_at": _dt.datetime.now().isoformat(timespec="seconds")}
+    if test_seconds is not None:
+        final["test_seconds"] = test_seconds
     if not math.isfinite(best["val_mae"]):
         final["status"] = "failed"
         final["error"] = "non-finite val_mae"
