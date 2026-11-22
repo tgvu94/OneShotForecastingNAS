@@ -42,6 +42,8 @@ SETTINGS = {
     "t25_E": (None, None, None, 0.25, "E"), "t50_E": (None, None, None, 0.50, "E"),
     "both_s25_t25": (0.25, "P", 0, 0.25, "L"),
 }
+# two more proxy tasks on both axes, with the period of both_s25_t25: the sensor rule and the sensor share change
+TWO_AXIS = {"both_s25R_t25": (0.25, "R", 0, 0.25, "L"), "both_s10C_t25": (0.10, "C", 0, 0.25, "L")}
 TIMING = ["full", "s10_R0", "s25_R0", "s50_R0", "t25_L", "t50_L", "both_s25_t25"]
 SEED_BASE = {"R": 1000, "C": 2000, "P": 3000}
 
@@ -279,17 +281,19 @@ def write_root(name: str, rec: dict | None, source: Root, arch_lines: list, base
     return row
 
 
-def cmd_make(source: Root, base: str, n_archs: int) -> None:
+def cmd_make(source: Root, base: str, n_archs: int, group: str = "plan") -> None:
     import pandas as pd
     city = city_inputs(source)
     lines = open(source.archs_jsonl).readlines()[:n_archs]
     rows = []
-    for name, spec in SETTINGS.items():
+    settings, note, tail = (SETTINGS, "One of the 14 proxy tasks of arm D; the settings are fixed in the plan before any run.", "") if group == "plan" else \
+        (TWO_AXIS, "A proxy task on both axes, added after the timing run: only a task on both axes has a cost share of 0.25 or less.", "_twoaxis")
+    for name, spec in settings.items():
         rec = make_subset(name, city, *spec)
-        rows.append(write_root(name, rec, source, lines, base, "One of the 14 proxy tasks of arm D; the settings are fixed in the plan before any run."))
+        rows.append(write_root(name, rec, source, lines, base, note))
         print(rows[-1]["root"], rows[-1]["subset_sha1"], rec["graph"], rec["train_windows"])
     out = Path(base) / "compare" / "tables"; out.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(rows).to_csv(out / f"subsets_{source.dataset}.csv", index=False)
+    pd.DataFrame(rows).to_csv(out / f"subsets_{source.dataset}{tail}.csv", index=False)
 
 
 def timing_archs(source: Root, n_archs: int) -> list:
@@ -476,11 +480,12 @@ def main() -> int:
     ap.add_argument("--base", default=BASE)
     ap.add_argument("--n-archs", type=int, default=N_ARCHS)
     ap.add_argument("--batches", type=int, default=3)
+    ap.add_argument("--group", default="plan", choices=["plan", "twoaxis"], help="make: the 14 settings of the plan or the two added settings on both axes")
     ap.add_argument("--tag", default="timing_", help="timing: prefix of the setting name in the root name")
     a = ap.parse_args()
     source = Root(a.source, a.dataset, a.horizon)
     if a.cmd == "make":
-        cmd_make(source, a.base, a.n_archs)
+        cmd_make(source, a.base, a.n_archs, a.group)
     elif a.cmd == "timing":
         cmd_timing(source, a.base, a.n_archs, a.tag)
     elif a.cmd == "link":
