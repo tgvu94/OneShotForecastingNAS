@@ -84,7 +84,7 @@ class Hook:
         self.t = time.time()
         if not self.path.exists():
             return 0
-        ck = torch.load(self.path, map_location="cuda" if torch.cuda.is_available() else "cpu", weights_only=False)
+        ck = torch.load(self.path, map_location="cpu", weights_only=False)      # the random states stay on the CPU; the weights are copied
         model.load_state_dict(ck["model"]); optimizer.load_state_dict(ck["optimizer"])
         tr[:], va[:], te[:] = ck["train"], ck["valid"], ck["test"]
         self.order = ck["order"]; tl.xs, tl.ys = tl._xs0[self.order], tl._ys0[self.order]
