@@ -286,11 +286,15 @@ def cmd_make(source: Root, base: str, n_archs: int, group: str = "plan") -> None
     city = city_inputs(source)
     lines = open(source.archs_jsonl).readlines()[:n_archs]
     rows = []
-    settings, note, tail = (SETTINGS, "One of the 14 proxy tasks of arm D; the settings are fixed in the plan before any run.", "") if group == "plan" else \
+    wtag = ""
+    if group == "list":   # one proxy task on a longer part of the list (--n-archs): the filter test
+        settings, note, tail, wtag = {"both_s25_t25": SETTINGS["both_s25_t25"]}, "The proxy task both_s25_t25 as a filter on a longer part of the list; a run of this root has few epochs.", "_list", "list_"
+    else:
+      settings, note, tail = (SETTINGS, "One of the 14 proxy tasks of arm D; the settings are fixed in the plan before any run.", "") if group == "plan" else \
         (TWO_AXIS, "A proxy task on both axes, added after the timing run: only a task on both axes has a cost share of 0.25 or less.", "_twoaxis")
     for name, spec in settings.items():
         rec = make_subset(name, city, *spec)
-        rows.append(write_root(name, rec, source, lines, base, note))
+        rows.append(write_root(name, rec, source, lines, base, note, tag=wtag))
         print(rows[-1]["root"], rows[-1]["subset_sha1"], rec["graph"], rec["train_windows"])
     out = Path(base) / "compare" / "tables"; out.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(rows).to_csv(out / f"subsets_{source.dataset}{tail}.csv", index=False)
@@ -480,7 +484,7 @@ def main() -> int:
     ap.add_argument("--base", default=BASE)
     ap.add_argument("--n-archs", type=int, default=N_ARCHS)
     ap.add_argument("--batches", type=int, default=3)
-    ap.add_argument("--group", default="plan", choices=["plan", "twoaxis"], help="make: the 14 settings of the plan or the two added settings on both axes")
+    ap.add_argument("--group", default="plan", choices=["plan", "twoaxis", "list"], help="make: the 14 settings of the plan or the two added settings on both axes")
     ap.add_argument("--tag", default="timing_", help="timing: prefix of the setting name in the root name")
     a = ap.parse_args()
     source = Root(a.source, a.dataset, a.horizon)

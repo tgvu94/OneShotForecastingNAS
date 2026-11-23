@@ -1,0 +1,2 @@
+root,name,subset_sha1,n_archs,n_sensors,edges,isolated_share,mean_degree,edges_city,train_windows,train_windows_city,sensor_rule,period_rule
+results/fidelity/shenzhen_h12_list_both_s25_t25,both_s25_t25,850c67efdf54e,150,157,129,0.2802547770700637,1.643312101910828,2109,2917,10261,"{""share"": 0.25, ""method"": ""P"", ""draw"": 0, ""seed"": 3000, ""strata"": 27}","{""share"": 0.25, ""method"": ""L"", ""weeks_total"": 10, ""weeks_kept"": [7, 8, 9], ""steps_per_week"": 1008, ""row_share"": 0.2916666666666667}"
