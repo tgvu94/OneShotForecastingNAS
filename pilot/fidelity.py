@@ -13,6 +13,24 @@ the first 1 and 5 picks in sigma_seed, the cost share (logged seconds over the l
 same architectures), and the cost to one sigma (the evaluator on all architectures plus the rest of the full training of
 its picks, until a pick lies within one sigma_seed of the best label).
 Tables: results/fidelity/compare/tables/baselines.csv, baselines.md.
+
+    python -m pilot.fidelity proxy --city results/benchst/shenzhen_h12 --roots results/fidelity/shenzhen_h12_both_s25_t25 ...
+
+``proxy`` reads the seed-0 runs of proxy-task roots (pilot.subset) against the label of the city root.  Score of a proxy task:
+the best validation MAE of its run; and, per k, the validation MAE after k epochs of the proxy run.  Cost share = the logged
+seconds of the proxy runs (plus the one test evaluation for the whole run) over the logged seconds of the full training of the
+same architectures at the city.  A pick is trained from the start at the city, so the cost to one sigma adds the whole full
+training of the picks.  ``baseline_at_cost`` = the epoch fidelity of the city at the same cost share (linear between two k);
+``d`` = rho inside the heads less that baseline.  Tables: proxy_<city>.csv, proxy_<city>.md.
+
+    python -m pilot.fidelity twotier --city results/benchst/shenzhen_h12 --roots results/fidelity/shenzhen_h12_both_s25_t25 ...
+
+``twotier`` replays a rule of two stages on the stored logs (no GPU).  Stage A: every architecture runs kA epochs of the proxy
+task; a share of them stays (the best of each head, or the best over all).  Stage B: the ones that stay run kB epochs at the
+city; the picks are the best by the validation MAE there.  Cost share = the seconds of stage A and stage B over the full
+training of all; ``cost_final5`` adds the rest of the full training of the first 5 picks.  The comparison rows use the same
+measures: the epoch fidelity of the city alone, and successive halving on the city curves.  A third rule runs stage A and
+then successive halving at the city on the ones that stay.  Table: twotier_<city>.csv.
 """
 from __future__ import annotations
 
@@ -81,7 +99,7 @@ def load_city(root: Root, n_archs: int) -> dict:
     return {"name": root.dataset, "df": df, "curves": curves, "sigma": float(df.seed_std.mean()), "cost": ec.load_cost(root)}
 
 
-def measure(c: dict, score: np.ndarray, eval_secs: np.ndarray, kind: str, name: str, extra: dict | None = None) -> dict:
+def measure(c: dict, score: np.ndarray, eval_secs: np.ndarray, kind: str, name: str, extra: dict | None = None, resume: bool = True) -> dict:
     """score: higher = better; eval_secs[i] = seconds the evaluator spent on architecture i (a pick continues from there)."""
     df, curves = c["df"], c["curves"]
     y, head, sigma = df.label.values, df["head"].values, c["sigma"]
@@ -91,7 +109,8 @@ def measure(c: dict, score: np.ndarray, eval_secs: np.ndarray, kind: str, name: 
     reg = lambda b: float(y[order[:b]].min() - best) / sigma
     lo, hi = boot_within(score, -y, head)
     b_sigma = next((b for b in range(1, len(y) + 1) if y[order[:b]].min() - best <= sigma), None)
-    cost_sigma = float((eval_secs.sum() + (full - eval_secs)[order[:b_sigma]].sum()) / full.sum()) if b_sigma else float("nan")
+    rest = full - eval_secs if resume else full   # a proxy-task pick starts again at the city
+    cost_sigma = float((eval_secs.sum() + rest[order[:b_sigma]].sum()) / full.sum()) if b_sigma else float("nan")
     return {"city": c["name"], "kind": kind, "evaluator": name, "n": len(y), "rho": rho(score, -y), "rho_within_head": within_head(score, -y, head),
             "within_ci_lo": lo, "within_ci_hi": hi, "regret_b1_sigma": reg(1), "regret_b5_sigma": reg(5),
             "cost_share": float(eval_secs.sum() / full.sum()), "b_sigma": b_sigma, "cost_to_sigma_share": cost_sigma, **(extra or {})}
@@ -177,15 +196,129 @@ def cmd_baselines(roots: list[Root], n_archs: int, out: Path) -> None:
     print(f"wrote {out}/baselines.csv, baselines.md: {len(t)} rows, {len(meta)} cities")
 
 
+def cmd_proxy(city_root: Root, proxy_roots: list[Path], n_archs: int, out: Path) -> None:
+    out.mkdir(parents=True, exist_ok=True)
+    c = load_city(city_root, n_archs)
+    df = c["df"]
+    base = pd.DataFrame([r for r in city_rows(c, []) if r["kind"] == "epoch fidelity"]).sort_values("cost_share")
+    at_cost = lambda x: float(np.interp(x, base.cost_share.values, base.rho_within_head.values)) if np.isfinite(x) else float("nan")
+    rows = []
+    for pr in proxy_roots:
+        hist, tsec, n_sens = {}, {}, None
+        for a in df.arch_id:
+            p = pr / "train" / a / "seed0" / "metrics.json"
+            m = json.load(open(p)) if p.exists() else {}
+            if m.get("status") == "done":
+                hist[a] = pd.DataFrame(m["history"]); tsec[a] = float(m.get("test_seconds") or 0.0)
+                n_sens = (m.get("schedule", {}).get("subset") or {}).get("n_sensors", n_sens)
+        name = pr.name.replace(f"{city_root.dataset}_h{city_root.horizon}_", "")
+        if len(hist) < len(df):
+            print(f"{name}: {len(hist)} of {len(df)} runs done -> rows over the finished runs are not written"); continue
+        H = [hist[a] for a in df.arch_id]
+        ex = {"setting": name, "n_sensors": n_sens, "epochs_mean": float(np.mean([len(h) for h in H]))}
+        s = np.array([-float(h.val_mae.min()) for h in H])
+        secs = np.array([float(h.seconds.sum()) + tsec[a] for h, a in zip(H, df.arch_id)])
+        rows.append(measure(c, s, secs, "proxy task", f"{name}: best val MAE of the run", {**ex, "k": None}, resume=False))
+        for k in KS:
+            s = np.array([-float(h.val_mae.iloc[min(k, len(h)) - 1]) for h in H])
+            secs = np.array([float(h.seconds.iloc[:min(k, len(h))].sum()) for h in H])
+            rows.append(measure(c, s, secs, "proxy task, k epochs", f"{name}: val MAE after {k} epochs", {**ex, "k": k}, resume=False))
+    t = pd.DataFrame(rows)
+    if len(t):
+        t["baseline_at_cost"] = [at_cost(x) for x in t.cost_share]
+        t["d"] = t.rho_within_head - t.baseline_at_cost
+    t.to_csv(out / f"proxy_{city_root.dataset}.csv", index=False)
+    f = lambda v, d=2: "" if v is None or (isinstance(v, float) and not np.isfinite(v)) else (f"{v:.{d}f}" if isinstance(v, float) else str(v))
+    md = [f"# fidelity: proxy tasks at {city_root.dataset}", "",
+          f"N = {len(df)}; label = mean test MAE of seeds 0 to 2 at the city; sigma_seed {c['sigma']:.5f}. Proxy runs: seed 0. "
+          "Baseline = the epoch fidelity of the city at the same cost share (linear between two k). d = rho inside heads less the baseline.", "",
+          "| setting | score | rho | rho inside heads (95 % interval) | baseline at this cost | d | regret b = 1 | regret b = 5 | cost share | cost to one sigma |",
+          "|---|---|---|---|---|---|---|---|---|---|"]
+    for _, r in t.iterrows():
+        k = r.get("k"); score = "best val MAE of the run" if k is None or not np.isfinite(k) else f"val MAE after {int(k)} epochs"
+        md.append(f"| {r['setting']} | {score} | {f(r['rho'])} | {f(r['rho_within_head'])} ({f(r['within_ci_lo'])}, {f(r['within_ci_hi'])}) | {f(r['baseline_at_cost'])} | "
+                  f"{f(r['d'])} | {f(r['regret_b1_sigma'])} | {f(r['regret_b5_sigma'])} | {f(r['cost_share'], 3)} | {f(r['cost_to_sigma_share'], 3)} |")
+    (out / f"proxy_{city_root.dataset}.md").write_text("\n".join(md) + "\n")
+    print(f"wrote {out}/proxy_{city_root.dataset}.csv and .md: {len(t)} rows")
+
+
+def _picks(c: dict, order: np.ndarray, spent: np.ndarray, full: np.ndarray, extra: dict) -> dict:
+    y, sigma = c["df"].label.values, c["sigma"]
+    reg = lambda b: float(y[order[:b]].min() - y.min()) / sigma
+    return {**extra, "regret_b1_sigma": reg(1), "regret_b5_sigma": reg(5), "cost_share": float(spent.sum() / full.sum()),
+            "cost_final5": float((spent.sum() + (full - spent)[order[:5]].sum()) / full.sum())}
+
+
+def cmd_twotier(city_root: Root, proxy_roots: list[Path], n_archs: int, out: Path) -> None:
+    out.mkdir(parents=True, exist_ok=True)
+    c = load_city(city_root, n_archs)
+    df, curves = c["df"], c["curves"]
+    y, head, sigma = df.label.values, df["head"].values, c["sigma"]
+    full = np.array([float(curves[a].seconds.sum()) for a in df.arch_id])
+    val = lambda k: np.array([float(curves[a].val_mae.iloc[min(k, len(curves[a])) - 1]) for a in df.arch_id])
+    sec = lambda k: np.array([float(curves[a].seconds.iloc[:min(k, len(curves[a]))].sum()) for a in df.arch_id])
+    rows, stage_a = [], []
+    for k in KS:
+        rows.append(_picks(c, np.argsort(val(k), kind="stable"), sec(k), full, {"rule": "epoch fidelity", "setting": "city", "kB": k}))
+    for pr in proxy_roots:
+        name = pr.name.replace(f"{city_root.dataset}_h{city_root.horizon}_", "")
+        H = []
+        for a in df.arch_id:
+            p = pr / "train" / a / "seed0" / "metrics.json"
+            m = json.load(open(p)) if p.exists() else {}
+            H.append(pd.DataFrame(m["history"]) if m.get("status") == "done" else None)
+        if any(h is None for h in H):
+            print(f"{name}: not every run is done -> skipped"); continue
+        for kA in (2, 3, 5, 8):
+            sA = np.array([float(h.val_mae.iloc[min(kA, len(h)) - 1]) for h in H])
+            cA = np.array([float(h.seconds.iloc[:min(kA, len(h))].sum()) for h in H])
+            for keep in (0.5, 0.3, 0.2):
+                for how in ("per head", "over all"):
+                    if how == "per head":
+                        stay = np.concatenate([np.where(head == h)[0][np.argsort(sA[head == h], kind="stable")[:int(np.ceil(keep * (head == h).sum()))]] for h in HEADS])
+                    else:
+                        stay = np.argsort(sA, kind="stable")[:int(np.ceil(keep * len(y)))]
+                        stage_a.append((name, kA, keep, stay, float(cA.sum())))
+                    for kB in (2, 4, 8, 20):
+                        vB = val(kB)
+                        order = stay[np.argsort(vB[stay], kind="stable")]
+                        spent = cA.copy(); spent[stay] += sec(kB)[stay]
+                        rows.append(_picks(c, order, spent, full, {"rule": "two stages", "setting": name, "kA": kA, "keep": keep, "how": how, "kB": kB,
+                                                                   "n_stay": len(stay), "best_stays": bool(int(np.argmin(y)) in stay),
+                                                                   "best_staying_sigma": float(y[stay].min() - y.min()) / sigma}))
+    d = df.rename(columns={"label": "target"})
+    max_ep = int(max(len(v) for v in curves.values()))
+    for name, kA, keep, stay, cA in stage_a:   # stage A, then successive halving at the city on the ones that stay
+        ds = d.iloc[stay].reset_index(drop=True)
+        off = float(ds.target.min() - y.min()) / sigma   # successive_halving counts its regret from the best that stays
+        for r0, eta in SH:
+            h = ec.successive_halving(ds, curves, "target", r0, eta, max_ep)
+            rows.append({"rule": "proxy stage, then successive halving", "setting": f"{name}, r0 = {r0}, eta = {eta}", "kA": kA, "keep": keep, "how": "over all",
+                         "n_stay": len(stay), "regret_b1_sigma": h["regret_top1"] / sigma + off, "regret_b5_sigma": h["regret_best_of_5"] / sigma + off,
+                         "cost_share": (cA + h["gpu_hours"] * 3600) / full.sum()})
+    for r0, eta in SH:
+        h = ec.successive_halving(d, curves, "target", r0, eta, max_ep)
+        rows.append({"rule": "successive halving", "setting": f"city, r0 = {r0}, eta = {eta}", "regret_b1_sigma": h["regret_top1"] / sigma,
+                     "regret_b5_sigma": h["regret_best_of_5"] / sigma, "cost_share": h["gpu_hours"] * 3600 / full.sum()})
+    t = pd.DataFrame(rows)
+    t.to_csv(out / f"twotier_{city_root.dataset}.csv", index=False)
+    print(f"wrote {out}/twotier_{city_root.dataset}.csv: {len(t)} rows")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("cmd", choices=["baselines"])
+    ap.add_argument("cmd", choices=["baselines", "proxy", "twotier"])
     ap.add_argument("--roots", nargs="+", required=True)
+    ap.add_argument("--city", default=None, help="proxy: the benchst root of the city (labels)")
     ap.add_argument("--n-archs", type=int, default=50)
     ap.add_argument("--out", default=OUT)
     a = ap.parse_args()
     if a.cmd == "baselines":
         cmd_baselines([Root(r) for r in a.roots], a.n_archs, Path(a.out))
+    elif a.cmd == "proxy":
+        cmd_proxy(Root(a.city), [Path(r) for r in a.roots], a.n_archs, Path(a.out))
+    else:
+        cmd_twotier(Root(a.city), [Path(r) for r in a.roots], a.n_archs, Path(a.out))
     return 0
 
 
