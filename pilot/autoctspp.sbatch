@@ -4,6 +4,8 @@
 #             embedding of every sensor and step in memory (325 sensors: above 32 GB), so submit with MEM=96G
 #   search    the released zero-shot search with the released comparator (SAMPLE_SCALE candidates, default 300000), timed;
 #             writes results/autoctspp/<city>_p<P>/searched.npy
+#             A run that does not end inside the job stops after an epoch with a checkpoint; the same command continues it.
+#             PAUSE_AFTER=n stops after n new epochs and REPEAT=m calls the runner m times (a check of the resume).
 #   train     pilot.autoctspp_run train on ARCHS (default: searched.npy) with SEEDS, EPOCHS, EVAL_BATCH, SHARD, LIMIT, OUT_SUB
 # The upstream tree is $NAS_ROOT/AutoCTS_plusplus (pilot/autoctspp_setup.sh).  A finished run is skipped.
 source "$SLURM_SUBMIT_DIR/pilot/env.sh"
@@ -19,11 +21,11 @@ for step in ${STEPS:-train}; do
              cp "$UP/task_feature/PEMS-BAY/pems-bay/${P}_ts2vec_task_feature.npy" "$R/task_feature.npy" || { echo "step $step failed; the later steps do not run"; break; } ;;
     search)  (cd "$UP/scripts" && python -u -m pilot.autoctspp_upstream ../exps/random_search.py --dataset PEMS-BAY/pems-bay --mode search --exp_id 0 --sample_scale "${SAMPLE_SCALE:-300000}" --seq_len "$P" 2>&1 | tee "$R/log_search.txt" | grep -E "pred time|^\[\[|Error|Traceback" | tail -5)
              cp "$UP/results/searched_archs/PEMS-BAY/pems-bay/${P}_param_0.npy" "$R/searched.npy" || { echo "step $step failed; the later steps do not run"; break; } ;;
-    train)   for eb in ${EVAL_BATCH:-1}; do      # more than one value: one output folder per value (a timing of the evaluation)
+    train)   for rep in $(seq "${REPEAT:-1}"); do for eb in ${EVAL_BATCH:-1}; do      # more than one value: one output folder per value (a timing of the evaluation)
                sub="${OUT_SUB:-train}"; [ "${EVAL_BATCH:-1}" != "$eb" ] && sub="${sub}_evalbatch$eb"
                python -m pilot.autoctspp_run train --up "$UP" --seq-len "$P" --archs "${ARCHS:-$R/searched.npy}" --seeds ${SEEDS:-0} --epochs "${EPOCHS:-100}" \
-                 --eval-batch "$eb" ${SHARD:+--shard "$SHARD"} ${LIMIT:+--limit "$LIMIT"} --out "$R/$sub" 2>&1 | tee "$R/log_$sub.txt" | grep -E "^data|^done|^skip|Error|Traceback|error"
-             done ;;
+                 --eval-batch "$eb" ${SHARD:+--shard "$SHARD"} ${LIMIT:+--limit "$LIMIT"} ${PAUSE_AFTER:+--pause-after "$PAUSE_AFTER"} --out "$R/$sub" 2>&1 | tee -a "$R/log_${sub}_$SLURM_JOB_ID.txt" | grep -E "^data|^done|^skip|^epoch|^paused|^resume|Error|Traceback|error"
+             done; done ;;
     *) echo "unknown step $step" ;;
   esac
   echo "step $step elapsed $(( $(date +%s) - t0 )) s"
