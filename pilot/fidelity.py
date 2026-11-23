@@ -31,6 +31,13 @@ city; the picks are the best by the validation MAE there.  Cost share = the seco
 training of all; ``cost_final5`` adds the rest of the full training of the first 5 picks.  The comparison rows use the same
 measures: the epoch fidelity of the city alone, and successive halving on the city curves.  A third rule runs stage A and
 then successive halving at the city on the ones that stay.  Table: twotier_<city>.csv.
+
+    python -m pilot.fidelity filter --city results/benchst/shenzhen_h12 --roots results/fidelity/shenzhen_h12_list_both_s25_t25 --n-archs 150
+
+``filter`` reads a proxy-task root with a longer part of the list.  Label = the seed-0 test MAE of the city; sigma_seed comes
+from the architectures with 3 seeds.  A filter keeps a share of the list by a score after k epochs (the proxy task, or the
+city itself); per filter: how many of the best 5 and of the best 10 % by label stay, rho inside the heads, the cost share,
+and successive halving at the city (r0 = 2, eta = 3) on the ones that stay.  Table: filter_<city>.csv.
 """
 from __future__ import annotations
 
@@ -305,9 +312,55 @@ def cmd_twotier(city_root: Root, proxy_roots: list[Path], n_archs: int, out: Pat
     print(f"wrote {out}/twotier_{city_root.dataset}.csv: {len(t)} rows")
 
 
+def cmd_filter(city_root: Root, proxy_roots: list[Path], n_archs: int, out: Path, keep: float = 0.2) -> None:
+    out.mkdir(parents=True, exist_ok=True)
+    sigma = load_city(city_root, 50)["sigma"]
+    rows = []
+    for pr in proxy_roots:
+        name = pr.name.replace(f"{city_root.dataset}_h{city_root.horizon}_", "")
+        recs, curves, H = [], {}, []
+        for ln in open(pr / "archs.jsonl").readlines()[:n_archs]:
+            rec = json.loads(ln); a = rec["arch_id"]
+            pc, pp = city_root.train / a / "seed0" / "metrics.json", pr / "train" / a / "seed0" / "metrics.json"
+            mc, mp = (json.load(open(p)) if p.exists() else {} for p in (pc, pp))
+            if mc.get("status") != "done" or mp.get("status") != "done":
+                continue
+            recs.append({"arch_id": a, "head": rec["genotype"]["head"], "target": float(mc["test_mae"])})
+            curves[a] = pd.DataFrame(mc["history"]); H.append(pd.DataFrame(mp["history"]))
+        df = pd.DataFrame(recs)
+        n = len(df); y, head = df.target.values, df["head"].values
+        full = np.array([float(curves[a].seconds.sum()) for a in df.arch_id])
+        top5, top10p, m = set(np.argsort(y)[:5]), set(np.argsort(y)[:max(1, n // 10)]), int(np.ceil(keep * n))
+        max_ep = int(max(len(v) for v in curves.values()))
+        sh_all = ec.successive_halving(df, curves, "target", 2, 3, max_ep)
+        rows.append({"setting": name, "filter": "none: successive halving at the city on all", "n": n, "n_stay": n,
+                     "sh_regret_b1_sigma": sh_all["regret_top1"] / sigma, "sh_regret_b5_sigma": sh_all["regret_best_of_5"] / sigma,
+                     "total_cost_share": sh_all["gpu_hours"] * 3600 / full.sum()})
+        def one(label, score, secs, k):
+            stay = np.argsort(score, kind="stable")[:m]
+            lo, hi = boot_within(-score, -y, head)
+            ds = df.iloc[stay].reset_index(drop=True)
+            h = ec.successive_halving(ds, curves, "target", 2, 3, max_ep)
+            off = float(ds.target.min() - y.min()) / sigma
+            rows.append({"setting": name, "filter": label, "k": k, "n": n, "n_stay": m, "best_stays": bool(int(np.argmin(y)) in set(stay)),
+                         "top5_stay": len(top5 & set(stay)), "top10pct_stay": len(top10p & set(stay)), "top10pct_n": len(top10p),
+                         "best_staying_sigma": off, "rho": rho(-score, -y), "rho_within_head": within_head(-score, -y, head),
+                         "within_ci_lo": lo, "within_ci_hi": hi, "cost_share": float(secs.sum() / full.sum()),
+                         "sh_regret_b1_sigma": h["regret_top1"] / sigma + off, "sh_regret_b5_sigma": h["regret_best_of_5"] / sigma + off,
+                         "total_cost_share": float((secs.sum() + h["gpu_hours"] * 3600) / full.sum())})
+        for k in sorted({k for k in (2, 3, 5, 8) if k <= min(len(h) for h in H)}):
+            one("proxy task", np.array([float(h.val_mae.iloc[k - 1]) for h in H]), np.array([float(h.seconds.iloc[:k].sum()) for h in H]), k)
+        for k in (1, 2, 4):   # the city itself as the filter; its epochs are not used again by the second stage in this count
+            one("city", np.array([float(curves[a].val_mae.iloc[min(k, len(curves[a])) - 1]) for a in df.arch_id]),
+                np.array([float(curves[a].seconds.iloc[:min(k, len(curves[a]))].sum()) for a in df.arch_id]), k)
+    t = pd.DataFrame(rows)
+    t.to_csv(out / f"filter_{city_root.dataset}.csv", index=False)
+    print(f"wrote {out}/filter_{city_root.dataset}.csv: {len(t)} rows")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("cmd", choices=["baselines", "proxy", "twotier"])
+    ap.add_argument("cmd", choices=["baselines", "proxy", "twotier", "filter"])
     ap.add_argument("--roots", nargs="+", required=True)
     ap.add_argument("--city", default=None, help="proxy: the benchst root of the city (labels)")
     ap.add_argument("--n-archs", type=int, default=50)
@@ -317,6 +370,8 @@ def main() -> int:
         cmd_baselines([Root(r) for r in a.roots], a.n_archs, Path(a.out))
     elif a.cmd == "proxy":
         cmd_proxy(Root(a.city), [Path(r) for r in a.roots], a.n_archs, Path(a.out))
+    elif a.cmd == "filter":
+        cmd_filter(Root(a.city), [Path(r) for r in a.roots], a.n_archs, Path(a.out))
     else:
         cmd_twotier(Root(a.city), [Path(r) for r in a.roots], a.n_archs, Path(a.out))
     return 0
