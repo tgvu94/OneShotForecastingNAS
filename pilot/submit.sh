@@ -26,6 +26,9 @@
 #   pilot/submit.sh autoctspp [ROOT] DATASET            -> AutoCTS++ with its released code (pilot/autoctspp.sbatch): one job named
 #                                                          ap_<DATASET> (JOB_NAME overrides), 3 h (TIME overrides); STEPS lists
 #                                                          feature, search, train; ROOT is unused
+#   pilot/submit.sh compactst [ROOT] DATASET            -> CompactST with its released code and weights (pilot/compactst.sbatch): one
+#                                                          job named cs_<DATASET> (JOB_NAME overrides), 3 h (TIME overrides); FORMS,
+#                                                          SEEDS, SHARE, INIT select the runs; MEM overrides the memory; ROOT is unused
 #   pilot/submit.sh calibparts [ROOT] DATASET            -> STID under BasicTS with one part of our pipeline at a time
 #                                                          (pilot/calibration_parts.sbatch): one 3 h job named cp_<DATASET> (TIME
 #                                                          overrides); VARIANTS and SEEDS select the runs; ROOT is unused
@@ -77,7 +80,9 @@ case "$mode" in
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # VARIANTS, SEEDS, ARCH_FILE, SHARD, OUT_SUB, DUMP, PATIENCE: ALL carries them
   autoctspp) name=${JOB_NAME:-ap_$DATASET}; extra=(--time=${TIME:-03:00:00} ${MEM:+--mem=$MEM} --output="$NAS_ROOT/logs/autoctspp_${JOB_NAME:-$DATASET}_%j.log"); script=pilot/autoctspp.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # STEPS, SEEDS, ARCHS, EPOCHS, EVAL_BATCH, SHARD, LIMIT, OUT_SUB, SAMPLE_SCALE: ALL carries them
-  *) echo "unknown mode $mode (autoctspp | calibours | calibparts | train | trainone | spatial | proxies | basicts | ablation | linear | sgtrain | chronos)"; exit 1 ;;
+  compactst) name=${JOB_NAME:-cs_$DATASET}; extra=(--time=${TIME:-03:00:00} ${MEM:+--mem=$MEM} --output="$NAS_ROOT/logs/compactst_${JOB_NAME:-$DATASET}_%j.log"); script=pilot/compactst.sbatch
+           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # FORMS, SEEDS, SHARE, INIT, MAX_EPOCHS, OUT_SUB: ALL carries them
+  *) echo "unknown mode $mode (autoctspp | compactst | calibours | calibparts | train | trainone | spatial | proxies | basicts | ablation | linear | sgtrain | chronos)"; exit 1 ;;
 esac
 if [ "$mode" = basicts ] || [ "$mode" = ablation ] || [ "$mode" = calibparts ]; then
   if [ ! -d "$NAS_ROOT/BasicTS/datasets/$(tr a-z A-Z <<<"$DATASET" | sed "s/METRLA/METR-LA/;s/PEMSBAY/PEMS-BAY/")" ]; then echo "refusing: BasicTS dataset folder for $DATASET missing (run its scripts/data_preparation script)"; exit 1; fi
@@ -90,6 +95,9 @@ elif [ "$mode" = chronos ]; then
   mkdir -p "$ROOT"
 elif [ "$mode" = autoctspp ]; then
   if [ ! -s "$NAS_ROOT/AutoCTS_plusplus/NAS_Net/AHC/AHC_param/AHC_0.pth" ]; then echo "refusing: the upstream tree is missing (pilot/autoctspp_setup.sh)"; exit 1; fi
+elif [ "$mode" = compactst ]; then
+  if [ ! -s "$NAS_ROOT/CompactST/checkpoint/stmixer.pt" ]; then echo "refusing: the upstream tree is missing (pilot/compactst_setup.sh)"; exit 1; fi
+  if ! ls "$(dirname "$NAS_ROOT")"/all_datasets/compactst/data/"$(sed "s/chengdu/chengdu_traffic/;s/shenzhen/shenzhen_traffic/" <<<"$DATASET")".dat >/dev/null 2>&1; then echo "refusing: the dataset file of $DATASET is missing (python -m pilot.compactst_data --city $DATASET)"; exit 1; fi
 elif [ "$mode" = calibours ]; then
   if [ -n "${ARCH_FILE:-}" ]; then
     if [ ! -s "$ARCH_FILE" ]; then echo "refusing: $ARCH_FILE missing or empty"; exit 1; fi
