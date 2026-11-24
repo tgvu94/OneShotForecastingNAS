@@ -6,6 +6,7 @@
 #             writes results/autoctspp/<city>_p<P>/searched.npy
 #             A run that does not end inside the job stops after an epoch with a checkpoint; the same command continues it.
 #             PAUSE_AFTER=n stops after n new epochs and REPEAT=m calls the runner m times (a check of the resume).
+#             STOP_EPOCH=n ends each run after n epochs of the EPOCHS schedule and keeps its checkpoint (a short label).
 #   train     pilot.autoctspp_run train on ARCHS (default: searched.npy) with SEEDS, EPOCHS, EVAL_BATCH, SHARD, LIMIT, OUT_SUB
 # The upstream tree is $NAS_ROOT/AutoCTS_plusplus (pilot/autoctspp_setup.sh).  A finished run is skipped.
 source "$SLURM_SUBMIT_DIR/pilot/env.sh"
@@ -24,7 +25,7 @@ for step in ${STEPS:-train}; do
     train)   for rep in $(seq "${REPEAT:-1}"); do for eb in ${EVAL_BATCH:-1}; do      # more than one value: one output folder per value (a timing of the evaluation)
                sub="${OUT_SUB:-train}"; [ "${EVAL_BATCH:-1}" != "$eb" ] && sub="${sub}_evalbatch$eb"
                python -m pilot.autoctspp_run train --up "$UP" --seq-len "$P" --archs "${ARCHS:-$R/searched.npy}" --seeds ${SEEDS:-0} --epochs "${EPOCHS:-100}" \
-                 --eval-batch "$eb" ${SHARD:+--shard "$SHARD"} ${LIMIT:+--limit "$LIMIT"} ${PAUSE_AFTER:+--pause-after "$PAUSE_AFTER"} --out "$R/$sub" 2>&1 | tee -a "$R/log_${sub}_$SLURM_JOB_ID.txt" | grep -E "^data|^done|^skip|^epoch|^paused|^resume|Error|Traceback|error"
+                 --eval-batch "$eb" ${SHARD:+--shard "$SHARD"} ${LIMIT:+--limit "$LIMIT"} ${PAUSE_AFTER:+--pause-after "$PAUSE_AFTER"} ${STOP_EPOCH:+--stop-epoch "$STOP_EPOCH"} --out "$R/$sub" 2>&1 | tee -a "$R/log_${sub}_$SLURM_JOB_ID.txt" | grep -E "^data|^done|^skip|^epoch|^paused|^stopped|^resume|Error|Traceback|error"
              done; done ;;
     *) echo "unknown step $step" ;;
   esac

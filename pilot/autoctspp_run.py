@@ -39,6 +39,10 @@ class Paused(Exception):
     """The job has no time for one more epoch; the checkpoint holds the run."""
 
 
+class Stopped(Exception):
+    """The run reached --stop-epoch; the checkpoint holds it, and a later call with a larger value or none continues it."""
+
+
 def resumable(gs):
     """The released train_arch_from_scratch with three inserted lines: load a checkpoint, start at its epoch, save after an epoch."""
     src = textwrap.dedent(inspect.getsource(gs.train_arch_from_scratch))
@@ -63,8 +67,9 @@ def resumable(gs):
 class Hook:
     """State of one run across jobs: the weights, the optimiser, the metric lists, every random state, the order of the train set."""
 
-    def __init__(self, path, epochs, deadline, pause_after, buf, label):
+    def __init__(self, path, epochs, deadline, pause_after, buf, label, stop_epoch=None):
         self.path, self.epochs, self.deadline, self.pause_after, self.buf, self.label = path, epochs, deadline, pause_after, buf, label
+        self.stop_epoch, self.curves = stop_epoch, None
         self.seconds, self.train_secs, self.epoch_secs, self.new, self.segments, self.last = 0.0, [], [], 0, 1, -1
 
     def resume(self, model, optimizer, loader, tr, va, te):
@@ -102,7 +107,7 @@ class Hook:
         self.epoch_secs.append(now - self.t); self.seconds += now - self.t; self.t = now
         self.train_secs.append(float(re.findall(r"train epoch time: ([0-9.]+)", self.buf.getvalue())[-1]))
         self.buf.seek(0); self.buf.truncate(0)
-        self.last, self.new = epoch, self.new + 1
+        self.last, self.new, self.curves = epoch, self.new + 1, (tr, va, te)
         print(f"epoch {epoch} {self.label} seconds {self.epoch_secs[-1]:.0f} val {float(va[-1][0]):.4f} test {float(te[-1][0]):.4f}",
               file=sys.__stdout__, flush=True)
         if epoch + 1 >= self.epochs:
@@ -114,6 +119,8 @@ class Hook:
         tmp = self.path.with_suffix(".tmp")
         torch.save(ck, tmp); os.replace(tmp, self.path)
         self.seconds += time.time() - self.t; self.t = time.time()
+        if self.stop_epoch and epoch + 1 >= self.stop_epoch:
+            raise Stopped()
         if (self.pause_after and self.new >= self.pause_after) or self.deadline - self.t < 1.5 * max(self.epoch_secs) + 120:
             raise Paused()
 
@@ -141,6 +148,8 @@ def main():
     p.add_argument("--out", required=True)
     p.add_argument("--wall-hours", type=float, default=7.5, help="time of this call when the job gives no end time")
     p.add_argument("--pause-after", type=int, default=None, help="stop after this number of new epochs (a check of the resume)")
+    p.add_argument("--stop-epoch", type=int, default=None,
+                   help="end each run after this number of epochs of the --epochs schedule, keep its checkpoint, write partial.json, go to the next run")
     a = p.parse_args()
     out = Path(a.out).resolve()
     archs_path = Path(a.archs).resolve() if a.archs else None
@@ -181,13 +190,15 @@ def main():
         d = out / arch_id(arch) / f"seed{seed}"
         if (d / "metrics.json").exists():
             print(f"skip {arch_id(arch)} seed {seed}", flush=True); continue
+        if a.stop_epoch and (d / "partial.json").exists() and json.loads((d / "partial.json").read_text())["epochs_done"] >= a.stop_epoch:
+            print(f"skip {arch_id(arch)} seed {seed} (stopped)", flush=True); continue
         d.mkdir(parents=True, exist_ok=True)
         utils.set_seed(seed)
         torch.backends.cudnn.deterministic = True
         if torch.cuda.is_available():
             torch.cuda.reset_peak_memory_stats()
         buf = io.StringIO()
-        hook = Hook(d / "ckpt.pt", a.epochs, deadline, a.pause_after, buf, f"{arch_id(arch)} seed {seed}")
+        hook = Hook(d / "ckpt.pt", a.epochs, deadline, a.pause_after, buf, f"{arch_id(arch)} seed {seed}", a.stop_epoch)
         try:
             with contextlib.redirect_stdout(buf):
                 tr, va, te = train(loader, adj_mx, loader["scaler"], arch, hook)
@@ -195,6 +206,20 @@ def main():
             print(f"paused {arch_id(arch)} seed {seed} after epoch {hook.last} of {a.epochs}; "
                   f"mean seconds per epoch {np.mean(hook.epoch_secs):.0f}", flush=True)
             break                                           # the job ends; the next job continues this run
+        except Stopped:
+            tr, va, te = hook.curves
+            va_mae = [float(v[0]) for v in va]
+            best = int(np.argmin(va_mae))
+            rec = {"arch": arch, "arch_id": arch_id(arch), "seed": seed, "epochs": a.epochs, "epochs_done": hook.last + 1,
+                   "eval_batch": a.eval_batch, "seconds": hook.seconds, "segments": hook.segments,
+                   "sec_per_train_epoch": float(np.mean(hook.train_secs)), "best_epoch": best, "val_mae": va_mae[best],
+                   "test_mae": float(te[best][0]), "test_rmse": float(te[best][1]), "test_mape": float(te[best][2]),
+                   "train": np.array(tr, dtype=float).tolist(), "valid": np.array(va, dtype=float).tolist(),
+                   "test": np.array(te, dtype=float)[:, :3].tolist()}
+            (d / "partial.json").write_text(json.dumps(rec))
+            print(f"stopped {arch_id(arch)} seed {seed} after epoch {hook.last} of {a.epochs} seconds {hook.seconds:.0f} "
+                  f"best {best} val {rec['val_mae']:.4f} test {rec['test_mae']:.4f}", flush=True)
+            continue
         sec, train_sec = hook.seconds, hook.train_secs
         va_mae = [float(v[0]) for v in va]
         best = int(np.argmin(va_mae))
