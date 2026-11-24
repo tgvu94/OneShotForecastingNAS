@@ -81,7 +81,7 @@ case "$mode" in
   autoctspp) name=${JOB_NAME:-ap_$DATASET}; extra=(--time=${TIME:-03:00:00} ${MEM:+--mem=$MEM} --output="$NAS_ROOT/logs/autoctspp_${JOB_NAME:-$DATASET}_%j.log"); script=pilot/autoctspp.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # STEPS, SEEDS, ARCHS, EPOCHS, EVAL_BATCH, SHARD, LIMIT, OUT_SUB, STOP_EPOCH, SAMPLE_SCALE: ALL carries them
   compactst) name=${JOB_NAME:-cs_$DATASET}; extra=(--time=${TIME:-03:00:00} ${MEM:+--mem=$MEM} --output="$NAS_ROOT/logs/compactst_${JOB_NAME:-$DATASET}_%j.log"); script=pilot/compactst.sbatch
-           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # FORMS, SEEDS, SHARE, INIT, MAX_EPOCHS, OUT_SUB: ALL carries them
+           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # DATASETS, FORMS, RANDOM_FORMS, SEEDS, SHARE, INIT, MAX_EPOCHS, OUT_SUB: ALL carries them
   *) echo "unknown mode $mode (autoctspp | compactst | calibours | calibparts | train | trainone | spatial | proxies | basicts | ablation | linear | sgtrain | chronos)"; exit 1 ;;
 esac
 if [ "$mode" = basicts ] || [ "$mode" = ablation ] || [ "$mode" = calibparts ]; then
@@ -97,7 +97,7 @@ elif [ "$mode" = autoctspp ]; then
   if [ ! -s "$NAS_ROOT/AutoCTS_plusplus/NAS_Net/AHC/AHC_param/AHC_0.pth" ]; then echo "refusing: the upstream tree is missing (pilot/autoctspp_setup.sh)"; exit 1; fi
 elif [ "$mode" = compactst ]; then
   if [ ! -s "$NAS_ROOT/CompactST/checkpoint/stmixer.pt" ]; then echo "refusing: the upstream tree is missing (pilot/compactst_setup.sh)"; exit 1; fi
-  if ! ls "$(dirname "$NAS_ROOT")"/all_datasets/compactst/data/"$(sed "s/chengdu/chengdu_traffic/;s/shenzhen/shenzhen_traffic/" <<<"$DATASET")".dat >/dev/null 2>&1; then echo "refusing: the dataset file of $DATASET is missing (python -m pilot.compactst_data --city $DATASET)"; exit 1; fi
+  [ -n "$DATASETS" ] || if ! ls "$(dirname "$NAS_ROOT")"/all_datasets/compactst/data/"$(sed "s/chengdu/chengdu_traffic/;s/shenzhen/shenzhen_traffic/" <<<"$DATASET")".dat >/dev/null 2>&1; then echo "refusing: the dataset file of $DATASET is missing (python -m pilot.compactst_data --city $DATASET)"; exit 1; fi
 elif [ "$mode" = calibours ]; then
   if [ -n "${ARCH_FILE:-}" ]; then
     if [ ! -s "$ARCH_FILE" ]; then echo "refusing: $ARCH_FILE missing or empty"; exit 1; fi

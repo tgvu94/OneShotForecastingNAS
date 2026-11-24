@@ -2,6 +2,7 @@
 
     python -m pilot.compactst_data --city chengdu shenzhen sd gba        # write the files
     python -m pilot.compactst_data --city chengdu --naive                # print the naive baselines only
+    python -m pilot.compactst_data --city ca_d3 gba_n500                 # one more district of LargeST; a sensor subset of gba
 
 Files (lib/load_data.py of the upstream repository):
   $NAS_DATA_ROOT/compactst/data/<name>.dat        raw float32, [T, N, 1], row-major
@@ -13,6 +14,8 @@ Sources:
   sd, gba             $NAS_DATA_ROOT/LargeST/2019.h5, the sensors of district 11 (716) or 4 (2,352), every sensor kept; a
                       15-minute value is the mean of the valid 5-minute values, an absent value is 0; adjacency.npy > 0.
                       (pilot.spatialgate.load_largest differs: it reads a zero as absent, and its files drop sensors.)
+  ca_d<k>             the same rules for district k of LargeST (3, 5, 6, 7, 8, 10, 12)
+  gba_n<n>            n sensors of gba, drawn without replacement by numpy default_rng(0), kept in the order of gba
 With these rules the mean of the look-back window gives the published error of the HA row of the paper at chengdu, shenzhen
 and sd (Table 4), so the values agree with the files of the paper.  The adjacency of the paper is not released.
 
@@ -28,6 +31,11 @@ import numpy as np
 
 CITIES = {"chengdu": ("chengdu_traffic", 144), "shenzhen": ("shenzhen_traffic", 144), "sd": ("sd", 96), "gba": ("gba", 96)}
 DISTRICT = {"sd": 11, "gba": 4}
+for _k in (3, 5, 6, 7, 8, 10, 12):
+    CITIES[f"ca_d{_k}"] = (f"ca_d{_k}", 96); DISTRICT[f"ca_d{_k}"] = _k
+SUBSET = {"gba_n500": ("gba", 500), "gba_n1000": ("gba", 1000)}      # name: (parent city, count of sensors)
+for _k in SUBSET:
+    CITIES[_k] = (_k, 96)
 IN_STEPS, OUT_STEPS = 96, 48
 
 
@@ -38,6 +46,11 @@ def data_root() -> Path:
 def load_source(city):
     """[T, N] float32 values and the N x N adjacency (0/1, zero diagonal)."""
     d = data_root()
+    if city in SUBSET:
+        parent, n = SUBSET[city]
+        x, A = load_source(parent)
+        keep = np.sort(np.random.default_rng(0).choice(x.shape[1], n, replace=False))
+        return x[:, keep], np.ascontiguousarray(A[np.ix_(keep, keep)])
     if city in DISTRICT:
         import h5py, pandas as pd
         meta = pd.read_csv(d / "LargeST" / "ca_meta.csv")

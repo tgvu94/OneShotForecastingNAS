@@ -200,8 +200,8 @@ def main(argv=None):
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     fs, up = load_upstream(args.up)
-    for form in args.forms:
-        for seed in args.seeds:
+    for seed in args.seeds:
+        for form in args.forms:
             f = out / f"{form}_{args.init}_share{args.share:g}_seed{seed}.json"
             if f.exists():
                 print(f"skip {f.name}"); continue
