@@ -19,6 +19,8 @@ Forms (each one change against C0, but C5, which is one change against C6):
   C6  the prompt of the last layer starts at one
   C7  MAE loss in place of Huber
   C8  no fit: the pre-trained model with no prompt and no mixing block
+  C9  no prompt, and the mixing block starts with Xavier values (active): C1 without the prompt
+  C10 C1 with the prompt of the last layer at a start of one: C6 with an active mixing block
 --init random leaves the released weights out (the same architecture from a random start).
 --share is the share of the training split (0.05 in the paper); the loader takes the first share * 0.7 of all windows.
 
@@ -33,7 +35,7 @@ import numpy as np
 
 from pilot.compactst_data import CITIES
 
-FORMS = ("C0", "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8")
+FORMS = ("C0", "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10")
 
 
 def load_upstream(up):
@@ -75,7 +77,7 @@ def build(fs, args, form, init, up):
     """The model of one run.  Returns (wrapper, list of the names of the frozen weights)."""
     import torch
     import torch.nn as nn
-    args.use_prompt, args.use_spatial = form not in ("C4", "C8"), form not in ("C4", "C8")
+    args.use_prompt, args.use_spatial = form not in ("C4", "C8", "C9"), form not in ("C4", "C8")
     model = fs.CompactST(args)
     if init == "pretrained":
         model.load_state_dict(torch.load(up / "checkpoint" / "stmixer.pt", map_location="cpu"))
@@ -102,9 +104,9 @@ def build(fs, args, form, init, up):
         wrapper = EveryLayer(model, args)
     else:
         wrapper = fs.AdaptiveTune(model, args)
-    if form in ("C5", "C6"):
+    if form in ("C5", "C6", "C10"):
         nn.init.ones_(wrapper.spatial_prompt1)
-    if form in ("C1", "C2", "C3"):
+    if form in ("C1", "C2", "C3", "C9", "C10"):
         mix = wrapper.spatial_mixer.spatial_mixing1
         nn.init.xavier_uniform_(mix.e1); nn.init.xavier_uniform_(mix.e2)
     frozen = []
