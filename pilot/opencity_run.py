@@ -221,17 +221,29 @@ def main(argv=None):
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     UP, up = load_upstream(args.up)
+    failed = 0
     for seed in args.seeds:
         for size in args.sizes:
             for form in args.forms:
                 tag = f"{size}_{form}_{args.init}_share{args.share:g}_days{args.days or 'all'}_seed{seed}"
-                if args.batch_size != 64:
-                    tag += f"_batch{args.batch_size}"
-                f = out / f"{tag}.json"
-                if f.exists() and not args.check:
-                    print(f"skip {f.name}"); continue
-                run_one(up, args.city, size, form, args.init, args.share, args.days, seed, args.max_epochs, args.batch_size, f, args.check)
-    return 0
+                # A fit that does not fit in the GPU memory runs again with half the batch; its file name says so.
+                files = [out / (tag + (f"_batch{b}" if b != 64 else "") + ".json") for b in (args.batch_size, args.batch_size // 2)]
+                done = [f for f in files if f.exists()]
+                if done and not args.check:
+                    print(f"skip {done[0].name}"); continue
+                for batch, f in zip((args.batch_size, args.batch_size // 2), files):
+                    try:
+                        run_one(up, args.city, size, form, args.init, args.share, args.days, seed, args.max_epochs, batch, f, args.check)
+                        break
+                    except RuntimeError as e:
+                        if "out of memory" not in str(e).lower():
+                            raise
+                    import gc, torch
+                    gc.collect(); torch.cuda.empty_cache()
+                    print(f"out of GPU memory: {f.name}", flush=True)
+                else:
+                    failed = 1
+    return failed
 
 
 UP = None

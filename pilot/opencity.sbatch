@@ -22,7 +22,7 @@ fit() {   # fit <init> <forms...>
   python -u -m pilot.opencity_run --up "$UP" --city "$D" --sizes ${SIZES:-mini} --forms "$@" --seeds ${SEEDS:-12} --share "$G" \
     --days "${DAYS:-0}" --init "$init" ${MAX_EPOCHS:+--max-epochs "$MAX_EPOCHS"} ${BATCH_SIZE:+--batch-size "$BATCH_SIZE"} \
     --out "$R/${OUT_SUB:-fit}" 2>&1 \
-    | tee -a "$R/log_${OUT_SUB:-fit}_$SLURM_JOB_ID.txt" | grep --line-buffered -E "^done|^skip|^no training|Error|Traceback|error"
+    | tee -a "$R/log_${OUT_SUB:-fit}_$SLURM_JOB_ID.txt" | grep --line-buffered -E "^done|^skip|^no training|^out of GPU memory|Error|Traceback|error"
   [ "${PIPESTATUS[0]}" -eq 0 ] || { echo "failed: city $D, start $init"; failed=1; }
 }
 failed=0
