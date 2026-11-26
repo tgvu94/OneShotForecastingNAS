@@ -21,6 +21,9 @@ Forms (each one change against C0, but C5, which is one change against C6):
   C8  no fit: the pre-trained model with no prompt and no mixing block
   C9  no prompt, and the mixing block starts with Xavier values (active): C1 without the prompt
   C10 C1 with the prompt of the last layer at a start of one: C6 with an active mixing block
+  C11 C9 with a scalar gate at a start of zero on the mixing term: x + a * mix(norm(x)); the fit starts at the pre-trained
+      function and the gate has a gradient (zero values in the block do not: its ReLU gives a zero gradient there)
+  C12 C11 with the prompt of the last layer at a start of one
 --init random leaves the released weights out (the same architecture from a random start).
 --share is the share of the training split (0.05 in the paper); the loader takes the first share * 0.7 of all windows.
 
@@ -35,7 +38,7 @@ import numpy as np
 
 from pilot.compactst_data import CITIES
 
-FORMS = ("C0", "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10")
+FORMS = ("C0", "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12")
 
 
 def load_upstream(up):
@@ -77,7 +80,7 @@ def build(fs, args, form, init, up):
     """The model of one run.  Returns (wrapper, list of the names of the frozen weights)."""
     import torch
     import torch.nn as nn
-    args.use_prompt, args.use_spatial = form not in ("C4", "C8", "C9"), form not in ("C4", "C8")
+    args.use_prompt, args.use_spatial = form not in ("C4", "C8", "C9", "C11"), form not in ("C4", "C8")
     model = fs.CompactST(args)
     if init == "pretrained":
         model.load_state_dict(torch.load(up / "checkpoint" / "stmixer.pt", map_location="cpu"))
@@ -104,11 +107,22 @@ def build(fs, args, form, init, up):
         wrapper = EveryLayer(model, args)
     else:
         wrapper = fs.AdaptiveTune(model, args)
-    if form in ("C5", "C6", "C10"):
+    if form in ("C5", "C6", "C10", "C12"):
         nn.init.ones_(wrapper.spatial_prompt1)
-    if form in ("C1", "C2", "C3", "C9", "C10"):
+    if form in ("C1", "C2", "C3", "C9", "C10", "C11", "C12"):
         mix = wrapper.spatial_mixer.spatial_mixing1
         nn.init.xavier_uniform_(mix.e1); nn.init.xavier_uniform_(mix.e2)
+    if form in ("C11", "C12"):
+        class GatedMixer(nn.Module):
+            """The released mixer block with a scalar gate on its mixing term (the release: out = mix(norm(x)) + x)."""
+            def __init__(self, block):
+                super().__init__()
+                self.norm, self.spatial_mixing1 = block.norm, block.spatial_mixing1
+                self.gate = nn.Parameter(torch.zeros(1))
+
+            def forward(self, x_hid):
+                return x_hid + self.gate * self.spatial_mixing1(self.norm(x_hid))
+        wrapper.spatial_mixer = GatedMixer(wrapper.spatial_mixer)
     frozen = []
     if form in ("C2", "C3"):
         keep = ("nested_norm.", "predictor.") if form == "C3" else ()
