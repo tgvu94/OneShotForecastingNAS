@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # OpenCity with its released code and weights at one city (Survey/experiments/opencity-plan.md).
-#   DATASET   one city of pilot.opencity_run (cd_didi | sz_didi)
+#   DATASET   one city of pilot.opencity_run (cd_didi | sz_didi; sd | ca_d6 | ca_d10 after pilot.opencity_data)
 #   DATASETS  a space list of cities that replaces DATASET; one process per city
 #   SIZES     a space list of mini | base | plus (default mini)
 #   FORMS     a space list of forms of the adaptation (default H0, the released fit; H8 is zero-shot); see pilot/opencity_run.py.

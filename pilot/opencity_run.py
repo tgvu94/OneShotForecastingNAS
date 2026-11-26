@@ -33,7 +33,8 @@ from pathlib import Path
 import numpy as np
 
 # city -> (name of the released files, minutes per step, weekday of the first step, holiday list of the released loader)
-CITIES = {"cd_didi": ("CD_DIDI", 10, 1, [4]), "sz_didi": ("SZ_DIDI", 10, 1, [4])}
+CITIES = {"cd_didi": ("CD_DIDI", 10, 1, [4]), "sz_didi": ("SZ_DIDI", 10, 1, [4]),
+          "sd": ("sd", 5, 5, None), "ca_d6": ("ca_d6", 5, 5, None), "ca_d10": ("ca_d10", 5, 5, None)}   # LargeST: pilot.opencity_data
 SIZES = {"mini": (128, 3, "OpenCity-mini.pth"), "base": (256, 3, "OpenCity-base.pth"), "plus": (512, 6, "OpenCity-plus.pth")}
 FORMS = ("H0", "H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8")
 MASK = 0.001                                         # mape_thresh of conf/general_conf/pretrain.conf: the loss leaves targets <= MASK out
