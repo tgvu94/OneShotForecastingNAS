@@ -44,10 +44,15 @@ def clock_indices(feat: torch.Tensor, clock: str):
         return _quant(feat[..., 0], 24), _quant(feat[..., 1], 7)
     if clock == "true":                           # minute of hour (60), hour of day (24), day of week (7)
         return _quant(feat[..., 1], 24) * 60 + _quant(feat[..., 0], 60), _quant(feat[..., 2], 7)
+    if clock == "index":                          # feature 0: the step of the day (288 steps of 5 minutes), feature 1: the day of the week
+        return feat[..., 0].round().long(), feat[..., 1].round().long()
+    if clock == "none":                           # no time feature: one constant level
+        z = torch.zeros(feat.shape[:2], dtype=torch.long, device=feat.device)
+        return z, z
     raise ValueError(f"unknown clock {clock}")
 
 
-N_TOD = {"pipeline": 24, "true": 24 * 60}
+N_TOD = {"pipeline": 24, "true": 24 * 60, "index": 288, "none": 1}
 
 
 class STID(nn.Module):
@@ -151,6 +156,21 @@ class HandNet(nn.Module):
 
     def get_weight_optimizer_parameters(self, weight_decay: float):
         return [{"params": [p for p in self.parameters() if p.requires_grad], "weight_decay": weight_decay}]
+
+
+class ReleaseNet(nn.Module):
+    """A hand model behind the interface of the AutoCTS++ network (pilot.autoctspp_run): the input is [B, C, N, T] with the scaled
+    value in channel 0 and, for the clock "index", the step of the day and the day of the week in channels 1 and 2; the output is
+    [B, H, N, 1] in the scaled unit.  The clock "none" reads channel 0 only."""
+
+    def __init__(self, name: str, clock: str, num_nodes: int, horizon: int):
+        super().__init__()
+        self.body = {"stid": STID, "staeformer": STAEformer}[name](num_nodes, horizon, clock)
+
+    def forward(self, x):
+        values = x[:, 0].transpose(1, 2)                                                     # [B, T, N]
+        feat = x[:, 1:3, 0].transpose(1, 2) if x.shape[1] >= 3 else values.new_zeros(values.shape[0], values.shape[1], 2)
+        return self.body(values[:, -IN_STEPS:], feat[:, -IN_STEPS:]).unsqueeze(-1)
 
 
 def build_hand_model(g: dict, dims: dict):

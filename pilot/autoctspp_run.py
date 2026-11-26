@@ -11,6 +11,10 @@ Survey/experiments/autoctspp-plan.md.
   python -m pilot.autoctspp_run train --archs FILE --seeds 0 1 2 --epochs 100 --eval-batch 64 --out results/autoctspp/pemsbay_p12/train
 FILE is a json list of architectures or the .npy that the released search writes.  An architecture is 7 pairs (input node,
 operator).  Its id is the 14 digits in a row.
+An entry of FILE can also be a hand model: {"hand_model": "stid" | "staeformer", "clock": "index" | "none"} (pilot.hand_models,
+published sizes).  It takes the place of the released network inside the released training function, so the split, the scaler, the
+loss, the optimiser, the schedule and the metrics are the same.  With the clock "index" the input gets two more channels, the step
+of the day and the day of the week of the file index; the released loader gives the value only.  Its id is <model>_<clock>.
 """
 import argparse, contextlib, inspect, io, json, os, random, re, sys, textwrap, time
 from pathlib import Path
@@ -22,6 +26,8 @@ DATASET_FLAGS = {"pemsbay": ["--dataset", "PEMS-BAY/pems-bay", "--datatype", "h5
 
 
 def arch_id(arch):
+    if isinstance(arch, dict):
+        return f"{arch['hand_model']}_{arch['clock']}"
     return "".join(str(int(v)) for pair in arch for v in pair)
 
 
@@ -33,6 +39,40 @@ def load_upstream(up, dataset, seq_len):
     sys.argv = ["generate_seeds.py", *DATASET_FLAGS[dataset], "--seq_len", str(seq_len), "--mode", "train"]
     import generate_seeds as gs
     return gs
+
+
+def with_clock(loader, h5_path, ratio, seq_len, batch, eval_batch, utils):
+    """The released loader with two more input channels: the step of the day (0..287) and the day of the week (0..6) of each step."""
+    import pandas as pd
+    idx = pd.read_hdf(h5_path).index
+    assert (idx[1] - idx[0]).total_seconds() == 300, "the clock of the hand models counts steps of 5 minutes"
+    tod, dow = ((idx.hour * 60 + idx.minute) // 5).to_numpy(), idx.dayofweek.to_numpy()
+    n = len(idx)
+    l1, l2 = int(n * ratio[0]), int(n * (ratio[0] + ratio[1]))
+    out = dict(loader)
+    for key, a, b in (("train", 0, l1), ("val", l1, l2), ("test", l2, n)):
+        x = loader["x_" + key]
+        S, L, N, _ = x.shape
+        assert S == b - a - 2 * seq_len + 1 and L == seq_len, f"the windows of {key} do not match the split of the release"
+        pos = a + np.arange(S)[:, None] + np.arange(L)[None]
+        clock = np.stack([tod[pos], dow[pos]], -1).astype("float32")
+        out["x_" + key] = np.concatenate([x, np.broadcast_to(clock[:, :, None, :], (S, L, N, 2))], -1)
+    out["train_loader"] = utils.DataLoader(out["x_train"], out["y_train"], batch)
+    out["val_loader"] = utils.DataLoader(out["x_val"], out["y_val"], eval_batch)
+    out["test_loader"] = utils.DataLoader(out["x_test"], out["y_test"], eval_batch)
+    return out
+
+
+def hand_network(gs):
+    """gs.Network also builds a hand model when the architecture is a hand-model record."""
+    released = gs.Network
+
+    def network(adj_mx, scaler, args, arch):
+        if isinstance(arch, dict):
+            from pilot.hand_models import ReleaseNet
+            return ReleaseNet(arch["hand_model"], arch["clock"], args.num_nodes, args.output_len)
+        return released(adj_mx, scaler, args, arch)
+    gs.Network = network
 
 
 class Paused(Exception):
@@ -128,7 +168,7 @@ class Hook:
 def read_archs(path):
     path = Path(path)
     archs = np.load(path).tolist() if path.suffix == ".npy" else json.loads(path.read_text())
-    return [[[int(a), int(b)] for a, b in arch] for arch in archs]
+    return [arch if isinstance(arch, dict) else [[int(a), int(b)] for a, b in arch] for arch in archs]
 
 
 def main():
@@ -184,6 +224,8 @@ def main():
     print(f"data {time.time() - t0:.0f} s; train {loader['x_train'].shape} val {loader['x_val'].shape} test {loader['x_test'].shape}; "
           f"gpu {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'none'}", flush=True)
     train = resumable(gs)
+    hand_network(gs)
+    clock_loader = None
     end = os.environ.get("SLURM_JOB_END_TIME")
     deadline = float(end) if end else time.time() + a.wall_hours * 3600
     for arch, seed in runs:
@@ -198,10 +240,15 @@ def main():
         if torch.cuda.is_available():
             torch.cuda.reset_peak_memory_stats()
         buf = io.StringIO()
+        run_loader = loader
+        if isinstance(arch, dict) and arch["clock"] == "index":
+            if clock_loader is None:
+                clock_loader = with_clock(loader, os.path.join("../data", g.dataset + ".h5"), g.ratio, g.seq_len, g.batch_size, a.eval_batch, utils)
+            run_loader = clock_loader
         hook = Hook(d / "ckpt.pt", a.epochs, deadline, a.pause_after, buf, f"{arch_id(arch)} seed {seed}", a.stop_epoch)
         try:
             with contextlib.redirect_stdout(buf):
-                tr, va, te = train(loader, adj_mx, loader["scaler"], arch, hook)
+                tr, va, te = train(run_loader, adj_mx, loader["scaler"], arch, hook)
         except Paused:
             print(f"paused {arch_id(arch)} seed {seed} after epoch {hook.last} of {a.epochs}; "
                   f"mean seconds per epoch {np.mean(hook.epoch_secs):.0f}", flush=True)
