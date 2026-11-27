@@ -173,6 +173,28 @@ class ReleaseNet(nn.Module):
         return self.body(values[:, -IN_STEPS:], feat[:, -IN_STEPS:]).unsqueeze(-1)
 
 
+class ClockStart(nn.Module):
+    """The input layer of the AutoCTS++ network with the clock (pilot.autoctspp_run).  The input is [B, 3, N, T]: the scaled value,
+    the step of the day (0..287) and the day of the week (0..6).  The output is that of the released input layer, [B, D, N, T].
+      channels: the released layer reads three channels, the two clock channels as fractions of their range;
+      embed:    the released layer reads the value, and one embedding of the step of the day and one of the day of the week are added."""
+
+    def __init__(self, start: nn.Module, mode: str, hid_dim: int):
+        super().__init__()
+        assert mode in ("channels", "embed"), mode
+        self.start, self.mode = start, mode
+        self.register_buffer("scale", torch.tensor([1.0, 1 / 288, 1 / 7]).view(1, 3, 1, 1))
+        if mode == "embed":
+            self.tod, self.dow = nn.Embedding(288, hid_dim), nn.Embedding(7, hid_dim)
+            nn.init.xavier_uniform_(self.tod.weight); nn.init.xavier_uniform_(self.dow.weight)
+
+    def forward(self, x):
+        if self.mode == "channels":
+            return self.start(x * self.scale)
+        tod, dow = x[:, 1, 0].round().long(), x[:, 2, 0].round().long()                      # [B, T]
+        return self.start(x[:, :1]) + (self.tod(tod) + self.dow(dow)).permute(0, 2, 1).unsqueeze(2)
+
+
 def build_hand_model(g: dict, dims: dict):
     if g["hand_model"] == "stid_spatial":         # STID with a spatial module for a set of receiver sensors (pilot.spatialgate_model)
         from pilot.spatialgate_model import SpatialHandNet

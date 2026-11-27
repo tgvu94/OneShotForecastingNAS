@@ -15,6 +15,8 @@ An entry of FILE can also be a hand model: {"hand_model": "stid" | "staeformer",
 published sizes).  It takes the place of the released network inside the released training function, so the split, the scaler, the
 loss, the optimiser, the schedule and the metrics are the same.  With the clock "index" the input gets two more channels, the step
 of the day and the day of the week of the file index; the released loader gives the value only.  Its id is <model>_<clock>.
+An entry can also be an architecture of the search space that reads the clock: {"arch": [7 pairs], "clock": "channels" | "embed"}.
+The released network is built unchanged but for its input layer (pilot.hand_models.ClockStart).  Its id is <14 digits>_clock_<mode>.
 """
 import argparse, contextlib, inspect, io, json, os, random, re, sys, textwrap, time
 from pathlib import Path
@@ -26,6 +28,8 @@ DATASET_FLAGS = {"pemsbay": ["--dataset", "PEMS-BAY/pems-bay", "--datatype", "h5
 
 
 def arch_id(arch):
+    if isinstance(arch, dict) and "arch" in arch:
+        return f"{arch_id(arch['arch'])}_clock_{arch['clock']}"
     if isinstance(arch, dict):
         return f"{arch['hand_model']}_{arch['clock']}"
     return "".join(str(int(v)) for pair in arch for v in pair)
@@ -68,6 +72,14 @@ def hand_network(gs):
     released = gs.Network
 
     def network(adj_mx, scaler, args, arch):
+        if isinstance(arch, dict) and "arch" in arch:
+            import copy
+            from pilot.hand_models import ClockStart
+            args_clock = copy.copy(args)
+            args_clock.in_dim = 3 if arch["clock"] == "channels" else 1
+            net = released(adj_mx, scaler, args_clock, arch["arch"])
+            net.start_linear = ClockStart(net.start_linear, arch["clock"], args.hid_dim)
+            return net
         if isinstance(arch, dict):
             from pilot.hand_models import ReleaseNet
             return ReleaseNet(arch["hand_model"], arch["clock"], args.num_nodes, args.output_len)
@@ -241,7 +253,7 @@ def main():
             torch.cuda.reset_peak_memory_stats()
         buf = io.StringIO()
         run_loader = loader
-        if isinstance(arch, dict) and arch["clock"] == "index":
+        if isinstance(arch, dict) and arch["clock"] != "none":
             if clock_loader is None:
                 clock_loader = with_clock(loader, os.path.join("../data", g.dataset + ".h5"), g.ratio, g.seq_len, g.batch_size, a.eval_batch, utils)
             run_loader = clock_loader
