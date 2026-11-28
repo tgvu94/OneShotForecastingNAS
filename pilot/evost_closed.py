@@ -110,7 +110,7 @@ class Closed:
             torch.cuda.reset_peak_memory_stats()
         room = .25 * torch.cuda.get_device_properties(device).total_memory if cuda else 2e9
         group = int(max(1, min(n, room // (T * d * 4))))                # sensors whose features of all fit windows stay on the device
-        part = int(max(1, min(group, 2e9 // (T * d * 8))))               # sensors of one batched solve
+        part = int(max(1, min(group, 2e9 // (T * d * 8), 1.5e9 // (d * d * 8))))     # sensors of one batched solve: the features and the Gram matrices fit
         L = len(RIDGES)
         acc = {k: np.zeros((L, n)) for k in ('hold_abs', 'loo_abs', 'fit_abs')}
         acc.update({k: np.zeros(n) for k in ('hold_cnt', 'hold_abs0', 'all_cnt', 'all_abs0', 'windows')})
