@@ -205,8 +205,9 @@ def train(opt):
             if record.is_file() and any(folder.glob('*.pkl')):
                 print('skip train %s %d seed %d' % (opt.district, year, seed), flush=True)
                 continue
-            if folder.parent.is_dir():                # an unfinished run: the upstream trainer has no resume
+            if folder.is_dir():                       # an unfinished run: the upstream trainer has no resume
                 shutil.rmtree(folder, ignore_errors=True)
+            folder.parent.mkdir(parents=True, exist_ok=True)   # two jobs of one seed start together: the upstream mkdirs fails on a folder that appears
             cmd = [sys.executable, '-u', '-m', 'pilot.evost_run', 'trainone', '--district', opt.district, '--year', str(year), '--seed', str(seed),
                    '--data', opt.data, '--gpuid', str(opt.gpuid)]
             cmd += (['--max-epochs', str(opt.max_epochs)] if opt.max_epochs else []) + (['--workers', str(opt.workers)] if opt.workers is not None else [])
