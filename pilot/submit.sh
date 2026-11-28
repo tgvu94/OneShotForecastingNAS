@@ -32,6 +32,10 @@
 #   pilot/submit.sh opencity [ROOT] DATASET             -> OpenCity with its released code and weights (pilot/opencity.sbatch): one
 #                                                          job named oc_<DATASET> (JOB_NAME overrides), 3 h (TIME overrides); SIZES, FORMS,
 #                                                          SEEDS, SHARE, DAYS, INIT select the runs; MEM, EXCLUDE as for compactst; ROOT is unused
+#   pilot/submit.sh evost [ROOT] DATASET                -> EvoST with its released code (pilot/evost.sbatch): one job named
+#                                                          ev_<DATASET> (JOB_NAME overrides), 8 h (TIME overrides); STEPS lists
+#                                                          train, export, maintain; YEARS, SEEDS, TARGETS, EVAL_SEEDS, STUDIES select
+#                                                          the runs; MEM overrides the memory; ROOT is unused
 #   pilot/submit.sh calibparts [ROOT] DATASET            -> STID under BasicTS with one part of our pipeline at a time
 #                                                          (pilot/calibration_parts.sbatch): one 3 h job named cp_<DATASET> (TIME
 #                                                          overrides); VARIANTS and SEEDS select the runs; ROOT is unused
@@ -87,7 +91,9 @@ case "$mode" in
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # DATASETS, FORMS, RANDOM_FORMS, SEEDS, SHARE, INIT, MAX_EPOCHS, OUT_SUB: ALL carries them
   opencity) name=${JOB_NAME:-oc_$DATASET}; extra=(--time=${TIME:-03:00:00} ${MEM:+--mem=$MEM} ${EXCLUDE:+--exclude=$EXCLUDE} --output="$NAS_ROOT/logs/opencity_${JOB_NAME:-$DATASET}_%j.log"); script=pilot/opencity.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # DATASETS, SIZES, FORMS, RANDOM_FORMS, SEEDS, SHARE, DAYS, INIT, MAX_EPOCHS, BATCH_SIZE, OUT_SUB: ALL carries them
-  *) echo "unknown mode $mode (autoctspp | compactst | opencity | calibours | calibparts | train | trainone | spatial | proxies | basicts | ablation | linear | sgtrain | chronos)"; exit 1 ;;
+  evost)   name=${JOB_NAME:-ev_$DATASET}; extra=(--time=${TIME:-08:00:00} ${MEM:+--mem=$MEM} --output="$NAS_ROOT/logs/evost_${JOB_NAME:-$DATASET}_%j.log"); script=pilot/evost.sbatch
+           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # STEPS, YEARS, SEEDS, TARGETS, EVAL_SEEDS, STUDIES, MAX_EPOCHS, MAX_WINDOWS, WORKERS: ALL carries them
+  *) echo "unknown mode $mode (evost | autoctspp | compactst | opencity | calibours | calibparts | train | trainone | spatial | proxies | basicts | ablation | linear | sgtrain | chronos)"; exit 1 ;;
 esac
 if [ "$mode" = basicts ] || [ "$mode" = ablation ] || [ "$mode" = calibparts ]; then
   if [ ! -d "$NAS_ROOT/BasicTS/datasets/$(tr a-z A-Z <<<"$DATASET" | sed "s/METRLA/METR-LA/;s/PEMSBAY/PEMS-BAY/")" ]; then echo "refusing: BasicTS dataset folder for $DATASET missing (run its scripts/data_preparation script)"; exit 1; fi
@@ -103,6 +109,9 @@ elif [ "$mode" = autoctspp ]; then
 elif [ "$mode" = compactst ]; then
   if [ ! -s "$NAS_ROOT/CompactST/checkpoint/stmixer.pt" ]; then echo "refusing: the upstream tree is missing (pilot/compactst_setup.sh)"; exit 1; fi
   [ -n "${DATASETS:-}" ] || if ! ls "$(dirname "$NAS_ROOT")"/all_datasets/compactst/data/"$(sed "s/chengdu/chengdu_traffic/;s/shenzhen/shenzhen_traffic/" <<<"$DATASET")".dat >/dev/null 2>&1; then echo "refusing: the dataset file of $DATASET is missing (python -m pilot.compactst_data --city $DATASET)"; exit 1; fi
+elif [ "$mode" = evost ]; then
+  if [ ! -s "$NAS_ROOT/EvoST/main.py" ] || [ ! -x "${EVOST_VENV:-$HOME/evost-venv}/bin/python" ]; then echo "refusing: the upstream tree or its venv is missing (pilot/evost_setup.sh)"; exit 1; fi
+  if [ ! -e "$(dirname "$NAS_ROOT")/all_datasets/evoxxl/$DATASET/RawData" ]; then echo "refusing: the files of $DATASET are missing (pilot/evost_setup.sh)"; exit 1; fi
 elif [ "$mode" = opencity ]; then
   if [ ! -s "$NAS_ROOT/OpenCity/model_weights/OpenCity/OpenCity-mini.pth" ]; then echo "refusing: the upstream tree is missing (pilot/opencity_setup.sh)"; exit 1; fi
 elif [ "$mode" = calibours ]; then
