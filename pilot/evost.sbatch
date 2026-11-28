@@ -6,7 +6,7 @@
 #   SEEDS     the checkpoint seeds for `train` (default "42 43 44")
 #   TARGETS   the target years for `export` and `maintain` (default "2020 2025")
 #   EVAL_SEEDS  the evaluation seeds for `export` and `maintain` (default "51 52 53"; seed s reads the checkpoint of seed s - 9)
-#   STUDIES   the studies for `maintain` (default "maintenance prompt": the upstream studies; "closed": pilot/evost_closed.py)
+#   STUDIES   the studies for `maintain` (default "maintenance prompt": the upstream studies; "closed", "closed_budget": pilot/evost_closed.py)
 #   MAX_EPOCHS, MAX_WINDOWS   bounded checks only;  WORKERS  worker processes of the upstream loaders (upstream: 32)
 # The upstream tree is $NAS_ROOT/EvoST and the Python is $EVOST_VENV (default ~/evost-venv).  A finished run is skipped.
 # The job ends with status 1 when a step fails; the later steps do not run.

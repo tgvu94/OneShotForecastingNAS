@@ -18,7 +18,8 @@ train      trains the STAEFormer checkpoint of each year and seed with the basel
            One process per checkpoint.  A finished checkpoint is skipped; an unfinished one starts again (no resume upstream).
 export     writes the maintenance bundles with the exporter of the upstream tree.
 maintain   runs the studies `maintenance` and `prompt` of the upstream tree for one period and each evaluation seed.
-           The study `closed` is ours (pilot/evost_closed.py): the closed-form update under the same protocol.
+           The studies `closed` and `closed_budget` are ours (pilot/evost_closed.py): the closed-form update under the same
+           protocol, and the three actions at each history budget.
 
 Outputs: results/evost/<district>/train/<year>_s<seed>.json (seconds, epochs, peak memory, test errors),
 results/evost/<district>/data/ (checkpoints, logs, bundles; large), results/evost/<district>_<year>/<study>_s<seed>/ (the
@@ -249,10 +250,10 @@ def maintain(opt):
                 continue
             if target.exists():                       # the upstream drivers refuse an output folder that exists
                 shutil.rmtree(target)
-            driver = [str(Path(__file__).resolve().parent / 'evost_closed.py')] if study == 'closed' else [str(UP / 'experiments' / 'evost' / 'run.py'), study]
+            driver = [str(Path(__file__).resolve().parent / 'evost_closed.py')] if study.startswith('closed') else [str(UP / 'experiments' / 'evost' / 'run.py'), study]
             cmd = [sys.executable, '-u'] + driver + ['--bundle', str(bundle), '--seed', str(seed), '--out', str(target), '--device', opt.device] + (['--max-windows', str(opt.max_windows)] if opt.max_windows else [])
             began = time.time()
-            code = subprocess.run(cmd, cwd=UP, env=dict(os.environ, EVOST_UPSTREAM=str(UP))).returncode
+            code = subprocess.run(cmd, cwd=UP, env=dict(os.environ, EVOST_UPSTREAM=str(UP), EVOST_CLOSED_STUDY='budget' if study == 'closed_budget' else '')).returncode
             row = dict(study=study, district=d, year=year, seed=seed, wall_seconds=time.time() - began, returncode=code, device=opt.device,
                        max_windows=opt.max_windows, upstream=upstream_commit(), host=os.uname().nodename, job=os.environ.get('SLURM_JOB_ID'))
             with open(root / 'wall.jsonl', 'a') as f:
