@@ -4,6 +4,7 @@
     python -m pilot.sgp_run fit --city metrla --setting release --seed 0 --forms R0
     python -m pilot.sgp_run fit --city metrla --setting release --seed 0 --split strict --forms R0 R1 R2 R3 R4 R5 R6
     python -m pilot.sgp_run fit --city metrla --setting gesn --seed 0 --forms R7
+    python -m pilot.sgp_run headroom                                 SGP against STID on the common test windows (no GPU)
 
 Settings (the files of the release under config/traffic): release = sgp_la.yaml / sgp_bay.yaml; paper = the reservoir of the
 paper at METR-LA (3 layers of 32 units); nospace = sgp_*_abl1.yaml (no spatial blocks, no graph-wide mean); gesn = gesn_*.yaml.
@@ -617,6 +618,55 @@ def check(opt) -> int:
     return 0
 
 
+def headroom(opt) -> int:
+    """SGP against STID under the published protocol, on the common test windows of pilot.calibration (the test windows of the
+    benchst split), with its scorer: the masked MAE in the raw unit, a target of 0 is missing."""
+    from pilot import calibration as cal
+    from pilot.fmroute import HORIZON as H, WINDOW, load_raw, split_rows
+    basicts = Path(os.environ.get('NAS_ROOT', REPO.parent)) / 'BasicTS'
+    L = ['# sgp: headroom of the fixed random encoder against STID', '',
+         'Masked MAE in the raw unit on the common test windows of `pilot.calibration` (a target of 0 is missing).  Mean and standard',
+         'deviation (ddof = 1) over the seeds.  g = (row of the reference - SGP) / pooled deviation, on the mean of the 12 steps; a',
+         'positive g means that SGP has the lower error.  The two sides differ in the scaler, in the treatment of zeros in the input',
+         'and in the split fractions; the common windows remove the difference in the test set only.', '']
+    for ds in opt.cities:
+        c = load_city(ds)
+        raw = load_raw(ds)[:, :, 0].astype(np.float32)
+        rows = split_rows(len(raw), WINDOW, H, 'test')                                 # first target row of each window, file rows
+        y = raw[rows[:, None] + np.arange(H)[None]]
+        v = y != 0
+        file_pos = np.full(len(c['filled']), -1)
+        file_pos[c['file_rows']] = np.arange(len(raw))
+        table = {}
+        for d in sorted((REPO / 'results' / 'sgp' / f'{ds}_h12' / 'train').glob('*/*_s*')):
+            if not (d / 'metrics.json').exists():
+                continue
+            m = json.loads((d / 'metrics.json').read_text())
+            f = np.load(d / 'forecast_test.npy', mmap_mode='r')
+            first = file_pos[m['first_target_row'] + np.arange(len(f))]
+            take = np.searchsorted(first, rows)
+            assert np.array_equal(first[take], rows), f'{d}: a common window is absent from the forecast'
+            p = np.asarray(f[take], dtype=np.float64)
+            err = np.where(v, np.abs(p - y), 0.0)
+            table.setdefault((d.parent.name, m['form']), []).append([err[:, h].sum() / v[:, h].sum() for h in (2, 5, 11)] + [err.sum() / v.sum()])
+        ref = cal.city(ds, basicts)['rows']
+        L += [f'## {ds} ({len(rows)} windows)', '', '| Row | seeds | step 3 | step 6 | step 12 | mean of 12 | sd | g against SGP (release_release, R0) |', '|---|---|---|---|---|---|---|---|']
+        stat = {k: (np.mean(a, 0), np.std(np.array(a)[:, 3], ddof=1) if len(a) > 1 else float('nan'), len(a)) for k, a in table.items()}
+        base = stat.get(('release_release', 'R0'))
+        g = lambda mean, sd: '' if base is None or not sd == sd else f'{(mean - base[0][3]) / np.sqrt((sd ** 2 + base[1] ** 2) / 2):+.1f}'   # noqa: E731
+        for name, r in ref.items():
+            if r['sd'] is not None:
+                L.append(f"| {name} | {r['seeds']} | " + ' | '.join(f'{x:.4f}' for x in r['mean'][:4]) + f" | {r['sd'][3]:.4f} | {g(r['mean'][3], r['sd'][3])} |")
+        for (setting, form), (mean, sd, k) in sorted(stat.items()):
+            L.append(f'| SGP runner, {setting}, {form} | {k} | ' + ' | '.join(f'{x:.4f}' for x in mean) + f' | {sd:.4f} | {g(mean[3], sd)} |')
+        L.append('')
+    out = REPO / 'results' / 'sgp' / 'compare' / 'HEADROOM.md'
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text('\n'.join(L) + f'\nFork commit {commit(REPO)}.\n')
+    print('\n'.join(L))
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     sub = ap.add_subparsers(dest='cmd', required=True)
@@ -632,8 +682,10 @@ def main(argv=None) -> int:
     a.add_argument('--max-rows', type=int, default=None, help='bounded checks only: the first rows of the series; output under check_<city>_h12')
     a.add_argument('--max-sensors', type=int, default=None, help='bounded checks only: the first sensors of the city')
     a.add_argument('--cpu', action='store_true')
+    a = sub.add_parser('headroom')
+    a.add_argument('--cities', nargs='+', default=sorted(SPLIT_TS))
     opt = ap.parse_args(argv)
-    return {'check': check, 'fit': fit}[opt.cmd](opt)
+    return {'check': check, 'fit': fit, 'headroom': headroom}[opt.cmd](opt)
 
 
 if __name__ == '__main__':
