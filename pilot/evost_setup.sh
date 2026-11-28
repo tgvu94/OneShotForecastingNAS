@@ -21,8 +21,9 @@ if [ ! -x "$EV/bin/python" ]; then
   module load python/3.11
   virtualenv --no-download "$EV"
 fi
-"$EV/bin/python" -c "import torch, numpy, scipy, torch_geometric, Bio, networkx, tqdm" 2>/dev/null \
-  || "$EV/bin/pip" install --no-index -q torch==2.14.0 numpy scipy torch_geometric biopython networkx tqdm
+# numpy 2.2: the exporter of the upstream tree calls numpy.lib.format._read_array_header, which numpy 2.3 and later do not have
+"$EV/bin/python" -c "import torch, scipy, torch_geometric, Bio, networkx, tqdm, numpy.lib.format as f; f._read_array_header" 2>/dev/null \
+  || "$EV/bin/pip" install --no-index -q torch==2.14.0 numpy==2.2.2 scipy torch_geometric biopython networkx tqdm
 
 D="$NAS_DATA_ROOT/evoxxl"; HF=https://huggingface.co/datasets/yind7/EvoXXLTraffic/resolve/main
 get() {   # get <path in the dataset>: download once, then check the SHA-256 of the lists of the dataset
