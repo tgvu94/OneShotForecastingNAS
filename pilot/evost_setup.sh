@@ -30,7 +30,7 @@ get() {   # get <path in the dataset>: download once, then check the SHA-256 of 
     mkdir -p "$(dirname "$f")"
     curl -sSL --fail --retry 3 -o "$f.part" "$HF/$1"; mv "$f.part" "$f"
   fi
-  case "$1" in SHA256SUMS*) return 0 ;; esac
+  case "$1" in SHA256SUMS*|full_year/catalog.json) return 0 ;; esac     # the lists of the dataset hold no line for these files
   want=$(cat "$D/hf/SHA256SUMS" "$D/hf/SHA256SUMS.full_year" | awk -v p="$1" '$2 == p {print $1; exit}')
   [ -n "$want" ] || { echo "no checksum line for $1"; exit 1; }
   [ "$(sha256sum "$f" | cut -d" " -f1)" = "$want" ] || { echo "checksum of $1 differs from the list"; exit 1; }
