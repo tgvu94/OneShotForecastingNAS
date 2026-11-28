@@ -15,13 +15,13 @@ and in the split fractions; the common windows remove the difference in the test
 | SGP runner, nospace_release, R0 | 3 | 2.8441 | 3.2582 | 3.7303 | 3.2107 | 0.0040 | +69.6 |
 | SGP runner, paper_release, R0 | 3 | 2.6886 | 3.0477 | 3.4349 | 2.9991 | 0.0028 | +1.2 |
 | SGP runner, release_release, R0 | 3 | 2.6836 | 3.0445 | 3.4336 | 2.9963 | 0.0017 | +0.0 |
-| SGP runner, release_strict, R0 | 1 | 2.6913 | 3.0578 | 3.4539 | 3.0104 | nan |  |
-| SGP runner, release_strict, R1 | 1 | 2.8428 | 3.2838 | 3.8530 | 3.2516 | nan |  |
-| SGP runner, release_strict, R2 | 1 | 3.1049 | 3.7412 | 4.6690 | 3.7401 | nan |  |
-| SGP runner, release_strict, R3 | 1 | 3.2929 | 4.0419 | 5.0844 | 4.0281 | nan |  |
-| SGP runner, release_strict, R4 | 1 | 3.0423 | 3.5481 | 4.0663 | 3.4726 | nan |  |
-| SGP runner, release_strict, R5 | 1 | 3.0793 | 3.6407 | 4.2905 | 3.5905 | nan |  |
-| SGP runner, release_strict, R6 | 1 | 3.0291 | 3.5488 | 4.0963 | 3.4772 | nan |  |
+| SGP runner, release_strict, R0 | 3 | 2.6899 | 3.0580 | 3.4525 | 3.0090 | 0.0036 | +4.5 |
+| SGP runner, release_strict, R1 | 3 | 2.8432 | 3.2846 | 3.8532 | 3.2525 | 0.0021 | +136.2 |
+| SGP runner, release_strict, R2 | 3 | 3.1001 | 3.7366 | 4.6573 | 3.7339 | 0.0055 | +180.4 |
+| SGP runner, release_strict, R3 | 3 | 3.2831 | 4.0358 | 5.0805 | 4.0215 | 0.0066 | +212.1 |
+| SGP runner, release_strict, R4 | 3 | 3.0375 | 3.5415 | 4.0613 | 3.4681 | 0.0130 | +50.8 |
+| SGP runner, release_strict, R5 | 3 | 3.0797 | 3.6410 | 4.2877 | 3.5896 | 0.0265 | +31.6 |
+| SGP runner, release_strict, R6 | 3 | 3.0313 | 3.5527 | 4.1046 | 3.4824 | 0.0135 | +50.4 |
 
 ## pemsbay (10317 windows)
 
@@ -32,5 +32,12 @@ and in the split fractions; the common windows remove the difference in the test
 | SGP runner, gesn_release, R7 | 3 | 1.5656 | 2.1203 | 2.8123 | 2.0820 | 0.0097 | +76.0 |
 | SGP runner, nospace_release, R0 | 3 | 1.3336 | 1.6706 | 1.9936 | 1.6093 | 0.0030 | +24.8 |
 | SGP runner, release_release, R0 | 3 | 1.2910 | 1.5874 | 1.8547 | 1.5264 | 0.0036 | +0.0 |
+| SGP runner, release_strict, R0 | 3 | 1.2987 | 1.6062 | 1.8920 | 1.5467 | 0.0036 | +5.6 |
+| SGP runner, release_strict, R1 | 3 | 1.5735 | 2.8182 | 5.5245 | 3.1177 | 1.6871 | +1.3 |
+| SGP runner, release_strict, R2 | 3 | 1.4632 | 1.9621 | 2.5863 | 1.9290 | 0.0060 | +80.8 |
+| SGP runner, release_strict, R3 | 3 | 1.5166 | 2.0709 | 2.7499 | 2.0315 | 0.0069 | +91.8 |
+| SGP runner, release_strict, R4 | 3 | 1.4653 | 1.8901 | 2.2912 | 1.8193 | 0.0077 | +48.9 |
+| SGP runner, release_strict, R5 | 3 | 1.4651 | 1.9313 | 2.4285 | 1.8731 | 0.0076 | +57.9 |
+| SGP runner, release_strict, R6 | 3 | 1.4556 | 1.8885 | 2.2969 | 1.8166 | 0.0047 | +68.6 |
 
-Fork commit c60e767.
+Fork commit b488330.
