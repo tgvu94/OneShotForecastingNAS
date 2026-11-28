@@ -2,7 +2,7 @@
 # Puts the released code of EvoST, its Python environment and the EvoXXLTraffic files of some districts next to the nas tree
 # (Survey/experiments/evost-plan.md).  Run on a login node (it needs the network).  Idempotent.
 #   $NAS_ROOT/EvoST                                   the upstream repository at commit $EVOST_COMMIT, unchanged
-#   $EVOST_VENV (default ~/evost-venv)                torch, PyTorch Geometric, biopython, networkx, tqdm: the baseline pipeline
+#   $EVOST_VENV (default ~/evost-venv)                torch, scipy, PyTorch Geometric, biopython, networkx, tqdm: the baseline pipeline
 #                                                     of the upstream tree imports them; the nas venv stays as it is
 #   $NAS_DATA_ROOT/evoxxl/hf/...                      the downloaded files, at their paths in the dataset yind7/EvoXXLTraffic
 #   $NAS_DATA_ROOT/evoxxl/<district>/RawData/<year>.npz, graph/<year>_adj.npz     links in the layout that the upstream code reads
@@ -20,8 +20,9 @@ if [ ! -x "$EV/bin/python" ]; then
   deactivate 2>/dev/null || true
   module load python/3.11
   virtualenv --no-download "$EV"
-  "$EV/bin/pip" install --no-index -q torch==2.14.0 numpy torch_geometric biopython networkx tqdm
 fi
+"$EV/bin/python" -c "import torch, numpy, scipy, torch_geometric, Bio, networkx, tqdm" 2>/dev/null \
+  || "$EV/bin/pip" install --no-index -q torch==2.14.0 numpy scipy torch_geometric biopython networkx tqdm
 
 D="$NAS_DATA_ROOT/evoxxl"; HF=https://huggingface.co/datasets/yind7/EvoXXLTraffic/resolve/main
 get() {   # get <path in the dataset>: download once, then check the SHA-256 of the lists of the dataset
