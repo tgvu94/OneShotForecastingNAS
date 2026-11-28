@@ -39,6 +39,9 @@
 #   pilot/submit.sh calibparts [ROOT] DATASET            -> STID under BasicTS with one part of our pipeline at a time
 #                                                          (pilot/calibration_parts.sbatch): one 3 h job named cp_<DATASET> (TIME
 #                                                          overrides); VARIANTS and SEEDS select the runs; ROOT is unused
+#   pilot/submit.sh sgp [ROOT] DATASET                  -> SGP with our runner and the closed-form readouts (pilot/sgp.sbatch): one job
+#                                                          named sgp_<DATASET> (JOB_NAME overrides), 3 h (TIME overrides); SETTINGS,
+#                                                          SPLITS, SEEDS, FORMS select the runs; MEM overrides the memory; ROOT is unused
 # Cluster: the resource flags come from $CC_CLUSTER.  Default (Nibi, Fir, Rorqual): one 3g.40gb slice of an H100, 8 CPUs, 32 GB,
 #   account def-rwpazzi_gpu.  trillium: one whole H100 (no slices there; 24 cores and the memory share come with the card),
 #   account def-rwpazzi; Trillium refuses --cpus-per-task, --mem and the slice string.  Submit there from the GPU login node, with
@@ -93,7 +96,9 @@ case "$mode" in
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # DATASETS, SIZES, FORMS, RANDOM_FORMS, SEEDS, SHARE, DAYS, INIT, MAX_EPOCHS, BATCH_SIZE, OUT_SUB: ALL carries them
   evost)   name=${JOB_NAME:-ev_$DATASET}; extra=(--time=${TIME:-08:00:00} ${MEM:+--mem=$MEM} --output="$NAS_ROOT/logs/evost_${JOB_NAME:-$DATASET}_%j.log"); script=pilot/evost.sbatch
            common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # STEPS, YEARS, SEEDS, TARGETS, EVAL_SEEDS, STUDIES, MAX_EPOCHS, MAX_WINDOWS, WORKERS: ALL carries them
-  *) echo "unknown mode $mode (evost | autoctspp | compactst | opencity | calibours | calibparts | train | trainone | spatial | proxies | basicts | ablation | linear | sgtrain | chronos)"; exit 1 ;;
+  sgp)     name=${JOB_NAME:-sgp_$DATASET}; extra=(--time=${TIME:-03:00:00} ${MEM:+--mem=$MEM} --output="$NAS_ROOT/logs/sgp_${JOB_NAME:-$DATASET}_%j.log"); script=pilot/sgp.sbatch
+           common[-1]="--export=ALL,ROOT=$ROOT,DATASET=$DATASET" ;;   # SETTINGS, SPLITS, SEEDS, FORMS, EPOCHS, MAX_ROWS: ALL carries them
+  *) echo "unknown mode $mode (sgp | evost | autoctspp | compactst | opencity | calibours | calibparts | train | trainone | spatial | proxies | basicts | ablation | linear | sgtrain | chronos)"; exit 1 ;;
 esac
 if [ "$mode" = basicts ] || [ "$mode" = ablation ] || [ "$mode" = calibparts ]; then
   if [ ! -d "$NAS_ROOT/BasicTS/datasets/$(tr a-z A-Z <<<"$DATASET" | sed "s/METRLA/METR-LA/;s/PEMSBAY/PEMS-BAY/")" ]; then echo "refusing: BasicTS dataset folder for $DATASET missing (run its scripts/data_preparation script)"; exit 1; fi
@@ -112,6 +117,9 @@ elif [ "$mode" = compactst ]; then
 elif [ "$mode" = evost ]; then
   if [ ! -s "$NAS_ROOT/EvoST/main.py" ] || [ ! -x "${EVOST_VENV:-$HOME/evost-venv}/bin/python" ]; then echo "refusing: the upstream tree or its venv is missing (pilot/evost_setup.sh)"; exit 1; fi
   if [ ! -e "$(dirname "$NAS_ROOT")/all_datasets/evoxxl/$DATASET/RawData" ]; then echo "refusing: the files of $DATASET are missing (pilot/evost_setup.sh)"; exit 1; fi
+elif [ "$mode" = sgp ]; then
+  case "$DATASET" in metrla) f=METR-LA.h5 ;; pemsbay) f=PEMS-BAY.h5 ;; *) echo "refusing: sgp runs metrla or pemsbay"; exit 1 ;; esac
+  if [ ! -s "$(dirname "$NAS_ROOT")/all_datasets/PEMS/$f" ]; then echo "refusing: $f is missing under all_datasets/PEMS (pilot/sgp_setup.sh)"; exit 1; fi
 elif [ "$mode" = opencity ]; then
   if [ ! -s "$NAS_ROOT/OpenCity/model_weights/OpenCity/OpenCity-mini.pth" ]; then echo "refusing: the upstream tree is missing (pilot/opencity_setup.sh)"; exit 1; fi
 elif [ "$mode" = calibours ]; then
